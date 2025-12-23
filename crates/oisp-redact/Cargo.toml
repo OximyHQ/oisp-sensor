@@ -1,0 +1,16 @@
+[package]
+name = "oisp-redact"
+version.workspace = true
+edition = "2021"
+license.workspace = true
+description = "Redaction action plugin for OISP Sensor"
+
+[dependencies]
+oisp-core = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+regex = { workspace = true }
+
