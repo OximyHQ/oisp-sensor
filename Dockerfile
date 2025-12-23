@@ -128,7 +128,7 @@ RUN apt-get update && apt-get install -y \
 RUN useradd -m -s /bin/bash -u 1000 oisp
 
 # Copy binaries from builder stages
-COPY --from=ebpf-builder /build/oisp-ebpf-capture/target/release/oisp-ebpf-capture /usr/local/bin/
+COPY --from=ebpf-builder /build/ebpf/target/release/oisp-ebpf-capture /usr/local/bin/
 COPY --from=userspace-builder /build/target/release/oisp-sensor /usr/local/bin/
 
 # Copy eBPF bytecode (optional, for debugging or alternative loading)

@@ -14,7 +14,10 @@ use std::any::Any;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::sync::mpsc;
+#[cfg(not(target_os = "windows"))]
 use tracing::info;
+#[cfg(target_os = "windows")]
+use tracing::{info, warn};
 
 /// Windows capture configuration
 #[derive(Debug, Clone)]
