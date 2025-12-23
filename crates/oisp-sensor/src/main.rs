@@ -10,7 +10,7 @@ use oisp_export::jsonl::{JsonlExporter, JsonlExporterConfig};
 use oisp_export::websocket::{WebSocketExporter, WebSocketExporterConfig};
 use oisp_redact::RedactionPlugin;
 use std::path::PathBuf;
-use tracing::{info, error, Level};
+use tracing::{error, info, Level};
 use tracing_subscriber::FmtSubscriber;
 
 #[derive(Parser)]
@@ -22,11 +22,11 @@ struct Cli {
     /// Increase verbosity
     #[arg(short, long, action = clap::ArgAction::Count)]
     verbose: u8,
-    
+
     /// Output format (json, text)
     #[arg(short, long, default_value = "text")]
     format: String,
-    
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -38,81 +38,81 @@ enum Commands {
         /// Output file for JSONL events
         #[arg(short, long)]
         output: Option<PathBuf>,
-        
+
         /// Start web UI
         #[arg(long, default_value = "true")]
         web: bool,
-        
+
         /// Web UI port
         #[arg(long, default_value = "7777")]
         port: u16,
-        
+
         /// Start TUI
         #[arg(long)]
         tui: bool,
-        
+
         /// Filter by process name
         #[arg(short, long)]
         process: Option<Vec<String>>,
-        
+
         /// Filter by PID
         #[arg(long)]
         pid: Option<Vec<u32>>,
-        
+
         /// Redaction mode (safe, full, minimal)
         #[arg(long, default_value = "safe")]
         redaction: String,
-        
+
         /// Disable SSL/TLS capture
         #[arg(long)]
         no_ssl: bool,
-        
+
         /// Disable process capture
         #[arg(long)]
         no_process: bool,
-        
+
         /// Disable file capture
         #[arg(long)]
         no_file: bool,
-        
+
         /// Disable network capture
         #[arg(long)]
         no_network: bool,
     },
-    
+
     /// Show captured events
     Show {
         /// Input file (JSONL)
         #[arg(short, long)]
         input: PathBuf,
-        
+
         /// Filter by event type
         #[arg(short = 't', long)]
         event_type: Option<String>,
-        
+
         /// Follow mode (tail -f style)
         #[arg(short, long)]
         follow: bool,
-        
+
         /// Number of events to show
         #[arg(short, long, default_value = "50")]
         num: usize,
     },
-    
+
     /// Analyze recorded events
     Analyze {
         /// Input file (JSONL)
         #[arg(short, long)]
         input: PathBuf,
-        
+
         /// Analysis type (inventory, traces, costs)
         #[arg(short = 't', long, default_value = "inventory")]
         analysis_type: String,
     },
-    
+
     /// Show sensor status and capabilities
     Status,
-    
+
     /// Self-test sensor capabilities
     Test,
 }
@@ -120,7 +120,7 @@ enum Commands {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
-    
+
     // Setup logging
     let log_level = match cli.verbose {
         0 => Level::WARN,
@@ -128,7 +128,7 @@ async fn main() -> anyhow::Result<()> {
         2 => Level::DEBUG,
         _ => Level::TRACE,
     };
-    
+
     let subscriber = FmtSubscriber::builder()
         .with_max_level(log_level)
         .with_target(false)
@@ -136,11 +136,11 @@ async fn main() -> anyhow::Result<()> {
         .with_file(false)
         .with_line_number(false)
         .finish();
-    
+
     tracing::subscriber::set_global_default(subscriber)?;
-    
+
     match cli.command {
-        Commands::Record { 
+        Commands::Record {
             output,
             web,
             port,
@@ -165,14 +165,19 @@ async fn main() -> anyhow::Result<()> {
                 process: !no_process,
                 file: !no_file,
                 network: !no_network,
-            }).await
+            })
+            .await
         }
-        Commands::Show { input, event_type, follow, num } => {
-            show_command(&input, event_type, follow, num).await
-        }
-        Commands::Analyze { input, analysis_type } => {
-            analyze_command(&input, &analysis_type).await
-        }
+        Commands::Show {
+            input,
+            event_type,
+            follow,
+            num,
+        } => show_command(&input, event_type, follow, num).await,
+        Commands::Analyze {
+            input,
+            analysis_type,
+        } => analyze_command(&input, &analysis_type).await,
         Commands::Status => status_command().await,
         Commands::Test => test_command().await,
     }
@@ -195,18 +200,18 @@ struct RecordConfig {
 
 async fn record_command(config: RecordConfig) -> anyhow::Result<()> {
     info!("Starting OISP Sensor...");
-    
+
     // Create pipeline
     let pipeline_config = PipelineConfig::default();
     let mut pipeline = Pipeline::new(pipeline_config);
-    
+
     // Add decoder
     pipeline.add_decode(Box::new(HttpDecoder::new()));
-    
+
     // Add enrichers
     pipeline.add_enrich(Box::new(HostEnricher::new()));
     pipeline.add_enrich(Box::new(ProcessTreeEnricher::new()));
-    
+
     // Add redaction
     let redaction = match config.redaction_mode.as_str() {
         "full" => RedactionPlugin::full_capture(),
@@ -214,7 +219,7 @@ async fn record_command(config: RecordConfig) -> anyhow::Result<()> {
         _ => RedactionPlugin::safe_mode(),
     };
     pipeline.add_action(Box::new(redaction));
-    
+
     // Add exporters
     if let Some(output_path) = config.output {
         pipeline.add_export(Box::new(JsonlExporter::new(JsonlExporterConfig {
@@ -224,36 +229,36 @@ async fn record_command(config: RecordConfig) -> anyhow::Result<()> {
             flush_each: true,
         })));
     }
-    
+
     let ws_exporter = WebSocketExporter::new(WebSocketExporterConfig {
         port: config.port,
         host: "127.0.0.1".to_string(),
         buffer_size: 1000,
     });
     pipeline.add_export(Box::new(ws_exporter));
-    
+
     // Enable traces
     pipeline.enable_traces();
-    
+
     // Get event broadcast for UI
     let event_rx = pipeline.subscribe();
     let trace_builder = pipeline.trace_builder().unwrap();
-    
+
     // Start pipeline
     pipeline.start().await?;
-    
+
     info!("Pipeline started");
-    
+
     // Start web UI if requested
     if config.web {
         let web_config = oisp_web::WebConfig {
             host: "127.0.0.1".to_string(),
             port: config.port,
         };
-        
+
         let _event_tx = pipeline.subscribe();
         let tb = trace_builder.clone();
-        
+
         tokio::spawn(async move {
             // Create a new broadcast sender from the receiver
             let (tx, _) = tokio::sync::broadcast::channel(1000);
@@ -261,16 +266,16 @@ async fn record_command(config: RecordConfig) -> anyhow::Result<()> {
                 error!("Web server error: {}", e);
             }
         });
-        
-        println!("");
+
+        println!();
         println!("  OISP Sensor v{}", env!("CARGO_PKG_VERSION"));
-        println!("");
+        println!();
         println!("  Web UI: http://127.0.0.1:{}", config.port);
-        println!("");
+        println!();
         println!("  Press Ctrl+C to stop");
-        println!("");
+        println!();
     }
-    
+
     // Start TUI if requested
     if config.tui {
         oisp_tui::run(event_rx).await?;
@@ -278,11 +283,11 @@ async fn record_command(config: RecordConfig) -> anyhow::Result<()> {
         // Wait for Ctrl+C
         tokio::signal::ctrl_c().await?;
     }
-    
+
     // Cleanup
     pipeline.stop().await?;
     info!("Sensor stopped");
-    
+
     Ok(())
 }
 
@@ -292,21 +297,21 @@ async fn show_command(
     follow: bool,
     num: usize,
 ) -> anyhow::Result<()> {
-    use std::io::{BufRead, BufReader};
     use std::fs::File;
-    
+    use std::io::{BufRead, BufReader};
+
     let file = File::open(input)?;
     let reader = BufReader::new(file);
-    
+
     let mut count = 0;
     for line in reader.lines() {
         let line = line?;
         if line.is_empty() {
             continue;
         }
-        
+
         let event: serde_json::Value = serde_json::from_str(&line)?;
-        
+
         // Filter by event type if specified
         if let Some(ref filter) = event_type {
             if let Some(et) = event.get("event_type").and_then(|v| v.as_str()) {
@@ -315,32 +320,32 @@ async fn show_command(
                 }
             }
         }
-        
+
         // Pretty print
         println!("{}", serde_json::to_string_pretty(&event)?);
-        
+
         count += 1;
         if !follow && count >= num {
             break;
         }
     }
-    
+
     if follow {
         // TODO: Implement tail -f style following
         println!("Follow mode not yet implemented");
     }
-    
+
     Ok(())
 }
 
 async fn analyze_command(input: &PathBuf, analysis_type: &str) -> anyhow::Result<()> {
-    use std::io::{BufRead, BufReader};
-    use std::fs::File;
     use std::collections::HashMap;
-    
+    use std::fs::File;
+    use std::io::{BufRead, BufReader};
+
     let file = File::open(input)?;
     let reader = BufReader::new(file);
-    
+
     let mut events: Vec<serde_json::Value> = Vec::new();
     for line in reader.lines() {
         let line = line?;
@@ -350,41 +355,53 @@ async fn analyze_command(input: &PathBuf, analysis_type: &str) -> anyhow::Result
             }
         }
     }
-    
+
     match analysis_type {
         "inventory" => {
             let mut providers: HashMap<String, u64> = HashMap::new();
             let mut models: HashMap<String, u64> = HashMap::new();
             let mut apps: HashMap<String, u64> = HashMap::new();
-            
+
             for event in &events {
                 if event.get("event_type").and_then(|v| v.as_str()) == Some("ai.request") {
                     if let Some(data) = event.get("data") {
-                        if let Some(provider) = data.get("provider").and_then(|p| p.get("name")).and_then(|n| n.as_str()) {
+                        if let Some(provider) = data
+                            .get("provider")
+                            .and_then(|p| p.get("name"))
+                            .and_then(|n| n.as_str())
+                        {
                             *providers.entry(provider.to_string()).or_default() += 1;
                         }
-                        if let Some(model) = data.get("model").and_then(|m| m.get("id")).and_then(|i| i.as_str()) {
+                        if let Some(model) = data
+                            .get("model")
+                            .and_then(|m| m.get("id"))
+                            .and_then(|i| i.as_str())
+                        {
                             *models.entry(model.to_string()).or_default() += 1;
                         }
                     }
-                    if let Some(proc) = event.get("process").and_then(|p| p.get("name")).and_then(|n| n.as_str()) {
+                    if let Some(proc) = event
+                        .get("process")
+                        .and_then(|p| p.get("name"))
+                        .and_then(|n| n.as_str())
+                    {
                         *apps.entry(proc.to_string()).or_default() += 1;
                     }
                 }
             }
-            
+
             println!("\n=== AI Inventory ===\n");
-            
+
             println!("Providers:");
             for (name, count) in providers.iter() {
                 println!("  {:<20} {:>6} requests", name, count);
             }
-            
+
             println!("\nModels:");
             for (name, count) in models.iter() {
                 println!("  {:<30} {:>6} requests", name, count);
             }
-            
+
             println!("\nApplications:");
             for (name, count) in apps.iter() {
                 println!("  {:<20} {:>6} requests", name, count);
@@ -400,93 +417,96 @@ async fn analyze_command(input: &PathBuf, analysis_type: &str) -> anyhow::Result
             println!("Unknown analysis type: {}", analysis_type);
         }
     }
-    
+
     Ok(())
 }
 
 async fn status_command() -> anyhow::Result<()> {
-    println!("");
+    println!();
     println!("OISP Sensor v{}", env!("CARGO_PKG_VERSION"));
-    println!("");
-    
+    println!();
+
     // Platform
-    println!("Platform: {} {}", std::env::consts::OS, std::env::consts::ARCH);
-    
+    println!(
+        "Platform: {} {}",
+        std::env::consts::OS,
+        std::env::consts::ARCH
+    );
+
     // Check capabilities
     #[cfg(target_os = "linux")]
     {
-        println!("");
+        println!();
         println!("Linux Capabilities:");
-        
+
         // Check if running as root
         let uid = unsafe { libc::getuid() };
         println!("  Running as root: {}", uid == 0);
-        
+
         // Check for eBPF support
         let ebpf_supported = std::path::Path::new("/sys/fs/bpf").exists();
         println!("  eBPF supported: {}", ebpf_supported);
-        
+
         // Check for BTF
         let btf_available = std::path::Path::new("/sys/kernel/btf/vmlinux").exists();
         println!("  BTF available: {}", btf_available);
-        
+
         // Check kernel version
         if let Ok(release) = std::fs::read_to_string("/proc/sys/kernel/osrelease") {
             println!("  Kernel: {}", release.trim());
         }
     }
-    
+
     #[cfg(target_os = "macos")]
     {
-        println!("");
+        println!();
         println!("macOS Capabilities:");
         println!("  System Extension: Not installed");
         println!("  Full Disk Access: Unknown");
     }
-    
+
     #[cfg(target_os = "windows")]
     {
-        println!("");
+        println!();
         println!("Windows Capabilities:");
         println!("  Running as Administrator: Unknown");
         println!("  ETW access: Unknown");
     }
-    
-    println!("");
-    
+
+    println!();
+
     Ok(())
 }
 
 async fn test_command() -> anyhow::Result<()> {
     println!("Running sensor self-test...\n");
-    
+
     // Test 1: Event creation
     print!("  Creating test events... ");
     let envelope = oisp_core::events::envelope::EventEnvelope::new("test");
     println!("OK (event_id: {})", envelope.event_id);
-    
+
     // Test 2: Provider detection
     print!("  Testing provider detection... ");
     let registry = oisp_core::providers::ProviderRegistry::new();
     let provider = registry.detect_from_domain("api.openai.com");
     println!("OK (api.openai.com -> {:?})", provider);
-    
+
     // Test 3: Redaction
     print!("  Testing redaction... ");
     let config = oisp_core::redaction::RedactionConfig::default();
     let result = oisp_core::redaction::redact("My API key is sk-proj-abc123", &config);
     let passed = result.content.contains("[API_KEY_REDACTED]");
     println!("{}", if passed { "OK" } else { "FAILED" });
-    
+
     // Test 4: JSON serialization
     print!("  Testing JSON serialization... ");
     let envelope = oisp_core::events::envelope::EventEnvelope::new("test");
     let json = serde_json::to_string(&envelope)?;
     let _: oisp_core::events::envelope::EventEnvelope = serde_json::from_str(&json)?;
     println!("OK");
-    
+
     println!("\nAll tests passed!\n");
-    
+
     Ok(())
 }
-

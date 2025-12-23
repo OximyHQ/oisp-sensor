@@ -16,13 +16,11 @@ pub mod trace;
 
 // Re-export commonly used types
 pub use events::{
-    OispEvent, EventType, EventEnvelope,
-    Actor, Confidence, Host, ProcessInfo, Source,
+    Actor, Confidence, EventEnvelope, EventType, Host, OispEvent, ProcessInfo, Source,
 };
 pub use pipeline::{Pipeline, PipelineConfig};
 pub use plugins::{
-    CapturePlugin, DecodePlugin, EnrichPlugin, 
-    ActionPlugin, ExportPlugin, Plugin, PluginInfo,
+    ActionPlugin, CapturePlugin, DecodePlugin, EnrichPlugin, ExportPlugin, Plugin, PluginInfo,
 };
 pub use providers::{Provider, ProviderRegistry};
 pub use trace::{AgentTrace, Span, SpanKind};
@@ -32,4 +30,3 @@ pub const OISP_VERSION: &str = "0.1";
 
 /// Sensor version
 pub const SENSOR_VERSION: &str = env!("CARGO_PKG_VERSION");
-

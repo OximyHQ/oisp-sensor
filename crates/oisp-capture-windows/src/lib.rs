@@ -5,29 +5,29 @@
 //! Note: Full capture requires running as Administrator and
 //! may require service installation.
 
-use oisp_core::plugins::{
-    CapturePlugin, Plugin, PluginInfo, PluginConfig, PluginResult, PluginError,
-    RawCaptureEvent, CaptureStats,
-};
 use async_trait::async_trait;
+use oisp_core::plugins::{
+    CapturePlugin, CaptureStats, Plugin, PluginConfig, PluginError, PluginInfo, PluginResult,
+    RawCaptureEvent,
+};
 use std::any::Any;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use tracing::{info, warn};
+use tracing::info;
 
 /// Windows capture configuration
 #[derive(Debug, Clone)]
 pub struct WindowsCaptureConfig {
     /// Enable process capture
     pub process: bool,
-    
+
     /// Enable file capture
     pub file: bool,
-    
+
     /// Enable network capture
     pub network: bool,
-    
+
     /// Use ETW (requires elevation)
     pub use_etw: bool,
 }
@@ -61,7 +61,7 @@ impl WindowsCapture {
     pub fn new() -> Self {
         Self::with_config(WindowsCaptureConfig::default())
     }
-    
+
     pub fn with_config(config: WindowsCaptureConfig) -> Self {
         Self {
             config,
@@ -74,14 +74,14 @@ impl WindowsCapture {
             }),
         }
     }
-    
+
     /// Check if running with Administrator privileges
     #[cfg(target_os = "windows")]
     pub fn is_elevated(&self) -> bool {
         // TODO: Check if running as Administrator
         false
     }
-    
+
     #[cfg(not(target_os = "windows"))]
     pub fn is_elevated(&self) -> bool {
         false
@@ -98,15 +98,15 @@ impl PluginInfo for WindowsCapture {
     fn name(&self) -> &str {
         "windows-capture"
     }
-    
+
     fn version(&self) -> &str {
         env!("CARGO_PKG_VERSION")
     }
-    
+
     fn description(&self) -> &str {
         "Windows capture using Event Tracing for Windows (ETW)"
     }
-    
+
     fn is_available(&self) -> bool {
         cfg!(target_os = "windows")
     }
@@ -125,16 +125,16 @@ impl Plugin for WindowsCapture {
         }
         Ok(())
     }
-    
+
     fn shutdown(&mut self) -> PluginResult<()> {
         self.running.store(false, Ordering::SeqCst);
         Ok(())
     }
-    
+
     fn as_any(&self) -> &dyn Any {
         self
     }
-    
+
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
@@ -147,15 +147,15 @@ impl CapturePlugin for WindowsCapture {
         {
             return Err(PluginError::NotSupported);
         }
-        
+
         #[cfg(target_os = "windows")]
         {
             if self.running.load(Ordering::SeqCst) {
                 return Err(PluginError::OperationFailed("Already running".into()));
             }
-            
+
             self.running.store(true, Ordering::SeqCst);
-            
+
             if self.config.use_etw {
                 if self.is_elevated() {
                     info!("Starting Windows capture with ETW");
@@ -168,21 +168,21 @@ impl CapturePlugin for WindowsCapture {
                 info!("Starting Windows basic capture (metadata only)");
                 // TODO: Use WMI, netstat, etc.
             }
-            
+
             Ok(())
         }
     }
-    
+
     async fn stop(&mut self) -> PluginResult<()> {
         info!("Stopping Windows capture...");
         self.running.store(false, Ordering::SeqCst);
         Ok(())
     }
-    
+
     fn is_running(&self) -> bool {
         self.running.load(Ordering::SeqCst)
     }
-    
+
     fn stats(&self) -> CaptureStats {
         CaptureStats {
             events_captured: self.stats.events_captured.load(Ordering::Relaxed),
@@ -192,4 +192,3 @@ impl CapturePlugin for WindowsCapture {
         }
     }
 }
-

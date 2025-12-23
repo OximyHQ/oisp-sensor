@@ -3,11 +3,7 @@
 mod api;
 mod ws;
 
-use axum::{
-    routing::get,
-    Router,
-    response::Html,
-};
+use axum::{response::Html, routing::get, Router};
 use oisp_core::events::OispEvent;
 use oisp_core::trace::TraceBuilder;
 use std::sync::Arc;
@@ -49,12 +45,12 @@ pub async fn start_server(
         trace_builder,
         events: Arc::new(RwLock::new(Vec::new())),
     });
-    
+
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
         .allow_headers(Any);
-    
+
     let app = Router::new()
         .route("/", get(index))
         .route("/timeline", get(timeline_page))
@@ -65,13 +61,13 @@ pub async fn start_server(
         .route("/ws", get(ws::ws_handler))
         .layer(cors)
         .with_state(state);
-    
+
     let addr = format!("{}:{}", config.host, config.port);
     info!("Web UI available at http://{}", addr);
-    
+
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(listener, app).await?;
-    
+
     Ok(())
 }
 
@@ -82,4 +78,3 @@ async fn index() -> Html<&'static str> {
 async fn timeline_page() -> Html<&'static str> {
     Html(include_str!("../static/timeline.html"))
 }
-

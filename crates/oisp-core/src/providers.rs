@@ -52,7 +52,7 @@ impl Provider {
             Provider::Unknown => "Unknown",
         }
     }
-    
+
     pub fn is_local(&self) -> bool {
         matches!(self, Provider::Ollama | Provider::LmStudio | Provider::Vllm)
     }
@@ -83,7 +83,7 @@ impl ProviderRegistry {
         registry.load_defaults();
         registry
     }
-    
+
     fn load_defaults(&mut self) {
         // OpenAI
         self.register(ProviderConfig {
@@ -93,7 +93,7 @@ impl ProviderRegistry {
             api_key_prefixes: vec!["sk-".into(), "sk-proj-".into(), "sk-svcacct-".into()],
             auth_header: Some("Authorization".into()),
         });
-        
+
         // Anthropic
         self.register(ProviderConfig {
             provider: Provider::Anthropic,
@@ -102,7 +102,7 @@ impl ProviderRegistry {
             api_key_prefixes: vec!["sk-ant-".into()],
             auth_header: Some("x-api-key".into()),
         });
-        
+
         // Google
         self.register(ProviderConfig {
             provider: Provider::Google,
@@ -114,7 +114,7 @@ impl ProviderRegistry {
             api_key_prefixes: vec![],
             auth_header: None,
         });
-        
+
         // Azure OpenAI
         self.register(ProviderConfig {
             provider: Provider::AzureOpenAI,
@@ -123,7 +123,7 @@ impl ProviderRegistry {
             api_key_prefixes: vec![],
             auth_header: Some("api-key".into()),
         });
-        
+
         // AWS Bedrock
         self.register(ProviderConfig {
             provider: Provider::AwsBedrock,
@@ -135,7 +135,7 @@ impl ProviderRegistry {
             api_key_prefixes: vec![],
             auth_header: None,
         });
-        
+
         // Cohere
         self.register(ProviderConfig {
             provider: Provider::Cohere,
@@ -144,7 +144,7 @@ impl ProviderRegistry {
             api_key_prefixes: vec![],
             auth_header: Some("Authorization".into()),
         });
-        
+
         // Mistral
         self.register(ProviderConfig {
             provider: Provider::Mistral,
@@ -153,7 +153,7 @@ impl ProviderRegistry {
             api_key_prefixes: vec![],
             auth_header: Some("Authorization".into()),
         });
-        
+
         // Groq
         self.register(ProviderConfig {
             provider: Provider::Groq,
@@ -162,7 +162,7 @@ impl ProviderRegistry {
             api_key_prefixes: vec!["gsk_".into()],
             auth_header: Some("Authorization".into()),
         });
-        
+
         // Together
         self.register(ProviderConfig {
             provider: Provider::Together,
@@ -171,7 +171,7 @@ impl ProviderRegistry {
             api_key_prefixes: vec![],
             auth_header: Some("Authorization".into()),
         });
-        
+
         // Fireworks
         self.register(ProviderConfig {
             provider: Provider::Fireworks,
@@ -180,7 +180,7 @@ impl ProviderRegistry {
             api_key_prefixes: vec![],
             auth_header: Some("Authorization".into()),
         });
-        
+
         // Replicate
         self.register(ProviderConfig {
             provider: Provider::Replicate,
@@ -189,7 +189,7 @@ impl ProviderRegistry {
             api_key_prefixes: vec!["r8_".into()],
             auth_header: Some("Authorization".into()),
         });
-        
+
         // Hugging Face
         self.register(ProviderConfig {
             provider: Provider::HuggingFace,
@@ -198,7 +198,7 @@ impl ProviderRegistry {
             api_key_prefixes: vec!["hf_".into()],
             auth_header: Some("Authorization".into()),
         });
-        
+
         // Perplexity
         self.register(ProviderConfig {
             provider: Provider::Perplexity,
@@ -207,7 +207,7 @@ impl ProviderRegistry {
             api_key_prefixes: vec!["pplx-".into()],
             auth_header: Some("Authorization".into()),
         });
-        
+
         // DeepSeek
         self.register(ProviderConfig {
             provider: Provider::DeepSeek,
@@ -216,46 +216,40 @@ impl ProviderRegistry {
             api_key_prefixes: vec![],
             auth_header: Some("Authorization".into()),
         });
-        
+
         // Ollama
         self.register(ProviderConfig {
             provider: Provider::Ollama,
-            domains: vec![
-                "localhost:11434".into(),
-                "127.0.0.1:11434".into(),
-            ],
+            domains: vec!["localhost:11434".into(), "127.0.0.1:11434".into()],
             domain_patterns: vec!["*.local:11434".into()],
             api_key_prefixes: vec![],
             auth_header: None,
         });
-        
+
         // LM Studio
         self.register(ProviderConfig {
             provider: Provider::LmStudio,
-            domains: vec![
-                "localhost:1234".into(),
-                "127.0.0.1:1234".into(),
-            ],
+            domains: vec!["localhost:1234".into(), "127.0.0.1:1234".into()],
             domain_patterns: vec![],
             api_key_prefixes: vec![],
             auth_header: None,
         });
     }
-    
+
     fn register(&mut self, config: ProviderConfig) {
         for domain in &config.domains {
             self.domain_lookup.insert(domain.clone(), config.provider);
         }
         self.providers.push(config);
     }
-    
+
     /// Detect provider from domain
     pub fn detect_from_domain(&self, domain: &str) -> Option<Provider> {
         // Direct lookup
         if let Some(provider) = self.domain_lookup.get(domain) {
             return Some(*provider);
         }
-        
+
         // Pattern matching
         for config in &self.providers {
             for pattern in &config.domain_patterns {
@@ -264,15 +258,15 @@ impl ProviderRegistry {
                 }
             }
         }
-        
+
         None
     }
-    
+
     /// Detect provider from API key prefix
     pub fn detect_from_key_prefix(&self, key: &str) -> Option<Provider> {
         // Collect all matching prefixes with their length and provider
         let mut matches: Vec<(usize, Provider)> = Vec::new();
-        
+
         for config in &self.providers {
             for prefix in &config.api_key_prefixes {
                 if key.starts_with(prefix) {
@@ -280,18 +274,19 @@ impl ProviderRegistry {
                 }
             }
         }
-        
+
         // Return the provider with the longest matching prefix
-        matches.into_iter()
+        matches
+            .into_iter()
             .max_by_key(|(len, _)| *len)
             .map(|(_, provider)| provider)
     }
-    
+
     /// Get config for a provider
     pub fn get_config(&self, provider: Provider) -> Option<&ProviderConfig> {
         self.providers.iter().find(|c| c.provider == provider)
     }
-    
+
     /// Check if a domain is a known AI provider
     pub fn is_ai_domain(&self, domain: &str) -> bool {
         self.detect_from_domain(domain).is_some()
@@ -325,31 +320,57 @@ fn matches_pattern(pattern: &str, value: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_pattern_matching() {
-        assert!(matches_pattern("*.openai.azure.com", "myinstance.openai.azure.com"));
-        assert!(matches_pattern("bedrock-runtime.*.amazonaws.com", "bedrock-runtime.us-east-1.amazonaws.com"));
+        assert!(matches_pattern(
+            "*.openai.azure.com",
+            "myinstance.openai.azure.com"
+        ));
+        assert!(matches_pattern(
+            "bedrock-runtime.*.amazonaws.com",
+            "bedrock-runtime.us-east-1.amazonaws.com"
+        ));
         assert!(!matches_pattern("*.openai.azure.com", "api.openai.com"));
     }
-    
+
     #[test]
     fn test_provider_detection() {
         let registry = ProviderRegistry::new();
-        
-        assert_eq!(registry.detect_from_domain("api.openai.com"), Some(Provider::OpenAI));
-        assert_eq!(registry.detect_from_domain("api.anthropic.com"), Some(Provider::Anthropic));
-        assert_eq!(registry.detect_from_domain("localhost:11434"), Some(Provider::Ollama));
-        assert_eq!(registry.detect_from_domain("myinstance.openai.azure.com"), Some(Provider::AzureOpenAI));
+
+        assert_eq!(
+            registry.detect_from_domain("api.openai.com"),
+            Some(Provider::OpenAI)
+        );
+        assert_eq!(
+            registry.detect_from_domain("api.anthropic.com"),
+            Some(Provider::Anthropic)
+        );
+        assert_eq!(
+            registry.detect_from_domain("localhost:11434"),
+            Some(Provider::Ollama)
+        );
+        assert_eq!(
+            registry.detect_from_domain("myinstance.openai.azure.com"),
+            Some(Provider::AzureOpenAI)
+        );
     }
-    
+
     #[test]
     fn test_key_prefix_detection() {
         let registry = ProviderRegistry::new();
-        
-        assert_eq!(registry.detect_from_key_prefix("sk-proj-abc123"), Some(Provider::OpenAI));
-        assert_eq!(registry.detect_from_key_prefix("sk-ant-abc123"), Some(Provider::Anthropic));
-        assert_eq!(registry.detect_from_key_prefix("gsk_abc123"), Some(Provider::Groq));
+
+        assert_eq!(
+            registry.detect_from_key_prefix("sk-proj-abc123"),
+            Some(Provider::OpenAI)
+        );
+        assert_eq!(
+            registry.detect_from_key_prefix("sk-ant-abc123"),
+            Some(Provider::Anthropic)
+        );
+        assert_eq!(
+            registry.detect_from_key_prefix("gsk_abc123"),
+            Some(Provider::Groq)
+        );
     }
 }
-

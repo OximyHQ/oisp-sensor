@@ -10,10 +10,10 @@ pub use oisp_core::trace::{AgentTrace, Span, SpanKind, SpanStatus, TraceBuilder}
 pub struct CorrelationConfig {
     /// Time window for correlating events (ms)
     pub time_window_ms: u64,
-    
+
     /// Maximum trace duration before auto-complete (ms)
     pub max_trace_duration_ms: u64,
-    
+
     /// Maximum traces to keep in memory
     pub max_traces: usize,
 }
@@ -27,4 +27,3 @@ impl Default for CorrelationConfig {
         }
     }
 }
-

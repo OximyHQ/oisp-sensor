@@ -1,8 +1,8 @@
 //! Terminal UI for OISP Sensor
 
 mod app;
-mod ui;
 mod event_handler;
+mod ui;
 
 pub use app::App;
 
@@ -26,13 +26,13 @@ pub async fn run(
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
-    
+
     // Create app
     let mut app = App::new(event_rx);
-    
+
     // Run the app
     let res = run_app(&mut terminal, &mut app).await;
-    
+
     // Restore terminal
     disable_raw_mode()?;
     execute!(
@@ -41,14 +41,14 @@ pub async fn run(
         DisableMouseCapture
     )?;
     terminal.show_cursor()?;
-    
+
     res
 }
 
 async fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> anyhow::Result<()> {
     loop {
         terminal.draw(|f| ui::draw(f, app))?;
-        
+
         // Poll for events with timeout
         if event::poll(std::time::Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
@@ -68,9 +68,8 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> anyho
                 }
             }
         }
-        
+
         // Process incoming events
         app.process_events();
     }
 }
-

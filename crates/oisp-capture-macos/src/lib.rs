@@ -8,11 +8,11 @@
 //! - Notarized by Apple
 //! - Approved by the user in System Preferences
 
-use oisp_core::plugins::{
-    CapturePlugin, Plugin, PluginInfo, PluginConfig, PluginResult, PluginError,
-    RawCaptureEvent, CaptureStats,
-};
 use async_trait::async_trait;
+use oisp_core::plugins::{
+    CapturePlugin, CaptureStats, Plugin, PluginConfig, PluginError, PluginInfo, PluginResult,
+    RawCaptureEvent,
+};
 use std::any::Any;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -24,13 +24,13 @@ use tracing::{info, warn};
 pub struct MacOSCaptureConfig {
     /// Enable process capture (via ESF or libproc)
     pub process: bool,
-    
+
     /// Enable file capture (via ESF or FSEvents)
     pub file: bool,
-    
+
     /// Enable network capture (via Network Extension or lsof)
     pub network: bool,
-    
+
     /// Use System Extension for full capture (requires approval)
     pub use_system_extension: bool,
 }
@@ -64,7 +64,7 @@ impl MacOSCapture {
     pub fn new() -> Self {
         Self::with_config(MacOSCaptureConfig::default())
     }
-    
+
     pub fn with_config(config: MacOSCaptureConfig) -> Self {
         Self {
             config,
@@ -77,14 +77,14 @@ impl MacOSCapture {
             }),
         }
     }
-    
+
     /// Check if System Extension is installed and approved
     #[cfg(target_os = "macos")]
     pub fn is_system_extension_available(&self) -> bool {
         // TODO: Check if the system extension is loaded
         false
     }
-    
+
     #[cfg(not(target_os = "macos"))]
     pub fn is_system_extension_available(&self) -> bool {
         false
@@ -101,15 +101,15 @@ impl PluginInfo for MacOSCapture {
     fn name(&self) -> &str {
         "macos-capture"
     }
-    
+
     fn version(&self) -> &str {
         env!("CARGO_PKG_VERSION")
     }
-    
+
     fn description(&self) -> &str {
         "macOS capture using Endpoint Security Framework and Network Extension"
     }
-    
+
     fn is_available(&self) -> bool {
         cfg!(target_os = "macos")
     }
@@ -128,16 +128,16 @@ impl Plugin for MacOSCapture {
         }
         Ok(())
     }
-    
+
     fn shutdown(&mut self) -> PluginResult<()> {
         self.running.store(false, Ordering::SeqCst);
         Ok(())
     }
-    
+
     fn as_any(&self) -> &dyn Any {
         self
     }
-    
+
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
@@ -150,15 +150,15 @@ impl CapturePlugin for MacOSCapture {
         {
             return Err(PluginError::NotSupported);
         }
-        
+
         #[cfg(target_os = "macos")]
         {
             if self.running.load(Ordering::SeqCst) {
                 return Err(PluginError::OperationFailed("Already running".into()));
             }
-            
+
             self.running.store(true, Ordering::SeqCst);
-            
+
             if self.config.use_system_extension {
                 if self.is_system_extension_available() {
                     info!("Starting macOS capture with System Extension");
@@ -174,21 +174,21 @@ impl CapturePlugin for MacOSCapture {
                 // - lsof for network connections
                 // - FSEvents for file changes
             }
-            
+
             Ok(())
         }
     }
-    
+
     async fn stop(&mut self) -> PluginResult<()> {
         info!("Stopping macOS capture...");
         self.running.store(false, Ordering::SeqCst);
         Ok(())
     }
-    
+
     fn is_running(&self) -> bool {
         self.running.load(Ordering::SeqCst)
     }
-    
+
     fn stats(&self) -> CaptureStats {
         CaptureStats {
             events_captured: self.stats.events_captured.load(Ordering::Relaxed),
@@ -198,4 +198,3 @@ impl CapturePlugin for MacOSCapture {
         }
     }
 }
-

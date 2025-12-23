@@ -2,25 +2,21 @@
 
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 use std::sync::LazyLock;
 
 /// Redaction mode
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum RedactionMode {
     /// Safe mode - hash content, redact secrets
+    #[default]
     Safe,
     /// Full capture - no redaction (except explicit patterns)
     Full,
     /// Minimal - only metadata, no content at all
     Minimal,
-}
-
-impl Default for RedactionMode {
-    fn default() -> Self {
-        Self::Safe
-    }
 }
 
 /// Redaction configuration
@@ -72,14 +68,18 @@ static PATTERNS: LazyLock<RedactionPatterns> = LazyLock::new(|| {
             Regex::new(r"sk-ant-[a-zA-Z0-9-]{20,}").unwrap(),
             // Generic API key patterns
             Regex::new(r#"(?i)api[_-]?key['"]?\s*[:=]\s*['"]?([a-zA-Z0-9_-]{20,})['"]?"#).unwrap(),
-            Regex::new(r#"(?i)secret[_-]?key['"]?\s*[:=]\s*['"]?([a-zA-Z0-9_-]{20,})['"]?"#).unwrap(),
+            Regex::new(r#"(?i)secret[_-]?key['"]?\s*[:=]\s*['"]?([a-zA-Z0-9_-]{20,})['"]?"#)
+                .unwrap(),
             // Bearer tokens
             Regex::new(r"Bearer\s+[a-zA-Z0-9_.=-]{20,}").unwrap(),
         ],
         emails: Regex::new(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}").unwrap(),
         credit_cards: Regex::new(r"\b(?:\d{4}[- ]?){3}\d{4}\b").unwrap(),
         ssn: Regex::new(r"\b\d{3}-\d{2}-\d{4}\b").unwrap(),
-        phone_numbers: Regex::new(r"\b(?:\+?1[-.]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}\b").unwrap(),
+        phone_numbers: Regex::new(
+            r"\b(?:\+?1[-.]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}\b",
+        )
+        .unwrap(),
         jwt: Regex::new(r"eyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*").unwrap(),
         aws_keys: Regex::new(r"AKIA[0-9A-Z]{16}").unwrap(),
         github_tokens: Regex::new(r"gh[pousr]_[a-zA-Z0-9]{36,}").unwrap(),
@@ -113,7 +113,7 @@ pub struct RedactionFinding {
 pub fn redact(content: &str, config: &RedactionConfig) -> RedactionResult {
     let original_length = content.len();
     let hash = hash_content(content);
-    
+
     if config.mode == RedactionMode::Full {
         return RedactionResult {
             content: content.to_string(),
@@ -122,7 +122,7 @@ pub fn redact(content: &str, config: &RedactionConfig) -> RedactionResult {
             original_length,
         };
     }
-    
+
     if config.mode == RedactionMode::Minimal {
         return RedactionResult {
             content: "[REDACTED]".to_string(),
@@ -134,118 +134,146 @@ pub fn redact(content: &str, config: &RedactionConfig) -> RedactionResult {
             original_length,
         };
     }
-    
+
     let mut result = content.to_string();
     let mut findings = Vec::new();
-    
+
     // API keys
     if config.redact_api_keys {
         for pattern in &PATTERNS.api_keys {
             let count = pattern.find_iter(&result).count();
             if count > 0 {
-                result = pattern.replace_all(&result, "[API_KEY_REDACTED]").to_string();
+                result = pattern
+                    .replace_all(&result, "[API_KEY_REDACTED]")
+                    .to_string();
                 findings.push(RedactionFinding {
                     finding_type: "api_key".to_string(),
                     count,
                 });
             }
         }
-        
+
         // JWT
         let count = PATTERNS.jwt.find_iter(&result).count();
         if count > 0 {
-            result = PATTERNS.jwt.replace_all(&result, "[JWT_REDACTED]").to_string();
+            result = PATTERNS
+                .jwt
+                .replace_all(&result, "[JWT_REDACTED]")
+                .to_string();
             findings.push(RedactionFinding {
                 finding_type: "jwt".to_string(),
                 count,
             });
         }
-        
+
         // AWS keys
         let count = PATTERNS.aws_keys.find_iter(&result).count();
         if count > 0 {
-            result = PATTERNS.aws_keys.replace_all(&result, "[AWS_KEY_REDACTED]").to_string();
+            result = PATTERNS
+                .aws_keys
+                .replace_all(&result, "[AWS_KEY_REDACTED]")
+                .to_string();
             findings.push(RedactionFinding {
                 finding_type: "aws_key".to_string(),
                 count,
             });
         }
-        
+
         // GitHub tokens
         let count = PATTERNS.github_tokens.find_iter(&result).count();
         if count > 0 {
-            result = PATTERNS.github_tokens.replace_all(&result, "[GITHUB_TOKEN_REDACTED]").to_string();
+            result = PATTERNS
+                .github_tokens
+                .replace_all(&result, "[GITHUB_TOKEN_REDACTED]")
+                .to_string();
             findings.push(RedactionFinding {
                 finding_type: "github_token".to_string(),
                 count,
             });
         }
-        
+
         // Slack tokens
         let count = PATTERNS.slack_tokens.find_iter(&result).count();
         if count > 0 {
-            result = PATTERNS.slack_tokens.replace_all(&result, "[SLACK_TOKEN_REDACTED]").to_string();
+            result = PATTERNS
+                .slack_tokens
+                .replace_all(&result, "[SLACK_TOKEN_REDACTED]")
+                .to_string();
             findings.push(RedactionFinding {
                 finding_type: "slack_token".to_string(),
                 count,
             });
         }
     }
-    
+
     // Emails
     if config.redact_emails {
         let count = PATTERNS.emails.find_iter(&result).count();
         if count > 0 {
-            result = PATTERNS.emails.replace_all(&result, "[EMAIL_REDACTED]").to_string();
+            result = PATTERNS
+                .emails
+                .replace_all(&result, "[EMAIL_REDACTED]")
+                .to_string();
             findings.push(RedactionFinding {
                 finding_type: "email".to_string(),
                 count,
             });
         }
     }
-    
+
     // Credit cards
     if config.redact_credit_cards {
         let count = PATTERNS.credit_cards.find_iter(&result).count();
         if count > 0 {
-            result = PATTERNS.credit_cards.replace_all(&result, "[CREDIT_CARD_REDACTED]").to_string();
+            result = PATTERNS
+                .credit_cards
+                .replace_all(&result, "[CREDIT_CARD_REDACTED]")
+                .to_string();
             findings.push(RedactionFinding {
                 finding_type: "credit_card".to_string(),
                 count,
             });
         }
     }
-    
+
     // SSN
     if config.redact_ssn {
         let count = PATTERNS.ssn.find_iter(&result).count();
         if count > 0 {
-            result = PATTERNS.ssn.replace_all(&result, "[SSN_REDACTED]").to_string();
+            result = PATTERNS
+                .ssn
+                .replace_all(&result, "[SSN_REDACTED]")
+                .to_string();
             findings.push(RedactionFinding {
                 finding_type: "ssn".to_string(),
                 count,
             });
         }
     }
-    
+
     // Phone numbers
     if config.redact_phone_numbers {
         let count = PATTERNS.phone_numbers.find_iter(&result).count();
         if count > 0 {
-            result = PATTERNS.phone_numbers.replace_all(&result, "[PHONE_REDACTED]").to_string();
+            result = PATTERNS
+                .phone_numbers
+                .replace_all(&result, "[PHONE_REDACTED]")
+                .to_string();
             findings.push(RedactionFinding {
                 finding_type: "phone".to_string(),
                 count,
             });
         }
     }
-    
+
     // Custom patterns
     for pattern_str in &config.custom_patterns {
         if let Ok(pattern) = Regex::new(pattern_str) {
             let count = pattern.find_iter(&result).count();
             if count > 0 {
-                result = pattern.replace_all(&result, "[CUSTOM_REDACTED]").to_string();
+                result = pattern
+                    .replace_all(&result, "[CUSTOM_REDACTED]")
+                    .to_string();
                 findings.push(RedactionFinding {
                     finding_type: "custom".to_string(),
                     count,
@@ -253,7 +281,7 @@ pub fn redact(content: &str, config: &RedactionConfig) -> RedactionResult {
             }
         }
     }
-    
+
     RedactionResult {
         content: result,
         findings,
@@ -274,7 +302,7 @@ pub fn extract_key_prefix(key: &str, max_len: usize) -> String {
     if key.len() <= max_len {
         return key.to_string();
     }
-    
+
     // Find common prefix patterns
     let prefixes = ["sk-proj-", "sk-ant-", "sk-", "gsk_", "hf_", "r8_", "pplx-"];
     for prefix in prefixes {
@@ -282,7 +310,7 @@ pub fn extract_key_prefix(key: &str, max_len: usize) -> String {
             return format!("{}...", prefix);
         }
     }
-    
+
     // Default: first N chars
     format!("{}...", &key[..max_len.min(key.len())])
 }
@@ -290,46 +318,49 @@ pub fn extract_key_prefix(key: &str, max_len: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_api_key_redaction() {
         let config = RedactionConfig::default();
         let content = "My API key is sk-proj-abc123def456ghi789jkl012";
         let result = redact(content, &config);
-        
+
         assert!(result.content.contains("[API_KEY_REDACTED]"));
         assert!(!result.content.contains("sk-proj-"));
         assert!(!result.findings.is_empty());
     }
-    
+
     #[test]
     fn test_email_redaction() {
         let config = RedactionConfig::default();
         let content = "Contact me at user@example.com for help";
         let result = redact(content, &config);
-        
+
         assert!(result.content.contains("[EMAIL_REDACTED]"));
         assert!(!result.content.contains("user@example.com"));
     }
-    
+
     #[test]
     fn test_full_mode() {
-        let mut config = RedactionConfig::default();
-        config.mode = RedactionMode::Full;
+        let config = RedactionConfig {
+            mode: RedactionMode::Full,
+            ..Default::default()
+        };
         let content = "My API key is sk-proj-abc123def456ghi789jkl012";
         let result = redact(content, &config);
-        
+
         assert_eq!(result.content, content);
     }
-    
+
     #[test]
     fn test_minimal_mode() {
-        let mut config = RedactionConfig::default();
-        config.mode = RedactionMode::Minimal;
+        let config = RedactionConfig {
+            mode: RedactionMode::Minimal,
+            ..Default::default()
+        };
         let content = "Some content here";
         let result = redact(content, &config);
-        
+
         assert_eq!(result.content, "[REDACTED]");
     }
 }
-

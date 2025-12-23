@@ -1,12 +1,10 @@
 //! Trace building - correlating events into agent traces
 
 use crate::events::{
-    OispEvent,
-    AiRequestEvent, AiResponseEvent,
-    AgentToolCallEvent, AgentToolResultEvent,
-    ProcessExecEvent, FileWriteEvent, NetworkConnectEvent,
+    AgentToolCallEvent, AgentToolResultEvent, AiRequestEvent, AiResponseEvent, FileWriteEvent,
+    NetworkConnectEvent, OispEvent, ProcessExecEvent,
 };
-use chrono::{DateTime, Utc, Duration};
+use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -15,55 +13,55 @@ use std::collections::HashMap;
 pub struct AgentTrace {
     /// Unique trace ID
     pub trace_id: String,
-    
+
     /// When the trace started
     pub started_at: DateTime<Utc>,
-    
+
     /// When the trace ended (if complete)
     pub ended_at: Option<DateTime<Utc>>,
-    
+
     /// Process that initiated the trace
     pub process_pid: u32,
-    
+
     /// Process name
     pub process_name: Option<String>,
-    
+
     /// Process executable
     pub process_exe: Option<String>,
-    
+
     /// Root span ID
     pub root_span_id: Option<String>,
-    
+
     /// All spans in this trace
     pub spans: Vec<Span>,
-    
+
     /// Total token count
     pub total_tokens: u64,
-    
+
     /// Total cost in USD
     pub total_cost_usd: f64,
-    
+
     /// Number of LLM calls
     pub llm_call_count: u32,
-    
+
     /// Number of tool calls
     pub tool_call_count: u32,
-    
+
     /// Files accessed
     pub files_accessed: Vec<String>,
-    
+
     /// Files modified
     pub files_modified: Vec<String>,
-    
+
     /// Processes spawned
     pub processes_spawned: Vec<SpawnedProcess>,
-    
+
     /// Network connections made
     pub connections_made: Vec<TraceConnection>,
-    
+
     /// Whether trace is complete
     pub is_complete: bool,
-    
+
     /// Summary (generated)
     pub summary: Option<String>,
 }
@@ -92,13 +90,13 @@ impl AgentTrace {
             summary: None,
         }
     }
-    
+
     /// Get duration of the trace
     pub fn duration(&self) -> Duration {
         let end = self.ended_at.unwrap_or_else(Utc::now);
         end - self.started_at
     }
-    
+
     /// Mark trace as complete
     pub fn complete(&mut self) {
         self.ended_at = Some(Utc::now());
@@ -111,46 +109,46 @@ impl AgentTrace {
 pub struct Span {
     /// Span ID
     pub span_id: String,
-    
+
     /// Parent span ID
     pub parent_id: Option<String>,
-    
+
     /// Span kind
     pub kind: SpanKind,
-    
+
     /// Start time
     pub start_time: DateTime<Utc>,
-    
+
     /// End time
     pub end_time: Option<DateTime<Utc>>,
-    
+
     /// Duration in milliseconds
     pub duration_ms: Option<u64>,
-    
+
     /// Related request ID (for AI spans)
     pub request_id: Option<String>,
-    
+
     /// Tool call ID (for tool spans)
     pub tool_call_id: Option<String>,
-    
+
     /// Tool name (for tool spans)
     pub tool_name: Option<String>,
-    
+
     /// Model used (for AI spans)
     pub model: Option<String>,
-    
+
     /// Provider (for AI spans)
     pub provider: Option<String>,
-    
+
     /// Token count
     pub tokens: Option<u64>,
-    
+
     /// Summary/description
     pub summary: Option<String>,
-    
+
     /// Child event IDs
     pub event_ids: Vec<String>,
-    
+
     /// Status
     pub status: SpanStatus,
 }
@@ -175,7 +173,7 @@ impl Span {
             status: SpanStatus::InProgress,
         }
     }
-    
+
     pub fn complete(&mut self, status: SpanStatus) {
         self.end_time = Some(Utc::now());
         self.duration_ms = Some((Utc::now() - self.start_time).num_milliseconds() as u64);
@@ -235,19 +233,19 @@ pub struct TraceConnection {
 pub struct TraceBuilder {
     /// Active traces by process PID
     active_traces: HashMap<u32, AgentTrace>,
-    
+
     /// Completed traces
     completed_traces: Vec<AgentTrace>,
-    
+
     /// Pending AI requests (request_id -> span info)
     pending_requests: HashMap<String, PendingRequest>,
-    
+
     /// Pending tool calls (tool_call_id -> span info)
     pending_tool_calls: HashMap<String, PendingToolCall>,
-    
+
     /// Trace timeout (complete trace if no activity)
     trace_timeout: Duration,
-    
+
     /// Maximum completed traces to keep
     max_completed: usize,
 }
@@ -280,7 +278,7 @@ impl TraceBuilder {
             max_completed: 100,
         }
     }
-    
+
     /// Add an event and update traces
     pub fn add_event(&mut self, event: OispEvent) {
         match event {
@@ -293,14 +291,14 @@ impl TraceBuilder {
             OispEvent::NetworkConnect(ref e) => self.handle_network_connect(e),
             _ => {}
         }
-        
+
         // Cleanup old traces
         self.cleanup_stale_traces();
     }
-    
+
     fn handle_ai_request(&mut self, event: &AiRequestEvent) {
         let pid = event.envelope.process.as_ref().map(|p| p.pid).unwrap_or(0);
-        
+
         // Get or create trace for this process
         let trace = self.active_traces.entry(pid).or_insert_with(|| {
             let mut t = AgentTrace::new(pid);
@@ -310,14 +308,14 @@ impl TraceBuilder {
             }
             t
         });
-        
+
         // Create span for this LLM call
         let mut span = Span::new(SpanKind::LlmCall);
         span.request_id = Some(event.data.request_id.clone());
         span.model = event.data.model.as_ref().map(|m| m.id.clone());
         span.provider = event.data.provider.as_ref().map(|p| p.name.clone());
         span.event_ids.push(event.envelope.event_id.clone());
-        
+
         // Track pending request
         self.pending_requests.insert(
             event.data.request_id.clone(),
@@ -328,23 +326,27 @@ impl TraceBuilder {
                 started_at: event.envelope.ts,
             },
         );
-        
+
         trace.spans.push(span);
         trace.llm_call_count += 1;
     }
-    
+
     fn handle_ai_response(&mut self, event: &AiResponseEvent) {
         if let Some(pending) = self.pending_requests.remove(&event.data.request_id) {
             if let Some(trace) = self.active_traces.get_mut(&pending.pid) {
                 // Find and complete the span
-                if let Some(span) = trace.spans.iter_mut().find(|s| s.span_id == pending.span_id) {
+                if let Some(span) = trace
+                    .spans
+                    .iter_mut()
+                    .find(|s| s.span_id == pending.span_id)
+                {
                     span.complete(if event.data.success.unwrap_or(true) {
                         SpanStatus::Success
                     } else {
                         SpanStatus::Error
                     });
                     span.event_ids.push(event.envelope.event_id.clone());
-                    
+
                     // Update token counts
                     if let Some(usage) = &event.data.usage {
                         if let Some(total) = usage.total_tokens {
@@ -356,7 +358,7 @@ impl TraceBuilder {
                         }
                     }
                 }
-                
+
                 // Handle tool calls from response
                 for tool_call in &event.data.tool_calls {
                     if let Some(id) = &tool_call.id {
@@ -364,7 +366,7 @@ impl TraceBuilder {
                         tool_span.tool_call_id = Some(id.clone());
                         tool_span.tool_name = Some(tool_call.name.clone());
                         tool_span.parent_id = Some(pending.span_id.clone());
-                        
+
                         self.pending_tool_calls.insert(
                             id.clone(),
                             PendingToolCall {
@@ -375,7 +377,7 @@ impl TraceBuilder {
                                 started_at: event.envelope.ts,
                             },
                         );
-                        
+
                         trace.spans.push(tool_span);
                         trace.tool_call_count += 1;
                     }
@@ -383,18 +385,21 @@ impl TraceBuilder {
             }
         }
     }
-    
+
     fn handle_tool_call(&mut self, event: &AgentToolCallEvent) {
         // Tool call events give us more detail about the tool execution
         if let Some(_pending) = self.pending_tool_calls.get_mut(&event.data.tool_call_id) {
-            if let Some(trace) = self.active_traces.get_mut(
-                &event.envelope.process.as_ref().map(|p| p.pid).unwrap_or(0)
-            ) {
-                if let Some(span) = trace.spans.iter_mut().find(|s| {
-                    s.tool_call_id.as_ref() == Some(&event.data.tool_call_id)
-                }) {
+            if let Some(trace) = self
+                .active_traces
+                .get_mut(&event.envelope.process.as_ref().map(|p| p.pid).unwrap_or(0))
+            {
+                if let Some(span) = trace
+                    .spans
+                    .iter_mut()
+                    .find(|s| s.tool_call_id.as_ref() == Some(&event.data.tool_call_id))
+                {
                     span.event_ids.push(event.envelope.event_id.clone());
-                    
+
                     // Generate summary based on tool type
                     if let Some(parsed) = &event.data.parsed_arguments {
                         span.summary = Some(format!("{}: {:?}", event.data.tool_name, parsed));
@@ -403,13 +408,18 @@ impl TraceBuilder {
             }
         }
     }
-    
+
     fn handle_tool_result(&mut self, event: &AgentToolResultEvent) {
         if let Some(pending) = self.pending_tool_calls.remove(&event.data.tool_call_id) {
-            if let Some(trace) = self.active_traces.get_mut(
-                &event.envelope.process.as_ref().map(|p| p.pid).unwrap_or(0)
-            ) {
-                if let Some(span) = trace.spans.iter_mut().find(|s| s.span_id == pending.span_id) {
+            if let Some(trace) = self
+                .active_traces
+                .get_mut(&event.envelope.process.as_ref().map(|p| p.pid).unwrap_or(0))
+            {
+                if let Some(span) = trace
+                    .spans
+                    .iter_mut()
+                    .find(|s| s.span_id == pending.span_id)
+                {
                     span.complete(if event.data.success {
                         SpanStatus::Success
                     } else {
@@ -421,10 +431,10 @@ impl TraceBuilder {
             }
         }
     }
-    
+
     fn handle_process_exec(&mut self, event: &ProcessExecEvent) {
         let ppid = event.envelope.process.as_ref().and_then(|p| p.ppid);
-        
+
         // Check if parent process has an active trace
         if let Some(ppid) = ppid {
             if let Some(trace) = self.active_traces.get_mut(&ppid) {
@@ -438,20 +448,20 @@ impl TraceBuilder {
             }
         }
     }
-    
+
     fn handle_file_write(&mut self, event: &FileWriteEvent) {
         let pid = event.envelope.process.as_ref().map(|p| p.pid).unwrap_or(0);
-        
+
         if let Some(trace) = self.active_traces.get_mut(&pid) {
             if !trace.files_modified.contains(&event.data.path) {
                 trace.files_modified.push(event.data.path.clone());
             }
         }
     }
-    
+
     fn handle_network_connect(&mut self, event: &NetworkConnectEvent) {
         let pid = event.envelope.process.as_ref().map(|p| p.pid).unwrap_or(0);
-        
+
         if let Some(trace) = self.active_traces.get_mut(&pid) {
             trace.connections_made.push(TraceConnection {
                 domain: event.data.dest.domain.clone(),
@@ -462,49 +472,53 @@ impl TraceBuilder {
             });
         }
     }
-    
+
     fn cleanup_stale_traces(&mut self) {
         let now = Utc::now();
         let timeout = self.trace_timeout;
-        
-        let stale_pids: Vec<u32> = self.active_traces
+
+        let stale_pids: Vec<u32> = self
+            .active_traces
             .iter()
             .filter(|(_, trace)| {
                 // Check last activity
-                let last_span_time = trace.spans.last()
+                let last_span_time = trace
+                    .spans
+                    .last()
                     .and_then(|s| s.end_time.or(Some(s.start_time)))
                     .unwrap_or(trace.started_at);
                 now - last_span_time > timeout
             })
             .map(|(pid, _)| *pid)
             .collect();
-        
+
         for pid in stale_pids {
             if let Some(mut trace) = self.active_traces.remove(&pid) {
                 trace.complete();
                 self.completed_traces.push(trace);
             }
         }
-        
+
         // Trim completed traces
         while self.completed_traces.len() > self.max_completed {
             self.completed_traces.remove(0);
         }
     }
-    
+
     /// Get active traces
     pub fn active_traces(&self) -> &HashMap<u32, AgentTrace> {
         &self.active_traces
     }
-    
+
     /// Get completed traces
     pub fn completed_traces(&self) -> &[AgentTrace] {
         &self.completed_traces
     }
-    
+
     /// Get all traces (active + completed)
     pub fn all_traces(&self) -> Vec<&AgentTrace> {
-        self.active_traces.values()
+        self.active_traces
+            .values()
             .chain(self.completed_traces.iter())
             .collect()
     }
@@ -515,4 +529,3 @@ impl Default for TraceBuilder {
         Self::new()
     }
 }
-

@@ -11,4 +11,3 @@ pub static NETWORK_TRACEPOINTS: &[(&str, &str)] = &[
     ("syscalls", "sys_enter_accept4"),
     ("syscalls", "sys_exit_accept4"),
 ];
-

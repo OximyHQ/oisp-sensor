@@ -25,16 +25,10 @@ pub fn find_ssl_libraries() -> Vec<String> {
 }
 
 /// Functions to attach uprobes to
-pub static SSL_FUNCTIONS: &[&str] = &[
-    "SSL_read",
-    "SSL_read_ex",
-    "SSL_write",
-    "SSL_write_ex",
-];
+pub static SSL_FUNCTIONS: &[&str] = &["SSL_read", "SSL_read_ex", "SSL_write", "SSL_write_ex"];
 
 /// Resolve function offset in a library
-pub fn get_function_offset(library_path: &str, function_name: &str) -> Option<usize> {
+pub fn get_function_offset(_library_path: &str, _function_name: &str) -> Option<usize> {
     // TODO: Use goblin or object crate to parse ELF and find symbol offset
     None
 }
-

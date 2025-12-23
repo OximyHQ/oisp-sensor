@@ -2,24 +2,24 @@
 
 use crate::AppState;
 use axum::{
-    extract::{State, ws::{Message, WebSocket, WebSocketUpgrade}},
+    extract::{
+        ws::{Message, WebSocket, WebSocketUpgrade},
+        State,
+    },
     response::Response,
 };
 use std::sync::Arc;
 use tracing::{debug, error};
 
-pub async fn ws_handler(
-    ws: WebSocketUpgrade,
-    State(state): State<Arc<AppState>>,
-) -> Response {
+pub async fn ws_handler(ws: WebSocketUpgrade, State(state): State<Arc<AppState>>) -> Response {
     ws.on_upgrade(|socket| handle_socket(socket, state))
 }
 
 async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
     debug!("WebSocket client connected");
-    
+
     let mut rx = state.event_rx.subscribe();
-    
+
     loop {
         tokio::select! {
             result = rx.recv() => {
@@ -50,7 +50,6 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
             }
         }
     }
-    
+
     debug!("WebSocket client disconnected");
 }
-

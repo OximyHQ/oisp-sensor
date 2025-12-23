@@ -1,10 +1,8 @@
 //! WebSocket exporter for real-time UI
 
-use oisp_core::events::OispEvent;
-use oisp_core::plugins::{
-    ExportPlugin, Plugin, PluginInfo, PluginConfig, PluginResult,
-};
 use async_trait::async_trait;
+use oisp_core::events::OispEvent;
+use oisp_core::plugins::{ExportPlugin, Plugin, PluginConfig, PluginInfo, PluginResult};
 use std::any::Any;
 use tokio::sync::broadcast;
 use tracing::info;
@@ -14,10 +12,10 @@ use tracing::info;
 pub struct WebSocketExporterConfig {
     /// Port to listen on
     pub port: u16,
-    
+
     /// Host to bind to
     pub host: String,
-    
+
     /// Channel buffer size
     pub buffer_size: usize,
 }
@@ -43,12 +41,12 @@ impl WebSocketExporter {
         let (tx, _) = broadcast::channel(config.buffer_size);
         Self { config, tx }
     }
-    
+
     /// Get a receiver for events
     pub fn subscribe(&self) -> broadcast::Receiver<String> {
         self.tx.subscribe()
     }
-    
+
     /// Get the broadcast sender for external use
     pub fn sender(&self) -> broadcast::Sender<String> {
         self.tx.clone()
@@ -59,11 +57,11 @@ impl PluginInfo for WebSocketExporter {
     fn name(&self) -> &str {
         "websocket-exporter"
     }
-    
+
     fn version(&self) -> &str {
         env!("CARGO_PKG_VERSION")
     }
-    
+
     fn description(&self) -> &str {
         "Exports events via WebSocket for real-time UI"
     }
@@ -77,15 +75,18 @@ impl Plugin for WebSocketExporter {
         if let Some(host) = config.get::<String>("host") {
             self.config.host = host;
         }
-        
-        info!("WebSocket exporter ready on {}:{}", self.config.host, self.config.port);
+
+        info!(
+            "WebSocket exporter ready on {}:{}",
+            self.config.host, self.config.port
+        );
         Ok(())
     }
-    
+
     fn as_any(&self) -> &dyn Any {
         self
     }
-    
+
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
@@ -95,12 +96,11 @@ impl Plugin for WebSocketExporter {
 impl ExportPlugin for WebSocketExporter {
     async fn export(&self, event: &OispEvent) -> PluginResult<()> {
         let json = serde_json::to_string(event)?;
-        
+
         // Send to all connected clients
         // If no receivers, this is fine - the message is just dropped
         let _ = self.tx.send(json);
-        
+
         Ok(())
     }
 }
-

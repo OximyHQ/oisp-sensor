@@ -1,0 +1,63 @@
+---
+description: General project guidelines for oisp-sensor
+globs: ["**/*"]
+alwaysApply: true
+---
+
+# OISP Sensor Project Guidelines
+
+## Project Structure
+
+This is a multi-crate Rust workspace for the OISP (Open Inference Security Protocol) sensor:
+
+- `crates/oisp-core` - Core types, events, plugins, and pipeline
+- `crates/oisp-sensor` - Main binary entry point
+- `crates/oisp-capture` - Unified capture interface
+- `crates/oisp-capture-ebpf` - Linux eBPF capture (Linux only)
+- `crates/oisp-capture-macos` - macOS capture (macOS only)
+- `crates/oisp-capture-windows` - Windows capture (Windows only)
+- `crates/oisp-decode` - Protocol decoding (HTTP, SSE, AI APIs)
+- `crates/oisp-enrich` - Event enrichment plugins
+- `crates/oisp-redact` - Data redaction and privacy
+- `crates/oisp-export` - Export plugins (JSONL, WebSocket, etc.)
+- `crates/oisp-correlate` - Request/response correlation
+- `crates/oisp-tui` - Terminal UI
+- `crates/oisp-web` - Web dashboard
+
+## CI/CD
+
+The project uses GitHub Actions for CI/CD:
+
+- **CI workflow** (`.github/workflows/ci.yml`): Runs on every push/PR
+  - Format check: `cargo fmt --all -- --check`
+  - Clippy: `cargo clippy --workspace --all-targets -- -D warnings`
+  - Tests across Linux, macOS, Windows
+
+- **Release workflow** (`.github/workflows/release.yml`): Runs on version tags
+  - Builds binaries for all platforms
+  - Creates GitHub releases with artifacts
+
+## Before Pushing
+
+ALWAYS run these checks before pushing:
+
+```bash
+cargo fmt
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+```
+
+Or set up the pre-commit hooks:
+```bash
+./scripts/setup-hooks.sh
+```
+
+## Version Tags
+
+To create a release, push a version tag:
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+The release workflow will automatically build and publish binaries.

@@ -1,10 +1,10 @@
 //! JSONL file exporter
 
+use async_trait::async_trait;
 use oisp_core::events::OispEvent;
 use oisp_core::plugins::{
-    ExportPlugin, Plugin, PluginInfo, PluginConfig, PluginResult, PluginError,
+    ExportPlugin, Plugin, PluginConfig, PluginError, PluginInfo, PluginResult,
 };
-use async_trait::async_trait;
 use std::any::Any;
 use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
@@ -17,13 +17,13 @@ use tracing::info;
 pub struct JsonlExporterConfig {
     /// Output file path
     pub path: PathBuf,
-    
+
     /// Whether to append to existing file
     pub append: bool,
-    
+
     /// Pretty print JSON (not recommended for large files)
     pub pretty: bool,
-    
+
     /// Flush after each write
     pub flush_each: bool,
 }
@@ -54,7 +54,7 @@ impl JsonlExporter {
             events_written: std::sync::atomic::AtomicU64::new(0),
         }
     }
-    
+
     fn ensure_writer(&mut self) -> PluginResult<()> {
         if self.writer.is_none() {
             let file = if self.config.append {
@@ -65,7 +65,7 @@ impl JsonlExporter {
             } else {
                 File::create(&self.config.path)?
             };
-            
+
             self.writer = Some(Mutex::new(BufWriter::new(file)));
             info!("JSONL exporter writing to: {:?}", self.config.path);
         }
@@ -77,11 +77,11 @@ impl PluginInfo for JsonlExporter {
     fn name(&self) -> &str {
         "jsonl-exporter"
     }
-    
+
     fn version(&self) -> &str {
         env!("CARGO_PKG_VERSION")
     }
-    
+
     fn description(&self) -> &str {
         "Exports events to JSONL files"
     }
@@ -98,11 +98,11 @@ impl Plugin for JsonlExporter {
         if let Some(pretty) = config.get::<bool>("pretty") {
             self.config.pretty = pretty;
         }
-        
+
         self.ensure_writer()?;
         Ok(())
     }
-    
+
     fn shutdown(&mut self) -> PluginResult<()> {
         if let Some(writer) = &self.writer {
             if let Ok(mut w) = writer.lock() {
@@ -112,11 +112,11 @@ impl Plugin for JsonlExporter {
         self.writer = None;
         Ok(())
     }
-    
+
     fn as_any(&self) -> &dyn Any {
         self
     }
-    
+
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
@@ -130,32 +130,32 @@ impl ExportPlugin for JsonlExporter {
         } else {
             serde_json::to_string(event)?
         };
-        
+
         if let Some(writer) = &self.writer {
-            let mut w = writer.lock().map_err(|e| {
-                PluginError::OperationFailed(format!("Lock poisoned: {}", e))
-            })?;
-            
+            let mut w = writer
+                .lock()
+                .map_err(|e| PluginError::OperationFailed(format!("Lock poisoned: {}", e)))?;
+
             writeln!(w, "{}", json)?;
-            
+
             if self.config.flush_each {
                 w.flush()?;
             }
-            
-            self.events_written.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+            self.events_written
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         }
-        
+
         Ok(())
     }
-    
+
     async fn flush(&self) -> PluginResult<()> {
         if let Some(writer) = &self.writer {
-            let mut w = writer.lock().map_err(|e| {
-                PluginError::OperationFailed(format!("Lock poisoned: {}", e))
-            })?;
+            let mut w = writer
+                .lock()
+                .map_err(|e| PluginError::OperationFailed(format!("Lock poisoned: {}", e)))?;
             w.flush()?;
         }
         Ok(())
     }
 }
-

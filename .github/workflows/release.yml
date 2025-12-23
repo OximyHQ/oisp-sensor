@@ -13,34 +13,29 @@ permissions:
 
 jobs:
   build:
-    name: Build ${{ matrix.name }}
+    name: Build ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: linux-x86_64
-            os: ubuntu-latest
+          - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             binary: oisp-sensor
             archive: tar.gz
-          - name: linux-aarch64
-            os: ubuntu-latest
+          - os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             binary: oisp-sensor
             archive: tar.gz
-          - name: macos-x86_64
-            os: macos-latest
+          - os: macos-latest
             target: x86_64-apple-darwin
             binary: oisp-sensor
             archive: tar.gz
-          - name: macos-aarch64
-            os: macos-latest
+          - os: macos-latest
             target: aarch64-apple-darwin
             binary: oisp-sensor
             archive: tar.gz
-          - name: windows-x86_64
-            os: windows-latest
+          - os: windows-latest
             target: x86_64-pc-windows-msvc
             binary: oisp-sensor.exe
             archive: zip
@@ -59,7 +54,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y clang llvm libelf-dev libbpf-dev
-      
+
       - name: Install cross-compilation tools (Linux aarch64)
         if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: |
@@ -76,27 +71,28 @@ jobs:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
 
       - name: Prepare artifact (Unix)
-        if: matrix.os != 'windows-latest'
+        if: runner.os != 'Windows'
         run: |
           mkdir -p dist
           cp target/${{ matrix.target }}/release/${{ matrix.binary }} dist/
-          cp README.md LICENSE dist/
-          cd dist && tar -czvf ../oisp-sensor-${{ matrix.name }}.tar.gz *
+          cp README.md LICENSE dist/ 2>/dev/null || true
+          cd dist && tar -czvf ../oisp-sensor-${{ matrix.target }}.tar.gz *
 
       - name: Prepare artifact (Windows)
-        if: matrix.os == 'windows-latest'
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist
           Copy-Item target/${{ matrix.target }}/release/${{ matrix.binary }} dist/
-          Copy-Item README.md, LICENSE dist/
-          Compress-Archive -Path dist/* -DestinationPath oisp-sensor-${{ matrix.name }}.zip
+          if (Test-Path README.md) { Copy-Item README.md dist/ }
+          if (Test-Path LICENSE) { Copy-Item LICENSE dist/ }
+          Compress-Archive -Path dist/* -DestinationPath oisp-sensor-${{ matrix.target }}.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: oisp-sensor-${{ matrix.name }}
-          path: oisp-sensor-${{ matrix.name }}.${{ matrix.archive }}
+          name: oisp-sensor-${{ matrix.target }}
+          path: oisp-sensor-${{ matrix.target }}.${{ matrix.archive }}
 
   release:
     name: Create Release
@@ -114,12 +110,20 @@ jobs:
         id: version
         run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
-      - name: Generate checksums
+      - name: List artifacts for debugging
+        run: |
+          echo "Artifacts directory structure:"
+          find artifacts -type f -ls
+
+      - name: Prepare release files
         run: |
           cd artifacts
+          # Move all archives to root of artifacts
           find . -type f \( -name "*.tar.gz" -o -name "*.zip" \) -exec mv {} . \;
-          sha256sum *.tar.gz *.zip > checksums.txt
-          cat checksums.txt
+          # Generate checksums
+          sha256sum *.tar.gz *.zip 2>/dev/null > checksums.txt || true
+          echo "Files to upload:"
+          ls -la
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

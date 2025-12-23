@@ -2,79 +2,80 @@
 //!
 //! All events share a common envelope structure with event-type-specific data.
 
-pub mod envelope;
-pub mod ai;
 pub mod agent;
-pub mod process;
+pub mod ai;
+pub mod envelope;
 pub mod file;
 pub mod network;
+pub mod process;
 
-pub use envelope::*;
-pub use ai::*;
 pub use agent::*;
-pub use process::*;
+pub use ai::*;
+pub use envelope::*;
 pub use file::*;
 pub use network::*;
+pub use process::*;
 
 use serde::{Deserialize, Serialize};
 
 /// All possible OISP event types
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "event_type", content = "data")]
+#[allow(clippy::large_enum_variant)]
 pub enum OispEvent {
     // AI events
     #[serde(rename = "ai.request")]
     AiRequest(AiRequestEvent),
-    
+
     #[serde(rename = "ai.response")]
     AiResponse(AiResponseEvent),
-    
+
     #[serde(rename = "ai.streaming_chunk")]
     AiStreamingChunk(AiStreamingChunkEvent),
-    
+
     #[serde(rename = "ai.embedding")]
     AiEmbedding(AiEmbeddingEvent),
-    
+
     // Agent events
     #[serde(rename = "agent.tool_call")]
     AgentToolCall(AgentToolCallEvent),
-    
+
     #[serde(rename = "agent.tool_result")]
     AgentToolResult(AgentToolResultEvent),
-    
+
     // Process events
     #[serde(rename = "process.exec")]
     ProcessExec(ProcessExecEvent),
-    
+
     #[serde(rename = "process.exit")]
     ProcessExit(ProcessExitEvent),
-    
+
     #[serde(rename = "process.fork")]
     ProcessFork(ProcessForkEvent),
-    
+
     // File events
     #[serde(rename = "file.open")]
     FileOpen(FileOpenEvent),
-    
+
     #[serde(rename = "file.read")]
     FileRead(FileReadEvent),
-    
+
     #[serde(rename = "file.write")]
     FileWrite(FileWriteEvent),
-    
+
     #[serde(rename = "file.close")]
     FileClose(FileCloseEvent),
-    
+
     // Network events
     #[serde(rename = "network.connect")]
     NetworkConnect(NetworkConnectEvent),
-    
+
     #[serde(rename = "network.accept")]
     NetworkAccept(NetworkAcceptEvent),
-    
+
     #[serde(rename = "network.flow")]
     NetworkFlow(NetworkFlowEvent),
-    
+
     #[serde(rename = "network.dns")]
     NetworkDns(NetworkDnsEvent),
 }
@@ -102,20 +103,20 @@ impl OispEvent {
             OispEvent::NetworkDns(_) => "network.dns",
         }
     }
-    
+
     /// Check if this is an AI-related event
     pub fn is_ai_event(&self) -> bool {
         matches!(
             self,
-            OispEvent::AiRequest(_) 
-            | OispEvent::AiResponse(_) 
-            | OispEvent::AiStreamingChunk(_)
-            | OispEvent::AiEmbedding(_)
-            | OispEvent::AgentToolCall(_)
-            | OispEvent::AgentToolResult(_)
+            OispEvent::AiRequest(_)
+                | OispEvent::AiResponse(_)
+                | OispEvent::AiStreamingChunk(_)
+                | OispEvent::AiEmbedding(_)
+                | OispEvent::AgentToolCall(_)
+                | OispEvent::AgentToolResult(_)
         )
     }
-    
+
     /// Get the envelope from any event
     pub fn envelope(&self) -> &EventEnvelope {
         match self {
@@ -164,4 +165,3 @@ impl EventCategory {
         }
     }
 }
-

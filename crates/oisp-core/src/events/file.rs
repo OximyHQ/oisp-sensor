@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 pub struct FileOpenEvent {
     #[serde(flatten)]
     pub envelope: EventEnvelope,
-    
+
     #[serde(flatten)]
     pub data: FileOpenData,
 }
@@ -18,19 +18,19 @@ pub struct FileOpenEvent {
 pub struct FileOpenData {
     /// File path
     pub path: String,
-    
+
     /// File descriptor
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fd: Option<i32>,
-    
+
     /// Open flags
     #[serde(skip_serializing_if = "Option::is_none")]
     pub flags: Option<u32>,
-    
+
     /// Open mode
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mode: Option<u32>,
-    
+
     /// Access type
     #[serde(skip_serializing_if = "Option::is_none")]
     pub access: Option<FileAccess>,
@@ -53,7 +53,7 @@ pub enum FileAccess {
 pub struct FileReadEvent {
     #[serde(flatten)]
     pub envelope: EventEnvelope,
-    
+
     #[serde(flatten)]
     pub data: FileReadData,
 }
@@ -63,19 +63,19 @@ pub struct FileReadEvent {
 pub struct FileReadData {
     /// File path
     pub path: String,
-    
+
     /// File descriptor
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fd: Option<i32>,
-    
+
     /// Bytes read
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bytes_read: Option<u64>,
-    
+
     /// Offset in file
     #[serde(skip_serializing_if = "Option::is_none")]
     pub offset: Option<u64>,
-    
+
     /// Content hash (if captured)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_hash: Option<String>,
@@ -86,7 +86,7 @@ pub struct FileReadData {
 pub struct FileWriteEvent {
     #[serde(flatten)]
     pub envelope: EventEnvelope,
-    
+
     #[serde(flatten)]
     pub data: FileWriteData,
 }
@@ -96,27 +96,27 @@ pub struct FileWriteEvent {
 pub struct FileWriteData {
     /// File path
     pub path: String,
-    
+
     /// File descriptor
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fd: Option<i32>,
-    
+
     /// Bytes written
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bytes_written: Option<u64>,
-    
+
     /// Offset in file
     #[serde(skip_serializing_if = "Option::is_none")]
     pub offset: Option<u64>,
-    
+
     /// Content hash (if captured)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_hash: Option<String>,
-    
+
     /// Whether this created the file
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created: Option<bool>,
-    
+
     /// Whether this truncated the file
     #[serde(skip_serializing_if = "Option::is_none")]
     pub truncated: Option<bool>,
@@ -127,7 +127,7 @@ pub struct FileWriteData {
 pub struct FileCloseEvent {
     #[serde(flatten)]
     pub envelope: EventEnvelope,
-    
+
     #[serde(flatten)]
     pub data: FileCloseData,
 }
@@ -137,21 +137,20 @@ pub struct FileCloseEvent {
 pub struct FileCloseData {
     /// File path
     pub path: String,
-    
+
     /// File descriptor
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fd: Option<i32>,
-    
+
     /// Total bytes read during open
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_bytes_read: Option<u64>,
-    
+
     /// Total bytes written during open
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_bytes_written: Option<u64>,
-    
+
     /// Duration file was open
     #[serde(skip_serializing_if = "Option::is_none")]
     pub open_duration_ms: Option<u64>,
 }
-

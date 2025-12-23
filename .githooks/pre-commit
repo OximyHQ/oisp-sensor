@@ -1,0 +1,65 @@
+#!/bin/sh
+#
+# Pre-commit hook for oisp-sensor
+# Runs formatting check, clippy, and tests before allowing commits
+#
+# To install: ./scripts/setup-hooks.sh
+# Or manually: git config core.hooksPath .githooks
+
+set -e
+
+echo "Running pre-commit checks..."
+
+# Source common paths for cargo (needed for GUI git clients)
+if [ -z "$CARGO_HOME" ]; then
+    CARGO_HOME="$HOME/.cargo"
+fi
+
+if [ -f "$CARGO_HOME/env" ]; then
+    . "$CARGO_HOME/env"
+fi
+
+# Also try common rustup locations
+if [ -d "$HOME/.cargo/bin" ]; then
+    export PATH="$HOME/.cargo/bin:$PATH"
+fi
+
+# Check if cargo is available
+if ! command -v cargo > /dev/null 2>&1; then
+    echo "Error: cargo not found in PATH."
+    echo "Please install Rust: https://rustup.rs"
+    echo ""
+    echo "If Rust is installed, you may need to restart your terminal or IDE."
+    exit 1
+fi
+
+# Run cargo fmt check
+echo "[1/3] Checking formatting..."
+if ! cargo fmt --all -- --check; then
+    echo ""
+    echo "Formatting check failed!"
+    echo "Run 'cargo fmt' to fix formatting issues."
+    exit 1
+fi
+
+# Run clippy
+echo "[2/3] Running clippy..."
+if ! cargo clippy --workspace --all-targets -- -D warnings; then
+    echo ""
+    echo "Clippy check failed!"
+    echo "Please fix the warnings above."
+    exit 1
+fi
+
+# Run tests (quick check, no long-running tests)
+echo "[3/3] Running tests..."
+if ! cargo test --workspace --lib; then
+    echo ""
+    echo "Tests failed!"
+    echo "Please fix the failing tests."
+    exit 1
+fi
+
+echo ""
+echo "All pre-commit checks passed!"
+

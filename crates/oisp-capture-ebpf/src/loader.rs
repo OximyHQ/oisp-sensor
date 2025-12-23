@@ -3,7 +3,7 @@
 #![cfg(target_os = "linux")]
 
 use std::path::Path;
-use tracing::{info, warn, error};
+use tracing::warn;
 
 /// Check if eBPF is available on this system
 pub fn check_ebpf_available() -> bool {
@@ -12,12 +12,12 @@ pub fn check_ebpf_available() -> bool {
         warn!("BPF filesystem not mounted at /sys/fs/bpf");
         return false;
     }
-    
+
     // Check for BTF support
     if !Path::new("/sys/kernel/btf/vmlinux").exists() {
         warn!("BTF not available - CO-RE programs may not work");
     }
-    
+
     true
 }
 
@@ -25,15 +25,16 @@ pub fn check_ebpf_available() -> bool {
 pub fn get_kernel_version() -> Option<(u32, u32, u32)> {
     let release = std::fs::read_to_string("/proc/sys/kernel/osrelease").ok()?;
     let parts: Vec<&str> = release.trim().split('.').collect();
-    
+
     if parts.len() >= 2 {
         let major = parts[0].parse().ok()?;
         let minor = parts[1].split('-').next()?.parse().ok()?;
-        let patch = parts.get(2)
+        let patch = parts
+            .get(2)
             .and_then(|p| p.split('-').next())
             .and_then(|p| p.parse().ok())
             .unwrap_or(0);
-        
+
         Some((major, minor, patch))
     } else {
         None
@@ -50,4 +51,3 @@ pub fn has_cap_bpf() -> bool {
     // TODO: Check for CAP_BPF and CAP_PERFMON
     is_root()
 }
-

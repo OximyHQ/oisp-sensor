@@ -10,7 +10,7 @@ use std::collections::HashMap;
 pub struct NetworkConnectEvent {
     #[serde(flatten)]
     pub envelope: EventEnvelope,
-    
+
     #[serde(flatten)]
     pub data: NetworkConnectData,
 }
@@ -20,27 +20,27 @@ pub struct NetworkConnectEvent {
 pub struct NetworkConnectData {
     /// Destination endpoint
     pub dest: Endpoint,
-    
+
     /// Source endpoint
     #[serde(skip_serializing_if = "Option::is_none")]
     pub src: Option<Endpoint>,
-    
+
     /// Protocol
     #[serde(skip_serializing_if = "Option::is_none")]
     pub protocol: Option<Protocol>,
-    
+
     /// Whether connection succeeded
     #[serde(skip_serializing_if = "Option::is_none")]
     pub success: Option<bool>,
-    
+
     /// Error if failed
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
-    
+
     /// Connection latency
     #[serde(skip_serializing_if = "Option::is_none")]
     pub latency_ms: Option<f64>,
-    
+
     /// TLS information
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tls: Option<TlsInfo>,
@@ -51,7 +51,7 @@ pub struct NetworkConnectData {
 pub struct NetworkAcceptEvent {
     #[serde(flatten)]
     pub envelope: EventEnvelope,
-    
+
     #[serde(flatten)]
     pub data: NetworkAcceptData,
 }
@@ -61,11 +61,11 @@ pub struct NetworkAcceptEvent {
 pub struct NetworkAcceptData {
     /// Source endpoint (connecting client)
     pub src: Endpoint,
-    
+
     /// Destination endpoint (local)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dest: Option<Endpoint>,
-    
+
     /// Protocol
     #[serde(skip_serializing_if = "Option::is_none")]
     pub protocol: Option<Protocol>,
@@ -76,7 +76,7 @@ pub struct NetworkAcceptData {
 pub struct NetworkFlowEvent {
     #[serde(flatten)]
     pub envelope: EventEnvelope,
-    
+
     #[serde(flatten)]
     pub data: NetworkFlowData,
 }
@@ -86,51 +86,51 @@ pub struct NetworkFlowEvent {
 pub struct NetworkFlowData {
     /// Destination endpoint
     pub dest: Endpoint,
-    
+
     /// Source endpoint
     #[serde(skip_serializing_if = "Option::is_none")]
     pub src: Option<Endpoint>,
-    
+
     /// Protocol
     #[serde(skip_serializing_if = "Option::is_none")]
     pub protocol: Option<Protocol>,
-    
+
     /// Direction
     #[serde(skip_serializing_if = "Option::is_none")]
     pub direction: Option<FlowDirection>,
-    
+
     /// Bytes sent
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bytes_sent: Option<u64>,
-    
+
     /// Bytes received
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bytes_received: Option<u64>,
-    
+
     /// Packets sent
     #[serde(skip_serializing_if = "Option::is_none")]
     pub packets_sent: Option<u64>,
-    
+
     /// Packets received
     #[serde(skip_serializing_if = "Option::is_none")]
     pub packets_received: Option<u64>,
-    
+
     /// Flow duration
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration_ms: Option<u64>,
-    
+
     /// Start time
     #[serde(skip_serializing_if = "Option::is_none")]
     pub start_time: Option<DateTime<Utc>>,
-    
+
     /// End time
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_time: Option<DateTime<Utc>>,
-    
+
     /// TLS information
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tls: Option<TlsInfo>,
-    
+
     /// HTTP information
     #[serde(skip_serializing_if = "Option::is_none")]
     pub http: Option<HttpInfo>,
@@ -141,7 +141,7 @@ pub struct NetworkFlowData {
 pub struct NetworkDnsEvent {
     #[serde(flatten)]
     pub envelope: EventEnvelope,
-    
+
     #[serde(flatten)]
     pub data: NetworkDnsData,
 }
@@ -151,22 +151,22 @@ pub struct NetworkDnsEvent {
 pub struct NetworkDnsData {
     /// Query name
     pub query_name: String,
-    
+
     /// Query type
     pub query_type: DnsQueryType,
-    
+
     /// Response code
     #[serde(skip_serializing_if = "Option::is_none")]
     pub response_code: Option<DnsResponseCode>,
-    
+
     /// Answers
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub answers: Vec<DnsAnswer>,
-    
+
     /// Resolver used
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resolver: Option<String>,
-    
+
     /// Latency
     #[serde(skip_serializing_if = "Option::is_none")]
     pub latency_ms: Option<f64>,
@@ -178,19 +178,19 @@ pub struct Endpoint {
     /// IP address
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ip: Option<String>,
-    
+
     /// Port
     #[serde(skip_serializing_if = "Option::is_none")]
     pub port: Option<u16>,
-    
+
     /// Domain name
     #[serde(skip_serializing_if = "Option::is_none")]
     pub domain: Option<String>,
-    
+
     /// Whether private/internal IP
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_private: Option<bool>,
-    
+
     /// Geolocation data
     #[serde(skip_serializing_if = "Option::is_none")]
     pub geo: Option<GeoInfo>,
@@ -236,27 +236,27 @@ pub struct TlsInfo {
     /// TLS version
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
-    
+
     /// Cipher suite
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cipher_suite: Option<String>,
-    
+
     /// Server Name Indication
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sni: Option<String>,
-    
+
     /// ALPN result
     #[serde(skip_serializing_if = "Option::is_none")]
     pub alpn: Option<String>,
-    
+
     /// Certificate information
     #[serde(skip_serializing_if = "Option::is_none")]
     pub certificate: Option<CertificateInfo>,
-    
+
     /// JA3 fingerprint
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ja3_fingerprint: Option<String>,
-    
+
     /// JA3S fingerprint
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ja3s_fingerprint: Option<String>,
@@ -285,35 +285,35 @@ pub struct HttpInfo {
     /// HTTP method
     #[serde(skip_serializing_if = "Option::is_none")]
     pub method: Option<String>,
-    
+
     /// Request path
     #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
-    
+
     /// Status code
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status_code: Option<u16>,
-    
+
     /// Host header
     #[serde(skip_serializing_if = "Option::is_none")]
     pub host: Option<String>,
-    
+
     /// User-Agent
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_agent: Option<String>,
-    
+
     /// Content-Type
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_type: Option<String>,
-    
+
     /// Content-Length
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_length: Option<u64>,
-    
+
     /// Request headers
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub request_headers: HashMap<String, String>,
-    
+
     /// Response headers
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub response_headers: HashMap<String, String>,
@@ -355,4 +355,3 @@ pub struct DnsAnswer {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ttl: Option<u32>,
 }
-

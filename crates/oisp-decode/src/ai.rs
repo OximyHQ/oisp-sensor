@@ -1,21 +1,18 @@
 //! AI request/response parsing
 
 use oisp_core::events::{
-    AiRequestData, AiResponseData, ProviderInfo, ModelInfo, Message, MessageRole,
-    MessageContent, ToolDefinition, ToolType, ToolCall, ToolArguments, Choice,
-    Usage, ModelParameters, FinishReason, RequestType,
+    AiRequestData, AiResponseData, Choice, FinishReason, Message, MessageContent, MessageRole,
+    ModelInfo, ModelParameters, ProviderInfo, RequestType, ToolArguments, ToolCall, ToolDefinition,
+    ToolType, Usage,
 };
 use oisp_core::providers::Provider;
 use serde_json::Value;
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 
 /// Parse an AI request from JSON body
-pub fn parse_ai_request(
-    body: &Value,
-    provider: Provider,
-    endpoint: &str,
-) -> Option<AiRequestData> {
-    let model = body.get("model")
+pub fn parse_ai_request(body: &Value, provider: Provider, endpoint: &str) -> Option<AiRequestData> {
+    let model = body
+        .get("model")
         .and_then(|m| m.as_str())
         .map(|id| ModelInfo {
             id: id.to_string(),
@@ -26,23 +23,26 @@ pub fn parse_ai_request(
             context_window: None,
             max_output_tokens: None,
         });
-    
+
     let messages = parse_messages(body.get("messages"));
     let tools = parse_tools(body.get("tools"));
-    
-    let streaming = body.get("stream")
+
+    let streaming = body
+        .get("stream")
         .and_then(|s| s.as_bool())
         .unwrap_or(false);
-    
+
     let parameters = parse_parameters(body);
-    
-    let has_system_prompt = messages.iter()
+
+    let has_system_prompt = messages
+        .iter()
         .any(|m| matches!(m.role, MessageRole::System));
-    
-    let system_prompt_hash = messages.iter()
+
+    let system_prompt_hash = messages
+        .iter()
         .find(|m| matches!(m.role, MessageRole::System))
         .and_then(|m| m.content_hash.clone());
-    
+
     Some(AiRequestData {
         request_id: ulid::Ulid::new().to_string(),
         provider: Some(ProviderInfo {
@@ -62,12 +62,12 @@ pub fn parse_ai_request(
         system_prompt_hash,
         tools: tools.clone(),
         tools_count: Some(tools.len()),
-        tool_choice: body.get("tool_choice")
-            .map(|tc| format!("{}", tc)),
+        tool_choice: body.get("tool_choice").map(|tc| format!("{}", tc)),
         parameters: Some(parameters),
         has_rag_context: None,
         has_images: Some(messages.iter().any(|m| m.has_images == Some(true))),
-        image_count: messages.iter()
+        image_count: messages
+            .iter()
             .filter_map(|m| m.image_count)
             .sum::<usize>()
             .into(),
@@ -81,28 +81,34 @@ pub fn parse_ai_response(
     request_id: &str,
     provider: Provider,
 ) -> Option<AiResponseData> {
-    let choices = body.get("choices")
+    let choices = body
+        .get("choices")
         .and_then(|c| c.as_array())
         .map(|arr| {
-            arr.iter().enumerate().map(|(idx, choice)| {
-                let message = choice.get("message").map(|m| parse_single_message(m));
-                let finish_reason = choice.get("finish_reason")
-                    .and_then(|f| f.as_str())
-                    .and_then(parse_finish_reason);
-                
-                Choice {
-                    index: idx,
-                    message,
-                    finish_reason,
-                }
-            }).collect()
+            arr.iter()
+                .enumerate()
+                .map(|(idx, choice)| {
+                    let message = choice.get("message").map(parse_single_message);
+                    let finish_reason = choice
+                        .get("finish_reason")
+                        .and_then(|f| f.as_str())
+                        .and_then(parse_finish_reason);
+
+                    Choice {
+                        index: idx,
+                        message,
+                        finish_reason,
+                    }
+                })
+                .collect()
         })
         .unwrap_or_default();
-    
+
     let tool_calls = extract_tool_calls(body);
     let usage = parse_usage(body.get("usage"));
-    
-    let model = body.get("model")
+
+    let model = body
+        .get("model")
         .and_then(|m| m.as_str())
         .map(|id| ModelInfo {
             id: id.to_string(),
@@ -113,12 +119,10 @@ pub fn parse_ai_response(
             context_window: None,
             max_output_tokens: None,
         });
-    
+
     Some(AiResponseData {
         request_id: request_id.to_string(),
-        provider_request_id: body.get("id")
-            .and_then(|i| i.as_str())
-            .map(String::from),
+        provider_request_id: body.get("id").and_then(|i| i.as_str()).map(String::from),
         provider: Some(ProviderInfo {
             name: format!("{:?}", provider).to_lowercase(),
             endpoint: None,
@@ -137,7 +141,8 @@ pub fn parse_ai_response(
         latency_ms: None,
         time_to_first_token_ms: None,
         was_cached: None,
-        finish_reason: body.get("choices")
+        finish_reason: body
+            .get("choices")
             .and_then(|c| c.get(0))
             .and_then(|c| c.get("finish_reason"))
             .and_then(|f| f.as_str())
@@ -153,14 +158,15 @@ fn parse_messages(messages: Option<&Value>) -> Vec<Message> {
 }
 
 fn parse_single_message(msg: &Value) -> Message {
-    let role = msg.get("role")
+    let role = msg
+        .get("role")
         .and_then(|r| r.as_str())
         .map(parse_role)
         .unwrap_or(MessageRole::User);
-    
+
     let content = msg.get("content");
     let content_str = content.and_then(|c| c.as_str());
-    
+
     Message {
         role,
         content: content_str.map(|s| MessageContent::Text(s.to_string())),
@@ -168,12 +174,11 @@ fn parse_single_message(msg: &Value) -> Message {
         content_length: content_str.map(|s| s.len()),
         has_images: None,
         image_count: None,
-        tool_call_id: msg.get("tool_call_id")
+        tool_call_id: msg
+            .get("tool_call_id")
             .and_then(|t| t.as_str())
             .map(String::from),
-        name: msg.get("name")
-            .and_then(|n| n.as_str())
-            .map(String::from),
+        name: msg.get("name").and_then(|n| n.as_str()).map(String::from),
     }
 }
 
@@ -192,21 +197,25 @@ fn parse_tools(tools: Option<&Value>) -> Vec<ToolDefinition> {
     tools
         .and_then(|t| t.as_array())
         .map(|arr| {
-            arr.iter().filter_map(|tool| {
-                let name = tool.get("function")
-                    .and_then(|f| f.get("name"))
-                    .or_else(|| tool.get("name"))
-                    .and_then(|n| n.as_str())?;
-                
-                Some(ToolDefinition {
-                    name: name.to_string(),
-                    tool_type: Some(ToolType::Function),
-                    description: tool.get("function")
-                        .and_then(|f| f.get("description"))
-                        .and_then(|d| d.as_str())
-                        .map(String::from),
+            arr.iter()
+                .filter_map(|tool| {
+                    let name = tool
+                        .get("function")
+                        .and_then(|f| f.get("name"))
+                        .or_else(|| tool.get("name"))
+                        .and_then(|n| n.as_str())?;
+
+                    Some(ToolDefinition {
+                        name: name.to_string(),
+                        tool_type: Some(ToolType::Function),
+                        description: tool
+                            .get("function")
+                            .and_then(|f| f.get("description"))
+                            .and_then(|d| d.as_str())
+                            .map(String::from),
+                    })
                 })
-            }).collect()
+                .collect()
         })
         .unwrap_or_default()
 }
@@ -218,24 +227,28 @@ fn extract_tool_calls(body: &Value) -> Vec<ToolCall> {
         .and_then(|m| m.get("tool_calls"))
         .and_then(|tc| tc.as_array())
         .map(|arr| {
-            arr.iter().filter_map(|tc| {
-                let id = tc.get("id").and_then(|i| i.as_str()).map(String::from);
-                let name = tc.get("function")
-                    .and_then(|f| f.get("name"))
-                    .and_then(|n| n.as_str())?;
-                let arguments = tc.get("function")
-                    .and_then(|f| f.get("arguments"))
-                    .and_then(|a| a.as_str())
-                    .map(|s| ToolArguments::String(s.to_string()));
-                
-                Some(ToolCall {
-                    id,
-                    name: name.to_string(),
-                    tool_type: Some(ToolType::Function),
-                    arguments,
-                    arguments_hash: None,
+            arr.iter()
+                .filter_map(|tc| {
+                    let id = tc.get("id").and_then(|i| i.as_str()).map(String::from);
+                    let name = tc
+                        .get("function")
+                        .and_then(|f| f.get("name"))
+                        .and_then(|n| n.as_str())?;
+                    let arguments = tc
+                        .get("function")
+                        .and_then(|f| f.get("arguments"))
+                        .and_then(|a| a.as_str())
+                        .map(|s| ToolArguments::String(s.to_string()));
+
+                    Some(ToolCall {
+                        id,
+                        name: name.to_string(),
+                        tool_type: Some(ToolType::Function),
+                        arguments,
+                        arguments_hash: None,
+                    })
                 })
-            }).collect()
+                .collect()
         })
         .unwrap_or_default()
 }
@@ -261,9 +274,14 @@ fn parse_parameters(body: &Value) -> ModelParameters {
         max_tokens: body.get("max_tokens").and_then(|t| t.as_u64()),
         frequency_penalty: body.get("frequency_penalty").and_then(|t| t.as_f64()),
         presence_penalty: body.get("presence_penalty").and_then(|t| t.as_f64()),
-        stop: body.get("stop")
+        stop: body
+            .get("stop")
             .and_then(|s| s.as_array())
-            .map(|arr| arr.iter().filter_map(|s| s.as_str().map(String::from)).collect())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|s| s.as_str().map(String::from))
+                    .collect()
+            })
             .unwrap_or_default(),
     }
 }
@@ -320,8 +338,8 @@ pub fn is_ai_request(body: &Value) -> bool {
     let has_messages = body.get("messages").is_some();
     let has_model = body.get("model").is_some();
     let has_prompt = body.get("prompt").is_some();
-    
-    (has_messages && has_model) || (has_prompt && has_model)
+
+    (has_prompt || has_messages) && has_model
 }
 
 /// Detect provider from request/response shape
@@ -338,12 +356,11 @@ pub fn detect_provider_from_body(body: &Value) -> Option<Provider> {
             return Some(Provider::Google);
         }
     }
-    
+
     // Check for Anthropic-specific fields
     if body.get("anthropic_version").is_some() {
         return Some(Provider::Anthropic);
     }
-    
+
     None
 }
-

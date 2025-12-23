@@ -8,4 +8,3 @@ pub static PROCESS_TRACEPOINTS: &[(&str, &str)] = &[
     ("sched", "sched_process_exit"),
     ("sched", "sched_process_fork"),
 ];
-

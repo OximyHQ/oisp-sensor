@@ -1,7 +1,7 @@
 //! Agent-related events - tool calls and results
 
+use super::ai::{RedactedContent, ToolArguments};
 use super::envelope::EventEnvelope;
-use super::ai::{ToolArguments, RedactedContent};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -10,7 +10,7 @@ use std::collections::HashMap;
 pub struct AgentToolCallEvent {
     #[serde(flatten)]
     pub envelope: EventEnvelope,
-    
+
     #[serde(flatten)]
     pub data: AgentToolCallData,
 }
@@ -20,26 +20,26 @@ pub struct AgentToolCallEvent {
 pub struct AgentToolCallData {
     /// Tool call ID
     pub tool_call_id: String,
-    
+
     /// Related AI request that triggered this
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_id: Option<String>,
-    
+
     /// Tool name
     pub tool_name: String,
-    
+
     /// Tool type
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_type: Option<String>,
-    
+
     /// Arguments passed to the tool
     #[serde(skip_serializing_if = "Option::is_none")]
     pub arguments: Option<ToolArguments>,
-    
+
     /// Hash of arguments
     #[serde(skip_serializing_if = "Option::is_none")]
     pub arguments_hash: Option<String>,
-    
+
     /// Parsed/structured arguments (for known tools)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parsed_arguments: Option<ParsedToolArguments>,
@@ -56,7 +56,7 @@ pub enum ParsedToolArguments {
         #[serde(skip_serializing_if = "Option::is_none")]
         encoding: Option<String>,
     },
-    
+
     /// File write operation
     #[serde(rename = "write_file")]
     WriteFile {
@@ -66,7 +66,7 @@ pub enum ParsedToolArguments {
         #[serde(skip_serializing_if = "Option::is_none")]
         content_hash: Option<String>,
     },
-    
+
     /// File edit operation
     #[serde(rename = "edit_file")]
     EditFile {
@@ -74,7 +74,7 @@ pub enum ParsedToolArguments {
         #[serde(skip_serializing_if = "Option::is_none")]
         changes_count: Option<usize>,
     },
-    
+
     /// Command execution
     #[serde(rename = "execute")]
     Execute {
@@ -84,7 +84,7 @@ pub enum ParsedToolArguments {
         #[serde(skip_serializing_if = "Option::is_none")]
         cwd: Option<String>,
     },
-    
+
     /// Search operation
     #[serde(rename = "search")]
     Search {
@@ -92,7 +92,7 @@ pub enum ParsedToolArguments {
         #[serde(skip_serializing_if = "Option::is_none")]
         scope: Option<String>,
     },
-    
+
     /// Web fetch
     #[serde(rename = "web_fetch")]
     WebFetch {
@@ -100,7 +100,7 @@ pub enum ParsedToolArguments {
         #[serde(skip_serializing_if = "Option::is_none")]
         method: Option<String>,
     },
-    
+
     /// Unknown/other tool
     #[serde(rename = "other")]
     Other {
@@ -114,7 +114,7 @@ pub enum ParsedToolArguments {
 pub struct AgentToolResultEvent {
     #[serde(flatten)]
     pub envelope: EventEnvelope,
-    
+
     #[serde(flatten)]
     pub data: AgentToolResultData,
 }
@@ -124,33 +124,33 @@ pub struct AgentToolResultEvent {
 pub struct AgentToolResultData {
     /// Tool call ID this result is for
     pub tool_call_id: String,
-    
+
     /// Tool name
     pub tool_name: String,
-    
+
     /// Whether execution succeeded
     pub success: bool,
-    
+
     /// Result content (may be redacted)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<ToolResultContent>,
-    
+
     /// Result hash
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result_hash: Option<String>,
-    
+
     /// Result length
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result_length: Option<usize>,
-    
+
     /// Error message if failed
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
-    
+
     /// Execution duration in milliseconds
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration_ms: Option<u64>,
-    
+
     /// Side effects observed
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub side_effects: Vec<ToolSideEffect>,
@@ -174,11 +174,11 @@ pub struct ToolSideEffect {
     /// Type of side effect
     #[serde(rename = "type")]
     pub effect_type: SideEffectType,
-    
+
     /// Description or details
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    
+
     /// Related event ID
     #[serde(skip_serializing_if = "Option::is_none")]
     pub event_id: Option<String>,
@@ -203,4 +203,3 @@ pub enum SideEffectType {
     /// Other side effect
     Other,
 }
-

@@ -1,0 +1,54 @@
+---
+description: Rust development guidelines for oisp-sensor
+globs: ["**/*.rs", "**/Cargo.toml"]
+alwaysApply: true
+---
+
+# Rust Development Guidelines for oisp-sensor
+
+## Code Quality Requirements
+
+Before committing any Rust code, always ensure:
+
+1. **Formatting**: Run `cargo fmt` to format all code
+2. **Linting**: Run `cargo clippy --workspace --all-targets -- -D warnings` and fix all warnings
+3. **Compilation**: Run `cargo check --workspace` to verify no compilation errors
+4. **Tests**: Run `cargo test --workspace` to ensure tests pass
+
+## Pre-commit Hooks
+
+This project uses pre-commit hooks. Set them up with:
+```bash
+./scripts/setup-hooks.sh
+```
+
+## Common Clippy Issues to Avoid
+
+- Use `println!()` instead of `println!("")` for empty lines
+- Use `strip_prefix()` instead of manual string slicing after `starts_with()`
+- Prefer `sort_by_key()` over `sort_by()` when comparing a single key
+- Use struct initialization with `..Default::default()` instead of field reassignment
+- Add `#[allow(clippy::large_enum_variant)]` only when boxing would break the API
+- Mark unused parameters with underscore prefix (`_param`) or use `let _ = param;`
+
+## Platform-Specific Code
+
+When writing platform-specific code:
+- Use `#[cfg(target_os = "linux")]`, `#[cfg(target_os = "macos")]`, `#[cfg(target_os = "windows")]`
+- Always handle unused parameters in cross-platform functions with `let _ = param;`
+- Import only what's needed for each platform to avoid unused import warnings
+
+## Style Guidelines
+
+- No emojis in logs or code comments
+- Use `tracing` for logging (not `println!` in library code)
+- Prefer `Result` types over panicking
+- Document public APIs with doc comments
+
+## Running the Full CI Check Locally
+
+```bash
+cargo fmt --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+```

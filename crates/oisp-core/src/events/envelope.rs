@@ -9,50 +9,50 @@ use std::collections::HashMap;
 pub struct EventEnvelope {
     /// OISP specification version
     pub oisp_version: String,
-    
+
     /// Unique event identifier (ULID recommended)
     pub event_id: String,
-    
+
     /// Event type (e.g., "ai.request", "process.exec")
     pub event_type: String,
-    
+
     /// Event timestamp
     pub ts: DateTime<Utc>,
-    
+
     /// Monotonic timestamp in nanoseconds (for precise ordering)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ts_mono: Option<u64>,
-    
+
     /// Host/device context
     #[serde(skip_serializing_if = "Option::is_none")]
     pub host: Option<Host>,
-    
+
     /// User/identity context
     #[serde(skip_serializing_if = "Option::is_none")]
     pub actor: Option<Actor>,
-    
+
     /// Process context
     #[serde(skip_serializing_if = "Option::is_none")]
     pub process: Option<ProcessInfo>,
-    
+
     /// Capture source/provenance
     pub source: Source,
-    
+
     /// Confidence and completeness metadata
     pub confidence: Confidence,
-    
+
     /// Additional attributes
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub attrs: HashMap<String, serde_json::Value>,
-    
+
     /// Namespaced extensions
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub ext: HashMap<String, serde_json::Value>,
-    
+
     /// Related event IDs for correlation
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub related_events: Vec<RelatedEvent>,
-    
+
     /// OpenTelemetry trace context
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trace_context: Option<TraceContext>,
@@ -78,37 +78,37 @@ impl EventEnvelope {
             trace_context: None,
         }
     }
-    
+
     /// Set the host context
     pub fn with_host(mut self, host: Host) -> Self {
         self.host = Some(host);
         self
     }
-    
+
     /// Set the actor context
     pub fn with_actor(mut self, actor: Actor) -> Self {
         self.actor = Some(actor);
         self
     }
-    
+
     /// Set the process context
     pub fn with_process(mut self, process: ProcessInfo) -> Self {
         self.process = Some(process);
         self
     }
-    
+
     /// Set the source
     pub fn with_source(mut self, source: Source) -> Self {
         self.source = source;
         self
     }
-    
+
     /// Set confidence
     pub fn with_confidence(mut self, confidence: Confidence) -> Self {
         self.confidence = confidence;
         self
     }
-    
+
     /// Add a related event
     pub fn with_related(mut self, event_id: String, relationship: Relationship) -> Self {
         self.related_events.push(RelatedEvent {
@@ -124,19 +124,19 @@ impl EventEnvelope {
 pub struct Host {
     /// Hostname
     pub hostname: String,
-    
+
     /// Unique device identifier
     #[serde(skip_serializing_if = "Option::is_none")]
     pub device_id: Option<String>,
-    
+
     /// Operating system
     #[serde(skip_serializing_if = "Option::is_none")]
     pub os: Option<String>,
-    
+
     /// OS version
     #[serde(skip_serializing_if = "Option::is_none")]
     pub os_version: Option<String>,
-    
+
     /// Architecture
     #[serde(skip_serializing_if = "Option::is_none")]
     pub arch: Option<String>,
@@ -163,19 +163,19 @@ pub struct Actor {
     /// Unix UID
     #[serde(skip_serializing_if = "Option::is_none")]
     pub uid: Option<u32>,
-    
+
     /// Username
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user: Option<String>,
-    
+
     /// Group ID
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gid: Option<u32>,
-    
+
     /// Session ID
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
-    
+
     /// Identity from IdP
     #[serde(skip_serializing_if = "Option::is_none")]
     pub identity: Option<Identity>,
@@ -186,11 +186,11 @@ pub struct Actor {
 pub struct Identity {
     /// IdP name (e.g., "okta", "azure_ad")
     pub provider: String,
-    
+
     /// Email address
     #[serde(skip_serializing_if = "Option::is_none")]
     pub email: Option<String>,
-    
+
     /// User ID from IdP
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_id: Option<String>,
@@ -201,39 +201,39 @@ pub struct Identity {
 pub struct ProcessInfo {
     /// Process ID
     pub pid: u32,
-    
+
     /// Parent process ID
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ppid: Option<u32>,
-    
+
     /// Executable path
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exe: Option<String>,
-    
+
     /// Process name
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
-    
+
     /// Full command line
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cmdline: Option<String>,
-    
+
     /// Current working directory
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cwd: Option<String>,
-    
+
     /// Thread ID
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tid: Option<u32>,
-    
+
     /// Container ID (if in container)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub container_id: Option<String>,
-    
+
     /// Binary hash
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hash: Option<String>,
-    
+
     /// Code signing information
     #[serde(skip_serializing_if = "Option::is_none")]
     pub code_signature: Option<CodeSignature>,
@@ -244,15 +244,15 @@ pub struct ProcessInfo {
 pub struct CodeSignature {
     /// Whether the binary is signed
     pub signed: bool,
-    
+
     /// Signer identity
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signer: Option<String>,
-    
+
     /// Team ID (macOS)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub team_id: Option<String>,
-    
+
     /// Whether signature is valid
     #[serde(skip_serializing_if = "Option::is_none")]
     pub valid: Option<bool>,
@@ -263,19 +263,19 @@ pub struct CodeSignature {
 pub struct Source {
     /// Collector name
     pub collector: String,
-    
+
     /// Collector version
     #[serde(skip_serializing_if = "Option::is_none")]
     pub collector_version: Option<String>,
-    
+
     /// Capture method
     #[serde(skip_serializing_if = "Option::is_none")]
     pub capture_method: Option<CaptureMethod>,
-    
+
     /// Specific capture point
     #[serde(skip_serializing_if = "Option::is_none")]
     pub capture_point: Option<String>,
-    
+
     /// Sensor host if different from event host
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sensor_host: Option<String>,
@@ -336,18 +336,18 @@ pub enum CaptureMethod {
 pub struct Confidence {
     /// Confidence level in the data
     pub level: ConfidenceLevel,
-    
+
     /// How complete is the captured data
     pub completeness: Completeness,
-    
+
     /// Reasons for the confidence/completeness assessment
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub reasons: Vec<String>,
-    
+
     /// Source of content (if available)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_source: Option<String>,
-    
+
     /// How AI activity was detected
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ai_detection_method: Option<String>,
@@ -470,8 +470,8 @@ impl EventType {
             EventType::NetworkDns => "network.dns",
         }
     }
-    
-    pub fn from_str(s: &str) -> Option<Self> {
+
+    pub fn parse(s: &str) -> Option<Self> {
         match s {
             "ai.request" => Some(EventType::AiRequest),
             "ai.response" => Some(EventType::AiResponse),
@@ -494,4 +494,3 @@ impl EventType {
         }
     }
 }
-

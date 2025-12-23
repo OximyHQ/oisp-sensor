@@ -1,8 +1,7 @@
 //! Enrichment plugins for OISP Sensor
 
-pub mod process_tree;
 pub mod host;
+pub mod process_tree;
 
-pub use process_tree::ProcessTreeEnricher;
 pub use host::HostEnricher;
-
+pub use process_tree::ProcessTreeEnricher;

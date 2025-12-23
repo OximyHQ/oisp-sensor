@@ -12,4 +12,3 @@ pub static FILE_TRACEPOINTS: &[(&str, &str)] = &[
     ("syscalls", "sys_exit_write"),
     ("syscalls", "sys_enter_close"),
 ];
-
