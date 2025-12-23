@@ -1,0 +1,32 @@
+# OISP Sensor Docker Compose
+#
+# Run: docker-compose up -d
+#
+version: '3.8'
+
+services:
+  oisp-sensor:
+    build: ..
+    image: oisp-sensor:latest
+    container_name: oisp-sensor
+    privileged: true
+    network_mode: host
+    volumes:
+      # Required for eBPF
+      - /sys/kernel/debug:/sys/kernel/debug:ro
+      - /sys/fs/bpf:/sys/fs/bpf:ro
+      - /proc:/host/proc:ro
+      # Data persistence
+      - oisp-data:/var/lib/oisp
+      - oisp-logs:/var/log/oisp
+    environment:
+      - RUST_LOG=info
+    ports:
+      - "7777:7777"
+    restart: unless-stopped
+    command: ["record", "--output", "/var/lib/oisp/events.jsonl", "--port", "7777"]
+
+volumes:
+  oisp-data:
+  oisp-logs:
+

@@ -1,0 +1,79 @@
+# OISP Sensor Configuration
+#
+# Copy this file to ~/.config/oisp-sensor/config.toml
+# or /etc/oisp-sensor/config.toml
+
+# Sensor settings
+[sensor]
+# Log level: trace, debug, info, warn, error
+log_level = "info"
+
+# Enable/disable capture types
+[capture]
+ssl = true
+process = true
+file = true
+network = true
+
+# Additional binary paths for SSL library detection
+ssl_binary_paths = []
+
+# Process name filter (capture only these processes, empty = all)
+process_filter = []
+
+# PID filter (capture only these PIDs, empty = all)
+pid_filter = []
+
+# Redaction settings
+[redaction]
+# Mode: safe, full, minimal
+mode = "safe"
+
+# Types of sensitive data to redact
+redact_api_keys = true
+redact_emails = true
+redact_credit_cards = true
+redact_ssn = true
+redact_phone_numbers = false
+
+# Custom regex patterns to redact
+custom_patterns = []
+
+# Export settings
+[export]
+# JSONL file output
+[export.jsonl]
+enabled = true
+path = "/var/lib/oisp-sensor/events.jsonl"
+append = true
+flush_each = true
+
+# WebSocket for UI
+[export.websocket]
+enabled = true
+host = "127.0.0.1"
+port = 7777
+
+# OTLP export (optional)
+[export.otlp]
+enabled = false
+endpoint = "http://localhost:4317"
+insecure = true
+
+# Web UI settings
+[web]
+enabled = true
+host = "127.0.0.1"
+port = 7777
+
+# Correlation settings
+[correlation]
+# Time window for correlating events (ms)
+time_window_ms = 5000
+
+# Maximum trace duration before auto-complete (ms)
+max_trace_duration_ms = 300000
+
+# Maximum traces to keep in memory
+max_traces = 100
+
