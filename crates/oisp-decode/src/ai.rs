@@ -1,9 +1,9 @@
 //! AI request/response parsing
 
 use oisp_core::events::{
-    AiRequestData, AiResponseData, Choice, FinishReason, Message, MessageContent, MessageRole,
-    ModelInfo, ModelParameters, ProviderInfo, RequestType, ToolArguments, ToolCall, ToolDefinition,
-    ToolType, Usage,
+    AgentContext, AiRequestData, AiResponseData, Choice, ConversationContext, FinishReason,
+    Message, MessageContent, MessageRole, ModelInfo, ModelParameters, ProviderInfo, RequestType,
+    ThinkingBlock, ThinkingMode, ToolArguments, ToolCall, ToolDefinition, ToolType, Usage,
 };
 use oisp_core::providers::Provider;
 use serde_json::Value;
@@ -43,6 +43,16 @@ pub fn parse_ai_request(body: &Value, provider: Provider, endpoint: &str) -> Opt
         .find(|m| matches!(m.role, MessageRole::System))
         .and_then(|m| m.content_hash.clone());
 
+    // Build conversation context
+    let context_window = model.as_ref().and_then(|m| m.context_window);
+    let conversation = Some(ConversationContext::from_messages(
+        &messages,
+        context_window,
+    ));
+
+    // Detect agent context
+    let agent = AgentContext::detect(&tools, &messages);
+
     Some(AiRequestData {
         request_id: ulid::Ulid::new().to_string(),
         provider: Some(ProviderInfo {
@@ -72,6 +82,8 @@ pub fn parse_ai_request(body: &Value, provider: Provider, endpoint: &str) -> Opt
             .sum::<usize>()
             .into(),
         estimated_tokens: None,
+        conversation,
+        agent,
     })
 }
 
@@ -120,6 +132,13 @@ pub fn parse_ai_response(
             max_output_tokens: None,
         });
 
+    // Extract thinking/reasoning blocks
+    let thinking = extract_thinking_block(
+        body,
+        &format!("{:?}", provider).to_lowercase(),
+        usage.as_ref(),
+    );
+
     Some(AiResponseData {
         request_id: request_id.to_string(),
         provider_request_id: body.get("id").and_then(|i| i.as_str()).map(String::from),
@@ -147,6 +166,7 @@ pub fn parse_ai_response(
             .and_then(|c| c.get("finish_reason"))
             .and_then(|f| f.as_str())
             .and_then(parse_finish_reason),
+        thinking,
     })
 }
 
@@ -309,6 +329,96 @@ fn detect_request_type(body: &Value) -> RequestType {
     }
 }
 
+/// Extract thinking/reasoning blocks from response
+fn extract_thinking_block(
+    body: &Value,
+    provider_id: &str,
+    usage: Option<&Usage>,
+) -> Option<ThinkingBlock> {
+    // Check for reasoning tokens (OpenAI o1-style)
+    let reasoning_tokens = usage.and_then(|u| u.reasoning_tokens);
+
+    // Check for Anthropic extended thinking
+    // Claude returns thinking blocks as content with type: "thinking"
+    if let Some(content) = body.get("content").and_then(|c| c.as_array()) {
+        for block in content {
+            if block.get("type").and_then(|t| t.as_str()) == Some("thinking") {
+                let thinking_text = block.get("thinking").and_then(|t| t.as_str());
+
+                if let Some(text) = thinking_text {
+                    return Some(ThinkingBlock {
+                        enabled: Some(true),
+                        content: Some(MessageContent::Text(text.to_string())),
+                        content_hash: Some(hash_content(text)),
+                        content_length: Some(text.len()),
+                        tokens: None,
+                        duration_ms: None,
+                        mode: Some(ThinkingMode::ExtendedThinking),
+                    });
+                }
+            }
+        }
+    }
+
+    // Check for OpenAI reasoning tokens
+    if let Some(tokens) = reasoning_tokens {
+        if tokens > 0 {
+            // OpenAI doesn't expose the reasoning content, only token count
+            return Some(ThinkingBlock {
+                enabled: Some(true),
+                content: None, // OpenAI doesn't expose reasoning content
+                content_hash: None,
+                content_length: None,
+                tokens: Some(tokens),
+                duration_ms: None,
+                mode: Some(ThinkingMode::Reasoning),
+            });
+        }
+    }
+
+    // Check for reasoning_content in choices (some models expose this)
+    if let Some(reasoning) = body
+        .get("choices")
+        .and_then(|c| c.get(0))
+        .and_then(|c| c.get("message"))
+        .and_then(|m| m.get("reasoning_content"))
+        .and_then(|r| r.as_str())
+    {
+        return Some(ThinkingBlock {
+            enabled: Some(true),
+            content: Some(MessageContent::Text(reasoning.to_string())),
+            content_hash: Some(hash_content(reasoning)),
+            content_length: Some(reasoning.len()),
+            tokens: reasoning_tokens,
+            duration_ms: None,
+            mode: Some(ThinkingMode::Reasoning),
+        });
+    }
+
+    // Check for DeepSeek R1-style thinking
+    if provider_id == "deepseek" {
+        if let Some(thinking) = body
+            .get("choices")
+            .and_then(|c| c.get(0))
+            .and_then(|c| c.get("message"))
+            .and_then(|m| m.get("thinking"))
+            .and_then(|t| t.as_str())
+        {
+            return Some(ThinkingBlock {
+                enabled: Some(true),
+                content: Some(MessageContent::Text(thinking.to_string())),
+                content_hash: Some(hash_content(thinking)),
+                content_length: Some(thinking.len()),
+                tokens: None,
+                duration_ms: None,
+                mode: Some(ThinkingMode::DeepThinking),
+            });
+        }
+    }
+
+    None
+}
+
 fn extract_model_family(model_id: &str) -> Option<String> {
     // Extract family from model ID
     if model_id.starts_with("gpt-4") {
@@ -415,6 +525,18 @@ pub fn parse_anthropic_request(body: &Value, endpoint: &str) -> Option<AiRequest
         .and_then(|s| s.as_bool())
         .unwrap_or(false);
 
+    let tools = parse_tools(body.get("tools"));
+
+    // Build conversation context
+    let context_window = model.as_ref().and_then(|m| m.context_window);
+    let conversation = Some(ConversationContext::from_messages(
+        &messages,
+        context_window,
+    ));
+
+    // Detect agent context
+    let agent = AgentContext::detect(&tools, &messages);
+
     Some(AiRequestData {
         request_id: ulid::Ulid::new().to_string(),
         provider: Some(ProviderInfo {
@@ -432,7 +554,7 @@ pub fn parse_anthropic_request(body: &Value, endpoint: &str) -> Option<AiRequest
         messages_count: Some(messages.len()),
         has_system_prompt: Some(has_system_prompt),
         system_prompt_hash,
-        tools: parse_tools(body.get("tools")),
+        tools,
         tools_count: body
             .get("tools")
             .and_then(|t| t.as_array())
@@ -458,6 +580,8 @@ pub fn parse_anthropic_request(body: &Value, endpoint: &str) -> Option<AiRequest
         has_images: None,
         image_count: None,
         estimated_tokens: None,
+        conversation,
+        agent,
     })
 }
 
@@ -528,6 +652,9 @@ pub fn parse_anthropic_response(body: &Value, request_id: &str) -> Option<AiResp
             max_output_tokens: None,
         });
 
+    // Extract thinking/reasoning blocks (Anthropic extended thinking)
+    let thinking = extract_thinking_block(body, "anthropic", usage.as_ref());
+
     Some(AiResponseData {
         request_id: request_id.to_string(),
         provider_request_id: body.get("id").and_then(|i| i.as_str()).map(String::from),
@@ -571,6 +698,7 @@ pub fn parse_anthropic_response(body: &Value, request_id: &str) -> Option<AiResp
         time_to_first_token_ms: None,
         was_cached: None,
         finish_reason,
+        thinking,
     })
 }
 

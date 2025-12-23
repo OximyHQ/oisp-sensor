@@ -1,0 +1,19 @@
+#!/bin/sh
+set -e
+
+# Pre-removal script for oisp-sensor
+
+# Stop service if running
+if systemctl is-active --quiet oisp-sensor 2>/dev/null; then
+    systemctl stop oisp-sensor || true
+fi
+
+# Disable service
+if systemctl is-enabled --quiet oisp-sensor 2>/dev/null; then
+    systemctl disable oisp-sensor || true
+fi
+
+#DEBHELPER#
+
+exit 0
+

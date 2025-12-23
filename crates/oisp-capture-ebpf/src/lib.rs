@@ -22,7 +22,10 @@ mod ebpf_capture;
 #[cfg(target_os = "linux")]
 pub use ebpf_capture::{EbpfCapture, EbpfCaptureConfig};
 #[cfg(target_os = "linux")]
-pub use types::{NetworkConnectEvent, SslEvent, SslEventType, MAX_DATA_LEN};
+pub use types::{
+    FileOpenEvent, NetworkConnectEvent, ProcessExecEvent, ProcessExitEvent, SslEvent, SslEventType,
+    MAX_DATA_LEN, MAX_PATH_LEN,
+};
 
 #[cfg(not(target_os = "linux"))]
 pub struct EbpfCapture;

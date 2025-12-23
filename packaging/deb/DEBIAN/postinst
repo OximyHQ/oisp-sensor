@@ -1,0 +1,79 @@
+#!/bin/sh
+set -e
+
+# Post-installation script for oisp-sensor
+
+# Create oisp group and user for running the sensor
+if ! getent group oisp >/dev/null 2>&1; then
+    groupadd --system oisp
+fi
+
+if ! getent passwd oisp >/dev/null 2>&1; then
+    useradd --system --gid oisp --no-create-home --shell /usr/sbin/nologin oisp
+fi
+
+# Create directories
+mkdir -p /etc/oisp
+mkdir -p /var/log/oisp
+mkdir -p /var/lib/oisp
+
+# Set ownership
+chown oisp:oisp /var/log/oisp
+chown oisp:oisp /var/lib/oisp
+
+# Set capabilities for eBPF (allows running without root)
+if [ -x /sbin/setcap ] || [ -x /usr/sbin/setcap ]; then
+    setcap cap_sys_admin,cap_bpf,cap_perfmon,cap_net_admin+ep /usr/bin/oisp-sensor || true
+fi
+
+# Create default config if it doesn't exist
+if [ ! -f /etc/oisp/config.toml ]; then
+    cat > /etc/oisp/config.toml << 'EOF'
+# OISP Sensor Configuration
+# See https://sensor.oisp.dev/configuration for documentation
+
+[sensor]
+name = "oisp-sensor"
+
+[capture]
+ssl = true
+process = true
+file = true
+network = true
+
+[redaction]
+mode = "safe"  # safe, full, minimal
+
+[export.jsonl]
+enabled = true
+path = "/var/log/oisp/events.jsonl"
+append = true
+
+[web]
+enabled = true
+host = "127.0.0.1"
+port = 7777
+EOF
+    chown root:oisp /etc/oisp/config.toml
+    chmod 640 /etc/oisp/config.toml
+fi
+
+# Reload systemd
+systemctl daemon-reload || true
+
+echo ""
+echo "OISP Sensor installed successfully!"
+echo ""
+echo "Get started:"
+echo "  sudo systemctl enable oisp-sensor   # Enable on boot"
+echo "  sudo systemctl start oisp-sensor    # Start now"
+echo "  oisp-sensor status                  # Check capabilities"
+echo ""
+echo "Web UI: http://localhost:7777"
+echo "Config: /etc/oisp/config.toml"
+echo ""
+
+#DEBHELPER#
+
+exit 0
+

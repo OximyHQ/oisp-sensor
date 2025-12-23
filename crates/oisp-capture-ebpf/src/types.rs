@@ -253,3 +253,230 @@ impl std::fmt::Debug for NetworkConnectEvent {
 
 #[cfg(target_os = "linux")]
 unsafe impl aya::Pod for NetworkConnectEvent {}
+
+// =============================================================================
+// Process Events
+// =============================================================================
+
+/// Maximum path length for file/process events
+pub const MAX_PATH_LEN: usize = 256;
+
+/// Process execution event from eBPF tracepoint
+///
+/// This struct must match the eBPF-side structure exactly.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct ProcessExecEvent {
+    /// Timestamp in nanoseconds
+    pub timestamp_ns: u64,
+    /// Process ID (new process)
+    pub pid: u32,
+    /// Parent process ID (critical for building process tree)
+    pub ppid: u32,
+    /// Thread ID
+    pub tid: u32,
+    /// User ID
+    pub uid: u32,
+    /// Process command name (from comm)
+    pub comm: [u8; COMM_LEN],
+    /// Filename/executable path (from exec)
+    pub filename: [u8; MAX_PATH_LEN],
+    /// Command line length
+    pub cmdline_len: u32,
+    /// Padding for alignment
+    _pad1: u32,
+}
+
+impl ProcessExecEvent {
+    /// Create a new zeroed event
+    pub const fn zeroed() -> Self {
+        Self {
+            timestamp_ns: 0,
+            pid: 0,
+            ppid: 0,
+            tid: 0,
+            uid: 0,
+            comm: [0u8; COMM_LEN],
+            filename: [0u8; MAX_PATH_LEN],
+            cmdline_len: 0,
+            _pad1: 0,
+        }
+    }
+
+    /// Get process command name as string
+    pub fn comm_str(&self) -> String {
+        let end = self.comm.iter().position(|&c| c == 0).unwrap_or(COMM_LEN);
+        String::from_utf8_lossy(&self.comm[..end]).to_string()
+    }
+
+    /// Get filename/executable path as string
+    pub fn filename_str(&self) -> String {
+        let end = self
+            .filename
+            .iter()
+            .position(|&c| c == 0)
+            .unwrap_or(MAX_PATH_LEN);
+        String::from_utf8_lossy(&self.filename[..end]).to_string()
+    }
+}
+
+impl std::fmt::Debug for ProcessExecEvent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProcessExecEvent")
+            .field("timestamp_ns", &self.timestamp_ns)
+            .field("pid", &self.pid)
+            .field("ppid", &self.ppid)
+            .field("tid", &self.tid)
+            .field("uid", &self.uid)
+            .field("comm", &self.comm_str())
+            .field("filename", &self.filename_str())
+            .finish()
+    }
+}
+
+#[cfg(target_os = "linux")]
+unsafe impl aya::Pod for ProcessExecEvent {}
+
+/// Process exit event from eBPF tracepoint
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct ProcessExitEvent {
+    /// Timestamp in nanoseconds
+    pub timestamp_ns: u64,
+    /// Process ID
+    pub pid: u32,
+    /// Parent process ID
+    pub ppid: u32,
+    /// Thread ID
+    pub tid: u32,
+    /// Exit code
+    pub exit_code: i32,
+    /// Process command name
+    pub comm: [u8; COMM_LEN],
+}
+
+impl ProcessExitEvent {
+    /// Create a new zeroed event
+    pub const fn zeroed() -> Self {
+        Self {
+            timestamp_ns: 0,
+            pid: 0,
+            ppid: 0,
+            tid: 0,
+            exit_code: 0,
+            comm: [0u8; COMM_LEN],
+        }
+    }
+
+    /// Get process command name as string
+    pub fn comm_str(&self) -> String {
+        let end = self.comm.iter().position(|&c| c == 0).unwrap_or(COMM_LEN);
+        String::from_utf8_lossy(&self.comm[..end]).to_string()
+    }
+}
+
+impl std::fmt::Debug for ProcessExitEvent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProcessExitEvent")
+            .field("timestamp_ns", &self.timestamp_ns)
+            .field("pid", &self.pid)
+            .field("ppid", &self.ppid)
+            .field("tid", &self.tid)
+            .field("exit_code", &self.exit_code)
+            .field("comm", &self.comm_str())
+            .finish()
+    }
+}
+
+#[cfg(target_os = "linux")]
+unsafe impl aya::Pod for ProcessExitEvent {}
+
+// =============================================================================
+// File Events
+// =============================================================================
+
+/// File open event from eBPF tracepoint
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct FileOpenEvent {
+    /// Timestamp in nanoseconds
+    pub timestamp_ns: u64,
+    /// Process ID
+    pub pid: u32,
+    /// Parent process ID
+    pub ppid: u32,
+    /// Thread ID
+    pub tid: u32,
+    /// User ID
+    pub uid: u32,
+    /// Open flags (O_RDONLY, O_WRONLY, etc.)
+    pub flags: u32,
+    /// Mode (permissions for create)
+    pub mode: u32,
+    /// Process command name
+    pub comm: [u8; COMM_LEN],
+    /// File path
+    pub path: [u8; MAX_PATH_LEN],
+}
+
+impl FileOpenEvent {
+    /// Create a new zeroed event
+    pub const fn zeroed() -> Self {
+        Self {
+            timestamp_ns: 0,
+            pid: 0,
+            ppid: 0,
+            tid: 0,
+            uid: 0,
+            flags: 0,
+            mode: 0,
+            comm: [0u8; COMM_LEN],
+            path: [0u8; MAX_PATH_LEN],
+        }
+    }
+
+    /// Get process command name as string
+    pub fn comm_str(&self) -> String {
+        let end = self.comm.iter().position(|&c| c == 0).unwrap_or(COMM_LEN);
+        String::from_utf8_lossy(&self.comm[..end]).to_string()
+    }
+
+    /// Get file path as string
+    pub fn path_str(&self) -> String {
+        let end = self
+            .path
+            .iter()
+            .position(|&c| c == 0)
+            .unwrap_or(MAX_PATH_LEN);
+        String::from_utf8_lossy(&self.path[..end]).to_string()
+    }
+
+    /// Check if opened for writing
+    pub fn is_write(&self) -> bool {
+        (self.flags & 3) != 0 // O_WRONLY or O_RDWR
+    }
+
+    /// Check if file was created
+    pub fn is_create(&self) -> bool {
+        (self.flags & 0o100) != 0 // O_CREAT
+    }
+}
+
+impl std::fmt::Debug for FileOpenEvent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FileOpenEvent")
+            .field("timestamp_ns", &self.timestamp_ns)
+            .field("pid", &self.pid)
+            .field("ppid", &self.ppid)
+            .field("tid", &self.tid)
+            .field("uid", &self.uid)
+            .field("flags", &format!("{:#o}", self.flags))
+            .field("mode", &format!("{:#o}", self.mode))
+            .field("comm", &self.comm_str())
+            .field("path", &self.path_str())
+            .finish()
+    }
+}
+
+#[cfg(target_os = "linux")]
+unsafe impl aya::Pod for FileOpenEvent {}

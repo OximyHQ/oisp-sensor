@@ -1,0 +1,110 @@
+/* OISP Sensor Documentation Theme */
+
+:root {
+  --sl-color-accent-low: #1a365d;
+  --sl-color-accent: #2563eb;
+  --sl-color-accent-high: #60a5fa;
+  --sl-color-white: #ffffff;
+  --sl-color-gray-1: #f8fafc;
+  --sl-color-gray-2: #e2e8f0;
+  --sl-color-gray-3: #cbd5e1;
+  --sl-color-gray-4: #94a3b8;
+  --sl-color-gray-5: #64748b;
+  --sl-color-gray-6: #1e293b;
+  --sl-color-black: #0f172a;
+  
+  /* Code highlighting */
+  --sl-color-bg-code: #1e293b;
+}
+
+[data-theme='dark'] {
+  --sl-color-accent-low: #1e3a5f;
+  --sl-color-accent: #3b82f6;
+  --sl-color-accent-high: #93c5fd;
+}
+
+/* Hero section enhancements */
+.hero {
+  background: linear-gradient(135deg, var(--sl-color-accent-low) 0%, transparent 100%);
+}
+
+/* Custom callout styles */
+.starlight-aside--tip {
+  border-left-color: var(--sl-color-accent);
+}
+
+/* Terminal/code block styling */
+pre {
+  border-radius: 8px;
+  border: 1px solid var(--sl-color-gray-5);
+}
+
+/* Make headings pop */
+h1, h2, h3 {
+  font-weight: 700;
+}
+
+/* Better link styling */
+a:not([class]) {
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+a:not([class]):hover {
+  text-decoration-thickness: 2px;
+}
+
+/* Installation code block */
+.install-cmd {
+  background: var(--sl-color-bg-code);
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  font-family: monospace;
+  overflow-x: auto;
+}
+
+/* Feature cards */
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+  margin: 2rem 0;
+}
+
+.feature-card {
+  background: var(--sl-color-gray-6);
+  padding: 1.5rem;
+  border-radius: 12px;
+  border: 1px solid var(--sl-color-gray-5);
+}
+
+.feature-card h3 {
+  margin-top: 0;
+  font-size: 1.1rem;
+}
+
+/* Badge styling */
+.badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.badge-linux {
+  background: #f97316;
+  color: white;
+}
+
+.badge-complete {
+  background: #22c55e;
+  color: white;
+}
+
+.badge-preview {
+  background: #eab308;
+  color: black;
+}
+

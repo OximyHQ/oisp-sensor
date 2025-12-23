@@ -1,0 +1,14 @@
+---
+// Default Head component with custom additions
+import Default from '@astrojs/starlight/components/Head.astro';
+---
+
+<Default {...Astro.props} />
+
+<style is:global>
+  /* Add smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+</style>
+

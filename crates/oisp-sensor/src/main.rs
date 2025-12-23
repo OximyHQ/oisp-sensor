@@ -8,7 +8,7 @@ use oisp_capture::{TestGenerator, TestGeneratorConfig};
 use oisp_capture_ebpf::{EbpfCapture, EbpfCaptureConfig};
 use oisp_core::config::{ConfigLoader, SensorConfig};
 use oisp_core::pipeline::{Pipeline, PipelineConfig};
-use oisp_decode::HttpDecoder;
+use oisp_decode::{HttpDecoder, SystemDecoder};
 use oisp_enrich::{HostEnricher, ProcessTreeEnricher};
 use oisp_export::jsonl::{JsonlExporter, JsonlExporterConfig};
 use oisp_export::websocket::{WebSocketExporter, WebSocketExporterConfig};
@@ -420,8 +420,9 @@ async fn record_command(config: RecordConfig) -> anyhow::Result<()> {
         let _ = (&config.ebpf_path, &config.libssl_path); // Suppress unused warnings
     }
 
-    // Add decoder
+    // Add decoders
     pipeline.add_decode(Box::new(HttpDecoder::new()));
+    pipeline.add_decode(Box::new(SystemDecoder::new()));
 
     // Add enrichers
     pipeline.add_enrich(Box::new(HostEnricher::new()));
@@ -732,8 +733,9 @@ async fn demo_command(config: DemoConfig) -> anyhow::Result<()> {
     });
     pipeline.add_capture(Box::new(test_generator));
 
-    // Add decoder
+    // Add decoders
     pipeline.add_decode(Box::new(HttpDecoder::new()));
+    pipeline.add_decode(Box::new(SystemDecoder::new()));
 
     // Add enrichers
     pipeline.add_enrich(Box::new(HostEnricher::new()));

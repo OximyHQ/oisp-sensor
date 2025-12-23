@@ -552,7 +552,7 @@ impl ConfigLoader {
     }
 
     /// Find the config file to use
-    fn find_config_file(&self) -> Option<PathBuf> {
+    pub fn find_config_file(&self) -> Option<PathBuf> {
         // 1. CLI --config flag
         if let Some(path) = &self.cli_path {
             if path.exists() {
@@ -762,6 +762,160 @@ impl Default for ConfigLoader {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Shared configuration that can be updated at runtime
+///
+/// This type wraps a `SensorConfig` in an `Arc<parking_lot::RwLock<>>` to allow
+/// for safe concurrent access and runtime updates (hot-reload).
+#[derive(Clone)]
+pub struct SharedConfig {
+    inner: std::sync::Arc<parking_lot::RwLock<SensorConfig>>,
+    /// Path to the config file being watched (if any)
+    config_path: std::sync::Arc<parking_lot::RwLock<Option<PathBuf>>>,
+}
+
+impl SharedConfig {
+    /// Create a new shared config from a SensorConfig
+    pub fn new(config: SensorConfig) -> Self {
+        Self {
+            inner: std::sync::Arc::new(parking_lot::RwLock::new(config)),
+            config_path: std::sync::Arc::new(parking_lot::RwLock::new(None)),
+        }
+    }
+
+    /// Create a shared config from the loader
+    pub fn from_loader(loader: &ConfigLoader) -> ConfigResult<Self> {
+        let config = loader.load()?;
+        let config_path = loader.find_config_file();
+
+        let shared = Self::new(config);
+        *shared.config_path.write() = config_path;
+
+        Ok(shared)
+    }
+
+    /// Get a read lock on the configuration
+    pub fn read(&self) -> parking_lot::RwLockReadGuard<'_, SensorConfig> {
+        self.inner.read()
+    }
+
+    /// Get a clone of the current configuration
+    pub fn get(&self) -> SensorConfig {
+        self.inner.read().clone()
+    }
+
+    /// Update the configuration
+    pub fn update(&self, config: SensorConfig) {
+        *self.inner.write() = config;
+        info!("Configuration updated");
+    }
+
+    /// Reload configuration from disk
+    ///
+    /// This re-reads the config file and applies environment variable overrides.
+    /// Returns Ok(true) if the config was reloaded, Ok(false) if no config file exists.
+    pub fn reload(&self) -> ConfigResult<bool> {
+        let config_path = self.config_path.read().clone();
+
+        if let Some(path) = config_path {
+            if path.exists() {
+                let loader = ConfigLoader::new().with_cli_path(Some(path.clone()));
+                let new_config = loader.load()?;
+                self.update(new_config);
+                info!("Configuration reloaded from: {}", path.display());
+                return Ok(true);
+            }
+        }
+
+        debug!("No config file to reload");
+        Ok(false)
+    }
+
+    /// Set the config file path to watch
+    pub fn set_config_path(&self, path: Option<PathBuf>) {
+        *self.config_path.write() = path;
+    }
+
+    /// Get the current config file path
+    pub fn config_path(&self) -> Option<PathBuf> {
+        self.config_path.read().clone()
+    }
+}
+
+impl Default for SharedConfig {
+    fn default() -> Self {
+        Self::new(SensorConfig::default())
+    }
+}
+
+/// Setup SIGHUP handler for config reload (Unix only)
+///
+/// When SIGHUP is received, the provided callback will be invoked.
+/// This is typically used to trigger a config reload.
+#[cfg(unix)]
+pub async fn setup_sighup_handler<F>(mut callback: F)
+where
+    F: FnMut() + Send + 'static,
+{
+    use tokio::signal::unix::{signal, SignalKind};
+
+    let mut sighup = match signal(SignalKind::hangup()) {
+        Ok(s) => s,
+        Err(e) => {
+            warn!("Failed to setup SIGHUP handler: {}", e);
+            return;
+        }
+    };
+
+    tokio::spawn(async move {
+        loop {
+            sighup.recv().await;
+            info!("Received SIGHUP, triggering config reload");
+            callback();
+        }
+    });
+}
+
+/// Setup SIGHUP handler that reloads a SharedConfig (Unix only)
+#[cfg(unix)]
+pub fn spawn_sighup_reload_handler(config: SharedConfig) {
+    tokio::spawn(async move {
+        use tokio::signal::unix::{signal, SignalKind};
+
+        let mut sighup = match signal(SignalKind::hangup()) {
+            Ok(s) => s,
+            Err(e) => {
+                warn!("Failed to setup SIGHUP handler: {}", e);
+                return;
+            }
+        };
+
+        loop {
+            sighup.recv().await;
+            info!("Received SIGHUP, reloading configuration");
+            match config.reload() {
+                Ok(true) => info!("Configuration reloaded successfully"),
+                Ok(false) => info!("No configuration file to reload"),
+                Err(e) => warn!("Failed to reload configuration: {}", e),
+            }
+        }
+    });
+}
+
+/// No-op SIGHUP handler for non-Unix platforms
+#[cfg(not(unix))]
+pub async fn setup_sighup_handler<F>(_callback: F)
+where
+    F: FnMut() + Send + 'static,
+{
+    debug!("SIGHUP handler not available on this platform");
+}
+
+/// No-op SIGHUP reload handler for non-Unix platforms
+#[cfg(not(unix))]
+pub fn spawn_sighup_reload_handler(_config: SharedConfig) {
+    debug!("SIGHUP handler not available on this platform");
 }
 
 /// Helper module for platform-specific directories

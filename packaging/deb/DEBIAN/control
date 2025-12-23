@@ -1,0 +1,22 @@
+Package: oisp-sensor
+Version: 0.2.0
+Section: utils
+Priority: optional
+Architecture: amd64
+Depends: libc6 (>= 2.31)
+Maintainer: Oximy <team@oximy.com>
+Homepage: https://sensor.oisp.dev
+Description: Universal AI Observability Sensor
+ OISP Sensor captures AI system activity including:
+  - LLM API calls (OpenAI, Anthropic, Gemini, etc.)
+  - Process execution and hierarchy
+  - File operations
+  - Network connections
+ .
+ Features:
+  - Zero-instrumentation using eBPF on Linux
+  - Real-time web UI dashboard
+  - JSONL, WebSocket, OTLP, Kafka export
+  - Privacy-first with configurable redaction
+  - OISP v0.1 spec compliant events
+

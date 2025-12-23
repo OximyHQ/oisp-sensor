@@ -3,7 +3,10 @@
 #![cfg(target_os = "linux")]
 
 use crate::ssl::find_ssl_libraries;
-use crate::types::{NetworkConnectEvent, SslEvent, SslEventType, MAX_DATA_LEN};
+use crate::types::{
+    FileOpenEvent, NetworkConnectEvent, ProcessExecEvent, ProcessExitEvent, SslEvent, SslEventType,
+    MAX_DATA_LEN,
+};
 
 use async_trait::async_trait;
 use oisp_core::plugins::{
@@ -324,6 +327,70 @@ impl EbpfCapture {
             },
         }
     }
+
+    /// Convert ProcessExecEvent to RawCaptureEvent
+    fn process_exec_event_to_raw(event: &ProcessExecEvent) -> RawCaptureEvent {
+        RawCaptureEvent {
+            id: Ulid::new().to_string(),
+            timestamp_ns: event.timestamp_ns,
+            kind: RawEventKind::ProcessExec,
+            pid: event.pid,
+            tid: Some(event.tid),
+            data: Vec::new(),
+            metadata: RawEventMetadata {
+                comm: Some(event.comm_str()),
+                ppid: Some(event.ppid),
+                uid: Some(event.uid),
+                exe: Some(event.filename_str()),
+                ..Default::default()
+            },
+        }
+    }
+
+    /// Convert ProcessExitEvent to RawCaptureEvent
+    fn process_exit_event_to_raw(event: &ProcessExitEvent) -> RawCaptureEvent {
+        let mut extra = std::collections::HashMap::new();
+        extra.insert("exit_code".to_string(), serde_json::json!(event.exit_code));
+
+        RawCaptureEvent {
+            id: Ulid::new().to_string(),
+            timestamp_ns: event.timestamp_ns,
+            kind: RawEventKind::ProcessExit,
+            pid: event.pid,
+            tid: Some(event.tid),
+            data: Vec::new(),
+            metadata: RawEventMetadata {
+                comm: Some(event.comm_str()),
+                ppid: Some(event.ppid),
+                extra,
+                ..Default::default()
+            },
+        }
+    }
+
+    /// Convert FileOpenEvent to RawCaptureEvent
+    fn file_open_event_to_raw(event: &FileOpenEvent) -> RawCaptureEvent {
+        let mut extra = std::collections::HashMap::new();
+        extra.insert("flags".to_string(), serde_json::json!(event.flags));
+        extra.insert("mode".to_string(), serde_json::json!(event.mode));
+
+        RawCaptureEvent {
+            id: Ulid::new().to_string(),
+            timestamp_ns: event.timestamp_ns,
+            kind: RawEventKind::FileOpen,
+            pid: event.pid,
+            tid: Some(event.tid),
+            data: Vec::new(),
+            metadata: RawEventMetadata {
+                comm: Some(event.comm_str()),
+                ppid: Some(event.ppid),
+                uid: Some(event.uid),
+                path: Some(event.path_str()),
+                extra,
+                ..Default::default()
+            },
+        }
+    }
 }
 
 impl Default for EbpfCapture {
@@ -583,6 +650,44 @@ impl CapturePlugin for EbpfCapture {
             };
             let mut network_ring_buf = network_ring_buf;
 
+            // Get Process ring buffer map (optional)
+            let process_ring_buf = match ebpf.map_mut("PROCESS_EVENTS") {
+                Some(map) => match RingBuf::try_from(map) {
+                    Ok(rb) => {
+                        info!("PROCESS_EVENTS ring buffer initialized");
+                        Some(rb)
+                    }
+                    Err(e) => {
+                        warn!("Failed to create process ring buffer: {}", e);
+                        None
+                    }
+                },
+                None => {
+                    debug!("PROCESS_EVENTS map not found - process capture disabled");
+                    None
+                }
+            };
+            let mut process_ring_buf = process_ring_buf;
+
+            // Get File ring buffer map (optional)
+            let file_ring_buf = match ebpf.map_mut("FILE_EVENTS") {
+                Some(map) => match RingBuf::try_from(map) {
+                    Ok(rb) => {
+                        info!("FILE_EVENTS ring buffer initialized");
+                        Some(rb)
+                    }
+                    Err(e) => {
+                        warn!("Failed to create file ring buffer: {}", e);
+                        None
+                    }
+                },
+                None => {
+                    debug!("FILE_EVENTS map not found - file capture disabled");
+                    None
+                }
+            };
+            let mut file_ring_buf = file_ring_buf;
+
             while running.load(Ordering::SeqCst) {
                 // Poll SSL ring buffer (non-blocking)
                 while let Some(item) = ssl_ring_buf.next() {
@@ -656,6 +761,70 @@ impl CapturePlugin for EbpfCapture {
                             // Send to pipeline
                             if let Err(e) = tx.send(raw_event).await {
                                 error!("Failed to send network event to pipeline: {}", e);
+                                stats.events_dropped.fetch_add(1, Ordering::Relaxed);
+                            }
+                        }
+                    }
+                }
+
+                // Poll Process ring buffer (non-blocking)
+                if let Some(ref mut proc_rb) = process_ring_buf {
+                    while let Some(item) = proc_rb.next() {
+                        let data = item.as_ref();
+
+                        // Try to parse as ProcessExecEvent first (larger struct)
+                        if data.len() >= std::mem::size_of::<ProcessExecEvent>() {
+                            let event: &ProcessExecEvent =
+                                unsafe { &*(data.as_ptr() as *const ProcessExecEvent) };
+
+                            // Convert to RawCaptureEvent
+                            let raw_event = Self::process_exec_event_to_raw(event);
+
+                            // Update stats
+                            stats.events_captured.fetch_add(1, Ordering::Relaxed);
+
+                            // Send to pipeline
+                            if let Err(e) = tx.send(raw_event).await {
+                                error!("Failed to send process exec event to pipeline: {}", e);
+                                stats.events_dropped.fetch_add(1, Ordering::Relaxed);
+                            }
+                        } else if data.len() >= std::mem::size_of::<ProcessExitEvent>() {
+                            // Try as ProcessExitEvent (smaller struct)
+                            let event: &ProcessExitEvent =
+                                unsafe { &*(data.as_ptr() as *const ProcessExitEvent) };
+
+                            // Convert to RawCaptureEvent
+                            let raw_event = Self::process_exit_event_to_raw(event);
+
+                            // Update stats
+                            stats.events_captured.fetch_add(1, Ordering::Relaxed);
+
+                            // Send to pipeline
+                            if let Err(e) = tx.send(raw_event).await {
+                                error!("Failed to send process exit event to pipeline: {}", e);
+                                stats.events_dropped.fetch_add(1, Ordering::Relaxed);
+                            }
+                        }
+                    }
+                }
+
+                // Poll File ring buffer (non-blocking)
+                if let Some(ref mut file_rb) = file_ring_buf {
+                    while let Some(item) = file_rb.next() {
+                        let data = item.as_ref();
+                        if data.len() >= std::mem::size_of::<FileOpenEvent>() {
+                            let event: &FileOpenEvent =
+                                unsafe { &*(data.as_ptr() as *const FileOpenEvent) };
+
+                            // Convert to RawCaptureEvent
+                            let raw_event = Self::file_open_event_to_raw(event);
+
+                            // Update stats
+                            stats.events_captured.fetch_add(1, Ordering::Relaxed);
+
+                            // Send to pipeline
+                            if let Err(e) = tx.send(raw_event).await {
+                                error!("Failed to send file event to pipeline: {}", e);
                                 stats.events_dropped.fetch_add(1, Ordering::Relaxed);
                             }
                         }

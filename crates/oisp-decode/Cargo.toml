@@ -21,3 +21,6 @@ sha2 = { workspace = true }
 hex = { workspace = true }
 ulid = { workspace = true }
 
+# JSONPath for spec-driven extraction
+jsonpath_lib = "0.3"
+

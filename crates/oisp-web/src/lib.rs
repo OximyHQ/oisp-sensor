@@ -11,7 +11,7 @@ pub use web_event::{WebEvent, WebEventType, WebEventsResponse};
 use axum::{
     body::Body,
     http::{header, StatusCode},
-    response::{Html, IntoResponse, Json, Response},
+    response::{IntoResponse, Json, Response},
     routing::get,
     Router,
 };
@@ -194,14 +194,14 @@ async fn serve_frontend(uri: axum::http::Uri) -> impl IntoResponse {
         .unwrap()
 }
 
-/// Legacy index page (original dashboard)
-async fn legacy_index() -> Html<&'static str> {
-    Html(include_str!("../static/index.html"))
+/// Legacy index page - redirects to React frontend
+async fn legacy_index() -> impl IntoResponse {
+    axum::response::Redirect::permanent("/")
 }
 
-/// Legacy timeline page
-async fn legacy_timeline() -> Html<&'static str> {
-    Html(include_str!("../static/timeline.html"))
+/// Legacy timeline page - redirects to React frontend
+async fn legacy_timeline() -> impl IntoResponse {
+    axum::response::Redirect::permanent("/")
 }
 
 /// Health check endpoint for Docker/Kubernetes probes

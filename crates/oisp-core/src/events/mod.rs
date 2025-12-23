@@ -467,6 +467,8 @@ mod tests {
                 has_images: None,
                 image_count: None,
                 estimated_tokens: Some(100),
+                conversation: None,
+                agent: None,
             },
         });
 
@@ -604,6 +606,7 @@ mod tests {
                 time_to_first_token_ms: None,
                 was_cached: None,
                 finish_reason: Some(FinishReason::Stop),
+                thinking: None,
             },
         });
 
@@ -649,6 +652,8 @@ mod tests {
                 has_images: None,
                 image_count: None,
                 estimated_tokens: None,
+                conversation: None,
+                agent: None,
             },
         });
 

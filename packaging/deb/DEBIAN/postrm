@@ -1,0 +1,29 @@
+#!/bin/sh
+set -e
+
+# Post-removal script for oisp-sensor
+
+case "$1" in
+    purge)
+        # Remove configuration and data
+        rm -rf /etc/oisp
+        rm -rf /var/log/oisp
+        rm -rf /var/lib/oisp
+        
+        # Remove user and group
+        if getent passwd oisp >/dev/null 2>&1; then
+            userdel oisp || true
+        fi
+        if getent group oisp >/dev/null 2>&1; then
+            groupdel oisp || true
+        fi
+        ;;
+    remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        # Keep configuration for reinstall
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0
+

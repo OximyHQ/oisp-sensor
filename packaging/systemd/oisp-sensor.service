@@ -1,0 +1,36 @@
+[Unit]
+Description=OISP Sensor - AI Observability
+Documentation=https://sensor.oisp.dev
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/bin/oisp-sensor record --config /etc/oisp/config.toml
+
+# Restart on failure
+Restart=on-failure
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=no
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/log/oisp /var/lib/oisp
+PrivateTmp=true
+
+# Allow eBPF operations
+AmbientCapabilities=CAP_SYS_ADMIN CAP_BPF CAP_PERFMON CAP_NET_ADMIN
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=oisp-sensor
+
+# Environment
+Environment=RUST_LOG=info
+
+[Install]
+WantedBy=multi-user.target
+

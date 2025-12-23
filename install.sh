@@ -1,12 +1,18 @@
 #!/bin/sh
 # OISP Sensor Installer
 # Usage: curl -sSL https://sensor.oisp.dev/install.sh | sh
-#    or: curl -sSL https://raw.githubusercontent.com/oximyHQ/oisp-sensor/main/install.sh | sh
+#
+# Environment variables:
+#   INSTALL_DIR    - Installation directory (default: /usr/local/bin)
+#   INSTALL_SERVICE - Install systemd service (default: auto-detect)
+#   SKIP_CAPS      - Skip setting capabilities (default: false)
 
 set -e
 
 REPO="oximyHQ/oisp-sensor"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
+INSTALL_SERVICE="${INSTALL_SERVICE:-auto}"
+SKIP_CAPS="${SKIP_CAPS:-false}"
 
 echo ""
 echo "OISP Sensor Installer"
@@ -48,11 +54,10 @@ echo "Detected: $OS $ARCH"
 echo "Target: $TARGET"
 echo ""
 
-# Get latest release - try GitHub API first, with fallback
+# Get latest release
 echo "Fetching latest release..."
 LATEST=""
 
-# Try with curl, handle rate limiting gracefully
 API_RESPONSE=$(curl -sSL -w "\n%{http_code}" "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null || echo "000")
 HTTP_CODE=$(echo "$API_RESPONSE" | tail -n 1)
 API_BODY=$(echo "$API_RESPONSE" | sed '$d')
@@ -63,17 +68,12 @@ fi
 
 if [ -z "$LATEST" ]; then
     echo "Warning: Could not fetch latest release from API (HTTP $HTTP_CODE)"
-    echo "Trying releases list..."
-    
-    # Try the releases list as fallback
     RELEASES_RESPONSE=$(curl -sSL "https://api.github.com/repos/$REPO/releases" 2>/dev/null || echo "[]")
     LATEST=$(echo "$RELEASES_RESPONSE" | grep '"tag_name"' | head -1 | sed -E 's/.*"tag_name"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')
 fi
 
 if [ -z "$LATEST" ]; then
     echo "Warning: Could not determine latest version"
-    echo "Please check https://github.com/$REPO/releases for available versions"
-    echo ""
     echo "Falling back to building from source..."
     LATEST="main"
 fi
@@ -85,7 +85,6 @@ echo ""
 TMP_DIR=$(mktemp -d)
 trap "rm -rf $TMP_DIR" EXIT
 
-# Download URL - matches release workflow naming
 DOWNLOAD_URL="https://github.com/$REPO/releases/download/$LATEST/oisp-sensor-$TARGET.tar.gz"
 
 echo "Downloading from: $DOWNLOAD_URL"
@@ -95,7 +94,7 @@ if curl -fsSL "$DOWNLOAD_URL" -o "$TMP_DIR/oisp-sensor.tar.gz" 2>/dev/null; then
     echo "Extracting..."
     tar -xzf "$TMP_DIR/oisp-sensor.tar.gz" -C "$TMP_DIR"
 
-    # Install
+    # Install binary
     echo "Installing to $INSTALL_DIR..."
     if [ -w "$INSTALL_DIR" ]; then
         cp "$TMP_DIR/oisp-sensor" "$INSTALL_DIR/"
@@ -135,11 +134,114 @@ else
     fi
 fi
 
+# Linux-specific setup
+if [ "$OS" = "linux" ]; then
+    echo ""
+    echo "Setting up Linux eBPF capabilities..."
+    
+    # Set capabilities for eBPF (allows running without root)
+    if [ "$SKIP_CAPS" != "true" ]; then
+        if command -v setcap > /dev/null 2>&1; then
+            echo "Setting CAP_BPF and CAP_PERFMON capabilities..."
+            if sudo setcap cap_sys_admin,cap_bpf,cap_perfmon,cap_net_admin+ep "$INSTALL_DIR/oisp-sensor" 2>/dev/null; then
+                echo "Capabilities set successfully."
+                echo ""
+                echo "NOTE: You can now run 'oisp-sensor record' without sudo."
+                echo "      However, the first run after capability set may still need sudo"
+                echo "      to load eBPF bytecode from the expected path."
+            else
+                echo "Warning: Could not set capabilities. You may need to run with sudo."
+            fi
+        else
+            echo "Warning: setcap not found. Install libcap2-bin for capability support."
+        fi
+    fi
+    
+    # Install systemd service (if systemd is available)
+    if [ "$INSTALL_SERVICE" = "auto" ]; then
+        if command -v systemctl > /dev/null 2>&1; then
+            INSTALL_SERVICE="true"
+        else
+            INSTALL_SERVICE="false"
+        fi
+    fi
+    
+    if [ "$INSTALL_SERVICE" = "true" ]; then
+        echo ""
+        echo "Installing systemd service..."
+        
+        # Create service file
+        SERVICE_FILE="/etc/systemd/system/oisp-sensor.service"
+        sudo tee "$SERVICE_FILE" > /dev/null << 'EOF'
+[Unit]
+Description=OISP Sensor - AI Observability
+Documentation=https://sensor.oisp.dev
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/local/bin/oisp-sensor record
+
+# Restart on failure
+Restart=on-failure
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=no
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+
+# Allow eBPF operations
+AmbientCapabilities=CAP_SYS_ADMIN CAP_BPF CAP_PERFMON CAP_NET_ADMIN
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=oisp-sensor
+
+Environment=RUST_LOG=info
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+        # Update ExecStart with actual install path
+        sudo sed -i "s|ExecStart=.*|ExecStart=$INSTALL_DIR/oisp-sensor record|" "$SERVICE_FILE"
+        
+        sudo systemctl daemon-reload
+        
+        echo ""
+        echo "Systemd service installed. Enable with:"
+        echo "  sudo systemctl enable oisp-sensor"
+        echo "  sudo systemctl start oisp-sensor"
+    fi
+    
+    # Create config directory
+    if [ ! -d /etc/oisp ]; then
+        echo ""
+        echo "Creating config directory /etc/oisp..."
+        sudo mkdir -p /etc/oisp
+    fi
+fi
+
 echo ""
-echo "OISP Sensor installed successfully!"
+echo "========================================"
+echo "  OISP Sensor installed successfully!"
+echo "========================================"
 echo ""
 echo "Get started:"
 echo "  oisp-sensor --help       # Show help"
 echo "  oisp-sensor status       # Check capabilities"
-echo "  oisp-sensor record       # Start recording"
+if [ "$OS" = "linux" ]; then
+echo "  sudo oisp-sensor record  # Start recording (first run)"
+echo "  oisp-sensor record       # Start recording (after caps set)"
+else
+echo "  sudo oisp-sensor record  # Start recording"
+fi
+echo ""
+echo "Web UI:  http://localhost:7777"
+echo "Docs:    https://sensor.oisp.dev"
 echo ""

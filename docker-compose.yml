@@ -21,7 +21,7 @@ services:
   # Requires: privileged mode, host networking, host PID namespace.
   oisp-sensor:
     build:
-      context: ..
+      context: .
       dockerfile: Dockerfile
     image: oisp-sensor:latest
     container_name: oisp-sensor
@@ -78,7 +78,7 @@ services:
   # ==========================================================================
   oisp-web:
     build:
-      context: ..
+      context: .
       dockerfile: Dockerfile
     image: oisp-sensor:latest
     container_name: oisp-sensor-web
@@ -112,7 +112,7 @@ services:
   # No eBPF required, no privileged mode needed.
   oisp-demo:
     build:
-      context: ..
+      context: .
       dockerfile: Dockerfile
     image: oisp-sensor:latest
     container_name: oisp-sensor-demo
@@ -143,7 +143,7 @@ services:
   # ==========================================================================
   oisp-tui:
     build:
-      context: ..
+      context: .
       dockerfile: Dockerfile
     image: oisp-sensor:latest
     container_name: oisp-sensor-tui
@@ -178,7 +178,7 @@ services:
   # ==========================================================================
   oisp-dev:
     build:
-      context: ..
+      context: .
       dockerfile: Dockerfile
       target: runtime
     image: oisp-sensor:dev
@@ -195,7 +195,7 @@ services:
       - /lib:/lib:ro
       - /lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu:ro
       # Mount source for live reload (optional)
-      - ../:/src:ro
+      - .:/src:ro
       - oisp-data:/var/lib/oisp
     environment:
       - RUST_LOG=debug,oisp_sensor=trace,oisp_capture_ebpf=trace

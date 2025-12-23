@@ -456,52 +456,58 @@ OISP Sensor is the **universal, open-source foundation** for AI observability.
 
 ---
 
-## CHAPTER 13: Configuration System
+## CHAPTER 13: Configuration System ✅ COMPLETE
 
 **Goal:** Robust, flexible configuration.
 
-### Phase 13.1: Configuration File Loading
+### Phase 13.1: Configuration File Loading ✅ COMPLETE
 
-- [ ] Implement config file discovery
-  - [ ] Check CLI --config flag
-  - [ ] Check $OISP_CONFIG env var
-  - [ ] Check ~/.config/oisp-sensor/config.toml
-  - [ ] Check /etc/oisp-sensor/config.toml
-  - [ ] Fall back to defaults
-- [ ] Parse TOML config file
-  - [ ] Use `config` or `toml` crate with serde
-  - [ ] Support all current CLI options
-- [ ] Add hot-reload capability
-  - [ ] Watch config file for changes (notify crate)
-  - [ ] Signal handler for SIGHUP
-  - [ ] Apply non-disruptive changes
+- [x] Implement config file discovery
+  - [x] Check CLI --config flag
+  - [x] Check $OISP_CONFIG env var
+  - [x] Check ~/.config/oisp-sensor/config.toml
+  - [x] Check /etc/oisp-sensor/config.toml
+  - [x] Fall back to defaults
+- [x] Parse TOML config file
+  - [x] Use `toml` crate with serde
+  - [x] Support all current CLI options
+- [x] Add hot-reload capability
+  - [ ] Watch config file for changes (notify crate) - deferred
+  - [x] Signal handler for SIGHUP (Unix)
+  - [x] SharedConfig for thread-safe runtime updates
 
-### Phase 13.2: Environment Variable Overrides
+### Phase 13.2: Environment Variable Overrides ✅ COMPLETE
 
-- [ ] Support env var overrides
-  - [ ] OISP_LOG_LEVEL
-  - [ ] OISP_WEB_PORT
-  - [ ] OISP_WEB_HOST
-  - [ ] OISP_REDACTION_MODE
-  - [ ] OISP_OXIMY_API_KEY
-  - [ ] OISP_OXIMY_ENDPOINT
-- [ ] Document env var naming convention
-  - [ ] OISP_ prefix
-  - [ ] SCREAMING_SNAKE_CASE
-- [ ] Priority: env > config file > defaults
+- [x] Support env var overrides
+  - [x] OISP_LOG_LEVEL
+  - [x] OISP_WEB_PORT
+  - [x] OISP_WEB_HOST
+  - [x] OISP_REDACTION_MODE
+  - [x] OISP_OXIMY_API_KEY
+  - [x] OISP_OXIMY_ENDPOINT
+  - [x] OISP_OTLP_ENDPOINT, OISP_OTLP_ENABLED
+  - [x] OISP_KAFKA_BROKERS, OISP_KAFKA_TOPIC, OISP_KAFKA_ENABLED
+  - [x] OISP_WEBHOOK_URL, OISP_WEBHOOK_ENABLED
+  - [x] OISP_JSONL_PATH, OISP_JSONL_ENABLED
+  - [x] OISP_CAPTURE_SSL, OISP_CAPTURE_PROCESS, OISP_CAPTURE_FILE, OISP_CAPTURE_NETWORK
+  - [x] OISP_WEB_ENABLED
+- [x] Document env var naming convention
+  - [x] OISP_ prefix
+  - [x] SCREAMING_SNAKE_CASE
+- [x] Priority: env > config file > defaults
 
-### Phase 13.3: Sink Configuration Schema
+### Phase 13.3: Sink Configuration Schema ✅ COMPLETE
 
-- [ ] Define sink config schema
-  - [ ] Each sink type has its own config section
-  - [ ] Enable/disable per sink
-  - [ ] Connection parameters
-  - [ ] Retry/backoff settings
-- [ ] Support multiple sinks of same type
+- [x] Define sink config schema
+  - [x] Each sink type has its own config section
+  - [x] Enable/disable per sink
+  - [x] Connection parameters
+  - [x] Retry/backoff settings
+- [ ] Support multiple sinks of same type (deferred)
   - [ ] [[export.jsonl]] array syntax
-- [ ] Validate sink configs on startup
-  - [ ] Check required fields
-  - [ ] Test connections where possible
+- [x] Validate sink configs on startup
+  - [x] Check required fields (log level, redaction mode, OTLP protocol, webhook method)
+  - [ ] Test connections where possible (deferred - requires runtime integration)
 
 ---
 
