@@ -1,0 +1,42 @@
+[package]
+name = "oisp-core"
+version.workspace = true
+edition = "2021"
+license.workspace = true
+description = "Core types, traits, and pipeline for OISP Sensor"
+
+[dependencies]
+# Async
+tokio = { workspace = true }
+async-trait = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Time
+chrono = { workspace = true }
+
+# IDs
+ulid = { workspace = true }
+
+# Hashing
+sha2 = { workspace = true }
+hex = { workspace = true }
+
+# Tracing
+tracing = { workspace = true }
+
+# Hostname
+hostname = "0.4"
+
+# Regex
+regex = { workspace = true }
+
+[dev-dependencies]
+tokio-test = "0.4"
+
