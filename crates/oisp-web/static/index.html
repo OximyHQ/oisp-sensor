@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OISP Sensor</title>
+    <style>
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #21262d;
+            --border: #30363d;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --accent-cyan: #58a6ff;
+            --accent-green: #3fb950;
+            --accent-yellow: #d29922;
+            --accent-red: #f85149;
+            --accent-purple: #a371f7;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 0;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 30px;
+        }
+        
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--accent-cyan);
+        }
+        
+        .logo span {
+            color: var(--text-secondary);
+            font-weight: 400;
+        }
+        
+        .stats {
+            display: flex;
+            gap: 30px;
+        }
+        
+        .stat {
+            text-align: right;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--accent-green);
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+        }
+        
+        .nav {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .nav-btn {
+            padding: 10px 20px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .nav-btn:hover {
+            border-color: var(--accent-cyan);
+            color: var(--text-primary);
+        }
+        
+        .nav-btn.active {
+            background: var(--accent-cyan);
+            color: var(--bg-primary);
+            border-color: var(--accent-cyan);
+        }
+        
+        .panel {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .panel-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--border);
+            font-weight: 600;
+        }
+        
+        .event-list {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        
+        .event {
+            display: flex;
+            align-items: center;
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border);
+            font-size: 13px;
+            transition: background 0.1s;
+        }
+        
+        .event:hover {
+            background: var(--bg-tertiary);
+        }
+        
+        .event-icon {
+            width: 24px;
+            font-weight: bold;
+        }
+        
+        .event-icon.ai-request { color: var(--accent-green); }
+        .event-icon.ai-response { color: var(--accent-cyan); }
+        .event-icon.tool-call { color: var(--accent-yellow); }
+        .event-icon.process { color: var(--accent-purple); }
+        .event-icon.file { color: var(--accent-red); }
+        .event-icon.network { color: var(--accent-cyan); }
+        
+        .event-time {
+            width: 100px;
+            color: var(--text-secondary);
+        }
+        
+        .event-type {
+            width: 160px;
+            color: var(--accent-cyan);
+        }
+        
+        .event-process {
+            width: 120px;
+        }
+        
+        .event-detail {
+            flex: 1;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .empty-state {
+            padding: 60px 20px;
+            text-align: center;
+            color: var(--text-secondary);
+        }
+        
+        .empty-state h3 {
+            margin-bottom: 10px;
+            color: var(--text-primary);
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .live-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        
+        .live-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--accent-green);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        .live-indicator.disconnected .live-dot {
+            background: var(--accent-red);
+            animation: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">OISP <span>Sensor</span></div>
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-value" id="total-events">0</div>
+                    <div class="stat-label">Total Events</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="ai-events">0</div>
+                    <div class="stat-label">AI Events</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="active-traces">0</div>
+                    <div class="stat-label">Active Traces</div>
+                </div>
+            </div>
+            <div class="live-indicator" id="connection-status">
+                <div class="live-dot"></div>
+                <span>Live</span>
+            </div>
+        </header>
+        
+        <nav class="nav">
+            <button class="nav-btn active" data-view="timeline">Timeline</button>
+            <button class="nav-btn" data-view="inventory">Inventory</button>
+            <button class="nav-btn" data-view="traces">Traces</button>
+        </nav>
+        
+        <div class="panel">
+            <div class="panel-header">Live Event Stream</div>
+            <div class="event-list" id="event-list">
+                <div class="empty-state">
+                    <h3>Waiting for events...</h3>
+                    <p>AI activity will appear here in real-time</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let ws;
+        let events = [];
+        const maxEvents = 100;
+        
+        function connect() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+            
+            ws.onopen = () => {
+                document.getElementById('connection-status').classList.remove('disconnected');
+            };
+            
+            ws.onclose = () => {
+                document.getElementById('connection-status').classList.add('disconnected');
+                setTimeout(connect, 1000);
+            };
+            
+            ws.onmessage = (msg) => {
+                const event = JSON.parse(msg.data);
+                addEvent(event);
+            };
+        }
+        
+        function addEvent(event) {
+            events.unshift(event);
+            if (events.length > maxEvents) {
+                events.pop();
+            }
+            renderEvents();
+            updateStats();
+        }
+        
+        function getEventIcon(eventType) {
+            if (eventType.startsWith('ai.request')) return ['>> ', 'ai-request'];
+            if (eventType.startsWith('ai.response')) return ['<< ', 'ai-response'];
+            if (eventType.startsWith('agent.tool')) return ['-> ', 'tool-call'];
+            if (eventType.startsWith('process')) return ['* ', 'process'];
+            if (eventType.startsWith('file')) return ['W ', 'file'];
+            if (eventType.startsWith('network')) return ['@ ', 'network'];
+            return ['. ', ''];
+        }
+        
+        function formatTime(ts) {
+            const d = new Date(ts);
+            return d.toLocaleTimeString('en-US', { hour12: false }) + '.' + d.getMilliseconds().toString().padStart(3, '0');
+        }
+        
+        function getEventDetail(event) {
+            const eventType = event.event_type;
+            if (eventType === 'ai.request') {
+                const provider = event.data?.provider?.name || '?';
+                const model = event.data?.model?.id || '?';
+                return `${provider} ${model}`;
+            }
+            if (eventType === 'ai.response') {
+                const tokens = event.data?.usage?.total_tokens || '';
+                const latency = event.data?.latency_ms || '';
+                return `${tokens}tok ${latency}ms`;
+            }
+            if (eventType === 'agent.tool_call') {
+                return event.data?.tool_name || '';
+            }
+            if (eventType === 'process.exec') {
+                return event.data?.exe || '';
+            }
+            if (eventType === 'file.write') {
+                return event.data?.path || '';
+            }
+            if (eventType === 'network.connect') {
+                return event.data?.dest?.domain || event.data?.dest?.ip || '';
+            }
+            return '';
+        }
+        
+        function renderEvents() {
+            const list = document.getElementById('event-list');
+            
+            if (events.length === 0) {
+                list.innerHTML = `
+                    <div class="empty-state">
+                        <h3>Waiting for events...</h3>
+                        <p>AI activity will appear here in real-time</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            list.innerHTML = events.map(event => {
+                const [icon, iconClass] = getEventIcon(event.event_type);
+                const time = formatTime(event.ts);
+                const process = event.process?.name || '?';
+                const detail = getEventDetail(event);
+                
+                return `
+                    <div class="event">
+                        <div class="event-icon ${iconClass}">${icon}</div>
+                        <div class="event-time">${time}</div>
+                        <div class="event-type">${event.event_type}</div>
+                        <div class="event-process">${process}</div>
+                        <div class="event-detail">${detail}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function updateStats() {
+            const aiCount = events.filter(e => e.event_type.startsWith('ai.')).length;
+            document.getElementById('total-events').textContent = events.length;
+            document.getElementById('ai-events').textContent = aiCount;
+        }
+        
+        // Initial connection
+        connect();
+        
+        // Fetch initial stats
+        fetch('/api/stats')
+            .then(r => r.json())
+            .then(stats => {
+                document.getElementById('total-events').textContent = stats.total_events;
+                document.getElementById('ai-events').textContent = stats.ai_events;
+                document.getElementById('active-traces').textContent = stats.active_traces;
+            });
+        
+        // Navigation
+        document.querySelectorAll('.nav-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+    </script>
+</body>
+</html>
+
