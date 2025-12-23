@@ -47,6 +47,12 @@ jobs:
         with:
           toolchain: stable
       
+      - name: Install eBPF build dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang llvm libelf-dev libbpf-dev
+      
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
       
@@ -71,10 +77,14 @@ jobs:
           toolchain: stable
           targets: ${{ matrix.target }}
       
+      - name: Install eBPF build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang llvm libelf-dev libbpf-dev
+      
       - name: Install cross-compilation tools
         if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: |
-          sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu
       
       - name: Cache cargo
