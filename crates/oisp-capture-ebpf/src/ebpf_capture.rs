@@ -691,7 +691,7 @@ impl CapturePlugin for EbpfCapture {
             while running.load(Ordering::SeqCst) {
                 // Poll SSL ring buffer (non-blocking)
                 while let Some(item) = ssl_ring_buf.next() {
-                    let data = item.as_ref();
+                    let data: &[u8] = item.as_ref();
                     if data.len() >= std::mem::size_of::<SslEvent>() {
                         let event: &SslEvent = unsafe { &*(data.as_ptr() as *const SslEvent) };
 
@@ -724,7 +724,7 @@ impl CapturePlugin for EbpfCapture {
                 // Poll Network ring buffer (non-blocking)
                 if let Some(ref mut net_rb) = network_ring_buf {
                     while let Some(item) = net_rb.next() {
-                        let data = item.as_ref();
+                        let data: &[u8] = item.as_ref();
                         if data.len() >= std::mem::size_of::<NetworkConnectEvent>() {
                             let event: &NetworkConnectEvent =
                                 unsafe { &*(data.as_ptr() as *const NetworkConnectEvent) };
@@ -770,7 +770,7 @@ impl CapturePlugin for EbpfCapture {
                 // Poll Process ring buffer (non-blocking)
                 if let Some(ref mut proc_rb) = process_ring_buf {
                     while let Some(item) = proc_rb.next() {
-                        let data = item.as_ref();
+                        let data: &[u8] = item.as_ref();
 
                         // Try to parse as ProcessExecEvent first (larger struct)
                         if data.len() >= std::mem::size_of::<ProcessExecEvent>() {
@@ -811,7 +811,7 @@ impl CapturePlugin for EbpfCapture {
                 // Poll File ring buffer (non-blocking)
                 if let Some(ref mut file_rb) = file_ring_buf {
                     while let Some(item) = file_rb.next() {
-                        let data = item.as_ref();
+                        let data: &[u8] = item.as_ref();
                         if data.len() >= std::mem::size_of::<FileOpenEvent>() {
                             let event: &FileOpenEvent =
                                 unsafe { &*(data.as_ptr() as *const FileOpenEvent) };
