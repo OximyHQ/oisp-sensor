@@ -13,7 +13,6 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Build](https://img.shields.io/github/actions/workflow/status/oximyHQ/oisp-sensor/ci.yml?branch=main)](https://github.com/oximyHQ/oisp-sensor/actions)
 [![Release](https://img.shields.io/github/v/release/oximyHQ/oisp-sensor)](https://github.com/oximyHQ/oisp-sensor/releases)
-[![Discord](https://img.shields.io/discord/1234567890?label=discord)](https://discord.gg/oximy)
 
 [Quick Start](#quick-start) · [How It Works](#how-it-works) · [What It Captures](#what-it-captures) · [Installation](#installation) · [Documentation](#documentation)
 
@@ -871,7 +870,6 @@ Areas where we especially need help:
 
 ## Community
 
-- **Discord**: [Join our server](https://discord.gg/oximy)
 - **GitHub Discussions**: [Ask questions, share ideas](https://github.com/oximyHQ/oisp-sensor/discussions)
 - **Twitter/X**: [@oximyHQ](https://twitter.com/oximyHQ)
 
