@@ -1,0 +1,17 @@
+[package]
+name = "oisp-capture"
+version.workspace = true
+edition = "2021"
+license.workspace = true
+description = "Capture abstraction layer for OISP Sensor"
+
+[dependencies]
+oisp-core = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+

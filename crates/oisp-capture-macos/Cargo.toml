@@ -1,0 +1,23 @@
+[package]
+name = "oisp-capture-macos"
+version.workspace = true
+edition = "2021"
+license.workspace = true
+description = "macOS capture for OISP Sensor (ESF + Network Extension)"
+
+[dependencies]
+oisp-core = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# macOS-specific dependencies would go here
+# endpoint-security = "..."  # For ESF
+# network-extension = "..."  # For Network Extension
+
