@@ -33,7 +33,7 @@ pub enum ConfigError {
 pub type ConfigResult<T> = Result<T, ConfigError>;
 
 /// Complete sensor configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SensorConfig {
     /// Sensor settings
@@ -53,19 +53,6 @@ pub struct SensorConfig {
 
     /// Correlation settings
     pub correlation: CorrelationSettings,
-}
-
-impl Default for SensorConfig {
-    fn default() -> Self {
-        Self {
-            sensor: SensorSettings::default(),
-            capture: CaptureSettings::default(),
-            redaction: RedactionSettings::default(),
-            export: ExportSettings::default(),
-            web: WebSettings::default(),
-            correlation: CorrelationSettings::default(),
-        }
-    }
 }
 
 /// Sensor settings
@@ -173,7 +160,7 @@ impl Default for RedactionSettings {
 }
 
 /// Export settings container
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ExportSettings {
     /// JSONL file output
@@ -193,19 +180,6 @@ pub struct ExportSettings {
 
     /// Oximy Cloud export
     pub oximy: OximyExportConfig,
-}
-
-impl Default for ExportSettings {
-    fn default() -> Self {
-        Self {
-            jsonl: JsonlExportConfig::default(),
-            websocket: WebSocketExportConfig::default(),
-            otlp: OtlpExportConfig::default(),
-            kafka: KafkaExportConfig::default(),
-            webhook: WebhookExportConfig::default(),
-            oximy: OximyExportConfig::default(),
-        }
-    }
 }
 
 /// JSONL export configuration
@@ -764,14 +738,15 @@ impl ConfigLoader {
 
     /// Save configuration to a file
     pub fn save(&self, config: &SensorConfig, path: &Path) -> ConfigResult<()> {
-        let content = toml::to_string_pretty(config)
-            .map_err(|e| ConfigError::ValidationError(format!("Failed to serialize config: {}", e)))?;
-        
+        let content = toml::to_string_pretty(config).map_err(|e| {
+            ConfigError::ValidationError(format!("Failed to serialize config: {}", e))
+        })?;
+
         // Ensure parent directory exists
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        
+
         std::fs::write(path, content)?;
         info!("Configuration saved to: {}", path.display());
         Ok(())
@@ -929,4 +904,3 @@ mod tests {
         assert!(toml_str.contains("log_level"));
     }
 }
-

@@ -168,12 +168,25 @@ enum Commands {
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
-    // Setup logging
-    let log_level = match cli.verbose {
-        0 => Level::WARN,
-        1 => Level::INFO,
-        2 => Level::DEBUG,
-        _ => Level::TRACE,
+    // Load configuration file
+    let sensor_config = load_config(cli.config.clone());
+
+    // Setup logging - CLI verbose flag takes precedence, then config, then default
+    let log_level = if cli.verbose > 0 {
+        match cli.verbose {
+            1 => Level::INFO,
+            2 => Level::DEBUG,
+            _ => Level::TRACE,
+        }
+    } else {
+        match sensor_config.sensor.log_level.to_lowercase().as_str() {
+            "trace" => Level::TRACE,
+            "debug" => Level::DEBUG,
+            "info" => Level::INFO,
+            "warn" => Level::WARN,
+            "error" => Level::ERROR,
+            _ => Level::WARN,
+        }
     };
 
     let subscriber = FmtSubscriber::builder()
@@ -202,22 +215,25 @@ async fn main() -> anyhow::Result<()> {
             ebpf_path,
             libssl_path,
         } => {
-            record_command(RecordConfig {
+            // Merge CLI args with config file settings
+            // CLI args take precedence over config file
+            let merged_config = merge_record_config(
+                &sensor_config,
                 output,
                 web,
                 port,
                 tui,
-                process_filter: process.unwrap_or_default(),
-                pid_filter: pid.unwrap_or_default(),
-                redaction_mode: redaction,
-                ssl: !no_ssl,
-                process: !no_process,
-                file: !no_file,
-                network: !no_network,
+                process,
+                pid,
+                redaction,
+                no_ssl,
+                no_process,
+                no_file,
+                no_network,
                 ebpf_path,
                 libssl_path,
-            })
-            .await
+            );
+            record_command(merged_config).await
         }
         Commands::Show {
             input,
@@ -251,6 +267,102 @@ async fn main() -> anyhow::Result<()> {
             })
             .await
         }
+    }
+}
+
+/// Load configuration from file/env, with fallback to defaults
+fn load_config(cli_path: Option<PathBuf>) -> SensorConfig {
+    let loader = ConfigLoader::new().with_cli_path(cli_path);
+    match loader.load() {
+        Ok(config) => {
+            info!("Configuration loaded successfully");
+            config
+        }
+        Err(e) => {
+            warn!("Failed to load configuration: {}, using defaults", e);
+            SensorConfig::default()
+        }
+    }
+}
+
+/// Merge CLI arguments with config file settings
+/// CLI arguments take precedence when explicitly provided
+#[allow(clippy::too_many_arguments)]
+fn merge_record_config(
+    config: &SensorConfig,
+    output: Option<PathBuf>,
+    web: bool,
+    port: u16,
+    tui: bool,
+    process: Option<Vec<String>>,
+    pid: Option<Vec<u32>>,
+    redaction: String,
+    no_ssl: bool,
+    no_process: bool,
+    no_file: bool,
+    no_network: bool,
+    ebpf_path: Option<PathBuf>,
+    libssl_path: Option<PathBuf>,
+) -> RecordConfig {
+    // For boolean flags, CLI explicit disables take precedence
+    // Otherwise use config file value
+    let ssl = if no_ssl { false } else { config.capture.ssl };
+    let process_enabled = if no_process {
+        false
+    } else {
+        config.capture.process
+    };
+    let file = if no_file { false } else { config.capture.file };
+    let network = if no_network {
+        false
+    } else {
+        config.capture.network
+    };
+
+    // For filters, CLI takes precedence if provided
+    let process_filter = process.unwrap_or_else(|| config.capture.process_filter.clone());
+    let pid_filter = pid.unwrap_or_else(|| config.capture.pid_filter.clone());
+
+    // For paths, CLI takes precedence if provided
+    let ebpf_path = ebpf_path.or_else(|| config.capture.ebpf_path.as_ref().map(PathBuf::from));
+    let libssl_path =
+        libssl_path.or_else(|| config.capture.libssl_path.as_ref().map(PathBuf::from));
+
+    // For output, CLI takes precedence, then check if JSONL export is enabled in config
+    let output = output.or_else(|| {
+        if config.export.jsonl.enabled {
+            Some(PathBuf::from(&config.export.jsonl.path))
+        } else {
+            None
+        }
+    });
+
+    // Web/port - CLI args have defaults, so they're always "set"
+    // Use CLI values but fall back to config if CLI has defaults
+    let web_enabled = if !web { false } else { config.web.enabled };
+    let web_port = if port != 7777 { port } else { config.web.port };
+
+    // Redaction mode - CLI has default "safe", use it unless different
+    let redaction_mode = if redaction != "safe" {
+        redaction
+    } else {
+        config.redaction.mode.clone()
+    };
+
+    RecordConfig {
+        output,
+        web: web_enabled,
+        port: web_port,
+        tui,
+        process_filter,
+        pid_filter,
+        redaction_mode,
+        ssl,
+        process: process_enabled,
+        file,
+        network,
+        ebpf_path,
+        libssl_path,
     }
 }
 

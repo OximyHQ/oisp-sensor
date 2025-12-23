@@ -18,6 +18,11 @@ pub mod redaction;
 pub mod trace;
 
 // Re-export commonly used types
+pub use config::{
+    CaptureSettings, ConfigError, ConfigLoader, ConfigResult, ExportSettings, JsonlExportConfig,
+    KafkaExportConfig, OtlpExportConfig, OximyExportConfig, RedactionSettings, SensorConfig,
+    WebSettings, WebSocketExportConfig, WebhookExportConfig,
+};
 pub use events::{
     Actor, Confidence, EventEnvelope, EventType, Host, OispEvent, ProcessInfo, Source,
 };
@@ -28,12 +33,6 @@ pub use plugins::{
 };
 pub use providers::{Provider, ProviderRegistry};
 pub use trace::{AgentTrace, Span, SpanKind};
-pub use config::{
-    ConfigLoader, SensorConfig, ConfigError, ConfigResult,
-    CaptureSettings, RedactionSettings, ExportSettings, WebSettings,
-    JsonlExportConfig, WebSocketExportConfig, OtlpExportConfig,
-    KafkaExportConfig, WebhookExportConfig, OximyExportConfig,
-};
 
 /// OISP specification version this crate implements
 pub const OISP_VERSION: &str = "0.1";
