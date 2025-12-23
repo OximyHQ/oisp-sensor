@@ -209,6 +209,141 @@
             background: var(--accent-red);
             animation: none;
         }
+        
+        .inventory-content, .traces-content {
+            padding: 20px;
+        }
+        
+        .inventory-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+        }
+        
+        .inventory-card {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+        }
+        
+        .inventory-card h4 {
+            color: var(--accent-cyan);
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        .inventory-card .stat-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin: 4px 0;
+        }
+        
+        .inventory-card .stat-value {
+            color: var(--text-primary);
+        }
+        
+        .model-list {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+        }
+        
+        .model-item {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            padding: 4px 0;
+        }
+        
+        .model-name {
+            color: var(--accent-green);
+        }
+        
+        .traces-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 16px;
+        }
+        
+        .trace-card {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+        }
+        
+        .trace-card.active {
+            border-color: var(--accent-yellow);
+        }
+        
+        .trace-card.complete {
+            border-color: var(--accent-green);
+        }
+        
+        .trace-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .trace-process {
+            font-weight: 600;
+            color: var(--accent-cyan);
+            font-size: 1.1em;
+        }
+        
+        .trace-status {
+            font-size: 0.75em;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+        
+        .trace-status.active {
+            background: rgba(234, 179, 8, 0.2);
+            color: var(--accent-yellow);
+        }
+        
+        .trace-status.complete {
+            background: rgba(34, 197, 94, 0.2);
+            color: var(--accent-green);
+        }
+        
+        .trace-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        
+        .trace-stat {
+            text-align: center;
+            padding: 8px 0;
+            background: var(--bg-secondary);
+            border-radius: 4px;
+        }
+        
+        .trace-stat-value {
+            display: block;
+            font-size: 1.2em;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .trace-stat-label {
+            font-size: 0.7em;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+        }
+        
+        .trace-id {
+            font-family: monospace;
+            font-size: 0.75em;
+            color: var(--text-secondary);
+        }
     </style>
 </head>
 <body>
@@ -241,12 +376,33 @@
             <button class="nav-btn" data-view="traces">Traces</button>
         </nav>
         
-        <div class="panel">
+        <!-- Timeline View -->
+        <div class="panel view-panel" id="view-timeline">
             <div class="panel-header">Live Event Stream</div>
             <div class="event-list" id="event-list">
                 <div class="empty-state">
                     <h3>Waiting for events...</h3>
                     <p>AI activity will appear here in real-time</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Inventory View -->
+        <div class="panel view-panel" id="view-inventory" style="display: none;">
+            <div class="panel-header">AI Provider Inventory</div>
+            <div class="inventory-content" id="inventory-content">
+                <div class="empty-state">
+                    <h3>Loading inventory...</h3>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Traces View -->
+        <div class="panel view-panel" id="view-traces" style="display: none;">
+            <div class="panel-header">Active Traces</div>
+            <div class="traces-content" id="traces-content">
+                <div class="empty-state">
+                    <h3>Loading traces...</h3>
                 </div>
             </div>
         </div>
@@ -376,11 +532,174 @@
                 document.getElementById('active-traces').textContent = stats.active_traces;
             });
         
+        // View switching
+        let currentView = 'timeline';
+        
+        function switchView(view) {
+            currentView = view;
+            
+            // Hide all views
+            document.querySelectorAll('.view-panel').forEach(p => p.style.display = 'none');
+            
+            // Show selected view
+            const viewEl = document.getElementById('view-' + view);
+            if (viewEl) viewEl.style.display = 'block';
+            
+            // Load view-specific data
+            if (view === 'inventory') {
+                loadInventory();
+            } else if (view === 'traces') {
+                loadTraces();
+            }
+        }
+        
+        function loadInventory() {
+            // Build inventory from collected events
+            const providers = {};
+            
+            events.forEach(event => {
+                if (!event.event_type.startsWith('ai.')) return;
+                
+                const providerName = event.data?.provider?.name || 'unknown';
+                const modelId = event.data?.model?.id || 'unknown';
+                
+                if (!providers[providerName]) {
+                    providers[providerName] = {
+                        name: providerName,
+                        requests: 0,
+                        responses: 0,
+                        models: {},
+                        totalLatency: 0,
+                        latencyCount: 0
+                    };
+                }
+                
+                if (event.event_type === 'ai.request') {
+                    providers[providerName].requests++;
+                } else if (event.event_type === 'ai.response') {
+                    providers[providerName].responses++;
+                    if (event.data?.latency_ms) {
+                        providers[providerName].totalLatency += event.data.latency_ms;
+                        providers[providerName].latencyCount++;
+                    }
+                }
+                
+                if (!providers[providerName].models[modelId]) {
+                    providers[providerName].models[modelId] = 0;
+                }
+                providers[providerName].models[modelId]++;
+            });
+            
+            const content = document.getElementById('inventory-content');
+            
+            if (Object.keys(providers).length === 0) {
+                content.innerHTML = `
+                    <div class="empty-state">
+                        <h3>No AI providers detected</h3>
+                        <p>AI provider usage will appear here as events are captured</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            content.innerHTML = `
+                <div class="inventory-grid">
+                    ${Object.values(providers).map(p => `
+                        <div class="inventory-card">
+                            <h4>${p.name.toUpperCase()}</h4>
+                            <div class="stat-row">
+                                <span>Requests</span>
+                                <span class="stat-value">${p.requests}</span>
+                            </div>
+                            <div class="stat-row">
+                                <span>Responses</span>
+                                <span class="stat-value">${p.responses}</span>
+                            </div>
+                            <div class="stat-row">
+                                <span>Avg Latency</span>
+                                <span class="stat-value">${p.latencyCount > 0 ? Math.round(p.totalLatency / p.latencyCount) + 'ms' : '-'}</span>
+                            </div>
+                            <div class="model-list">
+                                ${Object.entries(p.models).map(([model, count]) => `
+                                    <div class="model-item">
+                                        <span class="model-name">${model}</span>
+                                        <span>${count} calls</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+        
+        async function loadTraces() {
+            const content = document.getElementById('traces-content');
+            
+            try {
+                const resp = await fetch('/api/traces');
+                const data = await resp.json();
+                
+                if (!data.traces || data.traces.length === 0) {
+                    content.innerHTML = `
+                        <div class="empty-state">
+                            <h3>No active traces</h3>
+                            <p>Request/response pairs will appear here as traces</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                content.innerHTML = `
+                    <div class="traces-grid">
+                        ${data.traces.map(trace => `
+                            <div class="trace-card ${trace.is_complete ? 'complete' : 'active'}">
+                                <div class="trace-header">
+                                    <span class="trace-process">${trace.process_name || '?'}</span>
+                                    <span class="trace-status ${trace.is_complete ? 'complete' : 'active'}">
+                                        ${trace.is_complete ? 'Complete' : 'Active'}
+                                    </span>
+                                </div>
+                                <div class="trace-stats">
+                                    <div class="trace-stat">
+                                        <span class="trace-stat-value">${trace.llm_calls}</span>
+                                        <span class="trace-stat-label">LLM Calls</span>
+                                    </div>
+                                    <div class="trace-stat">
+                                        <span class="trace-stat-value">${trace.tool_calls}</span>
+                                        <span class="trace-stat-label">Tool Calls</span>
+                                    </div>
+                                    <div class="trace-stat">
+                                        <span class="trace-stat-value">${trace.total_tokens}</span>
+                                        <span class="trace-stat-label">Tokens</span>
+                                    </div>
+                                    <div class="trace-stat">
+                                        <span class="trace-stat-value">${trace.duration_ms}ms</span>
+                                        <span class="trace-stat-label">Duration</span>
+                                    </div>
+                                </div>
+                                <div class="trace-id">${trace.trace_id.substring(0, 20)}...</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            } catch (err) {
+                console.error('Failed to load traces:', err);
+                content.innerHTML = `
+                    <div class="empty-state">
+                        <h3>Error loading traces</h3>
+                        <p>${err.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
         // Navigation
         document.querySelectorAll('.nav-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
+                switchView(btn.dataset.view);
             });
         });
     </script>

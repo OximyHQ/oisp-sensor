@@ -349,11 +349,17 @@ pub fn detect_provider_from_body(body: &Value) -> Option<Provider> {
         if model.starts_with("claude") {
             return Some(Provider::Anthropic);
         }
-        if model.starts_with("gpt") || model.starts_with("o1") {
+        if model.starts_with("gpt") || model.starts_with("o1") || model.starts_with("chatgpt") {
             return Some(Provider::OpenAI);
         }
         if model.starts_with("gemini") {
             return Some(Provider::Google);
+        }
+        if model.starts_with("llama")
+            || model.starts_with("mixtral")
+            || model.starts_with("mistral")
+        {
+            // Could be various providers, check other hints
         }
     }
 
@@ -362,5 +368,508 @@ pub fn detect_provider_from_body(body: &Value) -> Option<Provider> {
         return Some(Provider::Anthropic);
     }
 
+    // Check for OpenAI response structure
+    if body.get("choices").is_some()
+        && body.get("object").and_then(|o| o.as_str()) == Some("chat.completion")
+    {
+        return Some(Provider::OpenAI);
+    }
+
+    // Check for Anthropic response structure
+    if body.get("content").is_some() && body.get("type").and_then(|t| t.as_str()) == Some("message")
+    {
+        return Some(Provider::Anthropic);
+    }
+
     None
+}
+
+/// Parse Anthropic-style AI request
+pub fn parse_anthropic_request(body: &Value, endpoint: &str) -> Option<AiRequestData> {
+    let model = body
+        .get("model")
+        .and_then(|m| m.as_str())
+        .map(|id| ModelInfo {
+            id: id.to_string(),
+            name: None,
+            family: extract_model_family(id),
+            version: None,
+            capabilities: None,
+            context_window: None,
+            max_output_tokens: None,
+        });
+
+    // Anthropic uses a different message structure
+    let messages: Vec<Message> = body
+        .get("messages")
+        .and_then(|m| m.as_array())
+        .map(|arr| arr.iter().map(parse_single_message).collect())
+        .unwrap_or_default();
+
+    let system = body.get("system").and_then(|s| s.as_str());
+    let has_system_prompt = system.is_some();
+    let system_prompt_hash = system.map(hash_content);
+
+    let streaming = body
+        .get("stream")
+        .and_then(|s| s.as_bool())
+        .unwrap_or(false);
+
+    Some(AiRequestData {
+        request_id: ulid::Ulid::new().to_string(),
+        provider: Some(ProviderInfo {
+            name: "anthropic".to_string(),
+            endpoint: Some(endpoint.to_string()),
+            region: None,
+            organization_id: None,
+            project_id: None,
+        }),
+        model,
+        auth: None,
+        request_type: Some(RequestType::Chat),
+        streaming: Some(streaming),
+        messages: messages.clone(),
+        messages_count: Some(messages.len()),
+        has_system_prompt: Some(has_system_prompt),
+        system_prompt_hash,
+        tools: parse_tools(body.get("tools")),
+        tools_count: body
+            .get("tools")
+            .and_then(|t| t.as_array())
+            .map(|a| a.len()),
+        tool_choice: body.get("tool_choice").map(|tc| format!("{}", tc)),
+        parameters: Some(ModelParameters {
+            temperature: body.get("temperature").and_then(|t| t.as_f64()),
+            top_p: body.get("top_p").and_then(|t| t.as_f64()),
+            max_tokens: body.get("max_tokens").and_then(|t| t.as_u64()),
+            frequency_penalty: None,
+            presence_penalty: None,
+            stop: body
+                .get("stop_sequences")
+                .and_then(|s| s.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|s| s.as_str().map(String::from))
+                        .collect()
+                })
+                .unwrap_or_default(),
+        }),
+        has_rag_context: None,
+        has_images: None,
+        image_count: None,
+        estimated_tokens: None,
+    })
+}
+
+/// Parse Anthropic-style AI response
+pub fn parse_anthropic_response(body: &Value, request_id: &str) -> Option<AiResponseData> {
+    let content = body.get("content").and_then(|c| c.as_array())?;
+
+    let mut text_content = String::new();
+    let mut tool_calls = Vec::new();
+
+    for block in content {
+        let block_type = block.get("type").and_then(|t| t.as_str());
+        match block_type {
+            Some("text") => {
+                if let Some(text) = block.get("text").and_then(|t| t.as_str()) {
+                    text_content.push_str(text);
+                }
+            }
+            Some("tool_use") => {
+                let id = block.get("id").and_then(|i| i.as_str()).map(String::from);
+                if let Some(name) = block.get("name").and_then(|n| n.as_str()) {
+                    let input = block.get("input");
+                    tool_calls.push(ToolCall {
+                        id,
+                        name: name.to_string(),
+                        tool_type: Some(ToolType::Function),
+                        arguments: input.map(|i| ToolArguments::String(i.to_string())),
+                        arguments_hash: None,
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let finish_reason = body
+        .get("stop_reason")
+        .and_then(|r| r.as_str())
+        .map(|r| match r {
+            "end_turn" => FinishReason::Stop,
+            "max_tokens" => FinishReason::Length,
+            "tool_use" => FinishReason::ToolCalls,
+            "stop_sequence" => FinishReason::Stop,
+            _ => FinishReason::Other,
+        });
+
+    let usage = body.get("usage").map(|u| Usage {
+        prompt_tokens: u.get("input_tokens").and_then(|t| t.as_u64()),
+        completion_tokens: u.get("output_tokens").and_then(|t| t.as_u64()),
+        total_tokens: None,
+        cached_tokens: u.get("cache_read_input_tokens").and_then(|t| t.as_u64()),
+        reasoning_tokens: None,
+        input_cost_usd: None,
+        output_cost_usd: None,
+        total_cost_usd: None,
+    });
+
+    let model = body
+        .get("model")
+        .and_then(|m| m.as_str())
+        .map(|id| ModelInfo {
+            id: id.to_string(),
+            name: None,
+            family: extract_model_family(id),
+            version: None,
+            capabilities: None,
+            context_window: None,
+            max_output_tokens: None,
+        });
+
+    Some(AiResponseData {
+        request_id: request_id.to_string(),
+        provider_request_id: body.get("id").and_then(|i| i.as_str()).map(String::from),
+        provider: Some(ProviderInfo {
+            name: "anthropic".to_string(),
+            endpoint: None,
+            region: None,
+            organization_id: None,
+            project_id: None,
+        }),
+        model,
+        status_code: None,
+        success: Some(true),
+        error: None,
+        choices: vec![Choice {
+            index: 0,
+            message: Some(Message {
+                role: MessageRole::Assistant,
+                content: if text_content.is_empty() {
+                    None
+                } else {
+                    Some(MessageContent::Text(text_content.clone()))
+                },
+                content_hash: if text_content.is_empty() {
+                    None
+                } else {
+                    Some(hash_content(&text_content))
+                },
+                content_length: Some(text_content.len()),
+                has_images: None,
+                image_count: None,
+                tool_call_id: None,
+                name: None,
+            }),
+            finish_reason,
+        }],
+        tool_calls: tool_calls.clone(),
+        tool_calls_count: Some(tool_calls.len()),
+        usage,
+        latency_ms: None,
+        time_to_first_token_ms: None,
+        was_cached: None,
+        finish_reason,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_ai_request_openai() {
+        let body: Value = serde_json::json!({
+            "model": "gpt-4",
+            "messages": [
+                {"role": "user", "content": "Hello"}
+            ]
+        });
+        assert!(is_ai_request(&body));
+    }
+
+    #[test]
+    fn test_is_ai_request_anthropic() {
+        let body: Value = serde_json::json!({
+            "model": "claude-3-opus-20240229",
+            "messages": [
+                {"role": "user", "content": "Hello"}
+            ],
+            "max_tokens": 1024
+        });
+        assert!(is_ai_request(&body));
+    }
+
+    #[test]
+    fn test_is_ai_request_embedding() {
+        let body: Value = serde_json::json!({
+            "model": "text-embedding-ada-002",
+            "input": "Hello world"
+        });
+        // This should NOT be detected as AI request (no messages)
+        assert!(!is_ai_request(&body));
+    }
+
+    #[test]
+    fn test_detect_provider_openai() {
+        let body: Value = serde_json::json!({
+            "model": "gpt-4-turbo",
+            "choices": [{"message": {"content": "Hi"}}]
+        });
+        assert_eq!(detect_provider_from_body(&body), Some(Provider::OpenAI));
+    }
+
+    #[test]
+    fn test_detect_provider_anthropic() {
+        let body: Value = serde_json::json!({
+            "model": "claude-3-sonnet",
+            "content": [{"type": "text", "text": "Hi"}],
+            "type": "message"
+        });
+        assert_eq!(detect_provider_from_body(&body), Some(Provider::Anthropic));
+    }
+
+    #[test]
+    fn test_parse_openai_request() {
+        let body: Value = serde_json::json!({
+            "model": "gpt-4-turbo",
+            "messages": [
+                {"role": "system", "content": "You are helpful."},
+                {"role": "user", "content": "Hello!"}
+            ],
+            "temperature": 0.7,
+            "max_tokens": 100,
+            "stream": true
+        });
+
+        let request = parse_ai_request(
+            &body,
+            Provider::OpenAI,
+            "https://api.openai.com/v1/chat/completions",
+        )
+        .unwrap();
+
+        assert_eq!(request.model.as_ref().unwrap().id, "gpt-4-turbo");
+        assert_eq!(request.messages.len(), 2);
+        assert_eq!(request.streaming, Some(true));
+        assert_eq!(request.has_system_prompt, Some(true));
+        assert!(request.system_prompt_hash.is_some());
+        assert_eq!(request.parameters.as_ref().unwrap().temperature, Some(0.7));
+    }
+
+    #[test]
+    fn test_parse_openai_response() {
+        let body: Value = serde_json::json!({
+            "id": "chatcmpl-abc123",
+            "object": "chat.completion",
+            "model": "gpt-4-turbo",
+            "choices": [{
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": "Hello! How can I help?"
+                },
+                "finish_reason": "stop"
+            }],
+            "usage": {
+                "prompt_tokens": 10,
+                "completion_tokens": 8,
+                "total_tokens": 18
+            }
+        });
+
+        let response = parse_ai_response(&body, "test-request-id", Provider::OpenAI).unwrap();
+
+        assert_eq!(
+            response.provider_request_id,
+            Some("chatcmpl-abc123".to_string())
+        );
+        assert_eq!(response.choices.len(), 1);
+        assert_eq!(response.finish_reason, Some(FinishReason::Stop));
+        assert_eq!(response.usage.as_ref().unwrap().prompt_tokens, Some(10));
+        assert_eq!(response.usage.as_ref().unwrap().completion_tokens, Some(8));
+    }
+
+    #[test]
+    fn test_parse_openai_tool_call_response() {
+        let body: Value = serde_json::json!({
+            "id": "chatcmpl-abc123",
+            "model": "gpt-4-turbo",
+            "choices": [{
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": null,
+                    "tool_calls": [{
+                        "id": "call_abc123",
+                        "type": "function",
+                        "function": {
+                            "name": "get_weather",
+                            "arguments": "{\"location\": \"San Francisco\"}"
+                        }
+                    }]
+                },
+                "finish_reason": "tool_calls"
+            }]
+        });
+
+        let response = parse_ai_response(&body, "test-request-id", Provider::OpenAI).unwrap();
+
+        assert_eq!(response.tool_calls.len(), 1);
+        assert_eq!(response.tool_calls[0].name, "get_weather");
+        assert_eq!(response.finish_reason, Some(FinishReason::ToolCalls));
+    }
+
+    #[test]
+    fn test_parse_anthropic_request() {
+        let body: Value = serde_json::json!({
+            "model": "claude-3-opus-20240229",
+            "system": "You are a helpful assistant.",
+            "messages": [
+                {"role": "user", "content": "Hello!"}
+            ],
+            "max_tokens": 1024,
+            "temperature": 0.8,
+            "stream": false
+        });
+
+        let request =
+            parse_anthropic_request(&body, "https://api.anthropic.com/v1/messages").unwrap();
+
+        assert_eq!(request.model.as_ref().unwrap().id, "claude-3-opus-20240229");
+        assert_eq!(request.has_system_prompt, Some(true));
+        assert!(request.system_prompt_hash.is_some());
+        assert_eq!(request.parameters.as_ref().unwrap().max_tokens, Some(1024));
+    }
+
+    #[test]
+    fn test_parse_anthropic_response() {
+        let body: Value = serde_json::json!({
+            "id": "msg_abc123",
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-3-opus-20240229",
+            "content": [
+                {"type": "text", "text": "Hello! How can I help you today?"}
+            ],
+            "stop_reason": "end_turn",
+            "usage": {
+                "input_tokens": 25,
+                "output_tokens": 15
+            }
+        });
+
+        let response = parse_anthropic_response(&body, "test-request-id").unwrap();
+
+        assert_eq!(response.provider_request_id, Some("msg_abc123".to_string()));
+        assert_eq!(response.choices.len(), 1);
+        assert_eq!(response.finish_reason, Some(FinishReason::Stop));
+        assert_eq!(response.usage.as_ref().unwrap().prompt_tokens, Some(25));
+    }
+
+    #[test]
+    fn test_parse_anthropic_tool_response() {
+        let body: Value = serde_json::json!({
+            "id": "msg_abc123",
+            "type": "message",
+            "model": "claude-3-opus-20240229",
+            "content": [
+                {"type": "tool_use", "id": "toolu_abc", "name": "calculator", "input": {"expression": "2+2"}}
+            ],
+            "stop_reason": "tool_use"
+        });
+
+        let response = parse_anthropic_response(&body, "test-request-id").unwrap();
+
+        assert_eq!(response.tool_calls.len(), 1);
+        assert_eq!(response.tool_calls[0].name, "calculator");
+        assert_eq!(response.finish_reason, Some(FinishReason::ToolCalls));
+    }
+
+    #[test]
+    fn test_detect_request_type() {
+        assert_eq!(
+            detect_request_type(&serde_json::json!({"messages": []})),
+            RequestType::Chat
+        );
+        assert_eq!(
+            detect_request_type(&serde_json::json!({"prompt": "Hello"})),
+            RequestType::Completion
+        );
+        assert_eq!(
+            detect_request_type(&serde_json::json!({"input": "Hello"})),
+            RequestType::Embedding
+        );
+        assert_eq!(
+            detect_request_type(&serde_json::json!({})),
+            RequestType::Other
+        );
+    }
+
+    #[test]
+    fn test_extract_model_family() {
+        assert_eq!(
+            extract_model_family("gpt-4-turbo-preview"),
+            Some("gpt-4".to_string())
+        );
+        assert_eq!(
+            extract_model_family("gpt-3.5-turbo"),
+            Some("gpt-3.5".to_string())
+        );
+        assert_eq!(
+            extract_model_family("claude-3-opus-20240229"),
+            Some("claude-3".to_string())
+        );
+        assert_eq!(
+            extract_model_family("claude-2.1"),
+            Some("claude-2".to_string())
+        );
+        assert_eq!(
+            extract_model_family("gemini-pro"),
+            Some("gemini".to_string())
+        );
+        assert_eq!(extract_model_family("some-custom-model"), None);
+    }
+
+    #[test]
+    fn test_parse_messages() {
+        let messages_json = serde_json::json!([
+            {"role": "system", "content": "You are helpful."},
+            {"role": "user", "content": "Hi!"},
+            {"role": "assistant", "content": "Hello!"},
+            {"role": "tool", "content": "result", "tool_call_id": "call_123"}
+        ]);
+
+        let messages = parse_messages(Some(&messages_json));
+
+        assert_eq!(messages.len(), 4);
+        assert!(matches!(messages[0].role, MessageRole::System));
+        assert!(matches!(messages[1].role, MessageRole::User));
+        assert!(matches!(messages[2].role, MessageRole::Assistant));
+        assert!(matches!(messages[3].role, MessageRole::Tool));
+        assert_eq!(messages[3].tool_call_id, Some("call_123".to_string()));
+    }
+
+    #[test]
+    fn test_parse_tools() {
+        let tools_json = serde_json::json!([
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "description": "Get the current weather"
+                }
+            }
+        ]);
+
+        let tools = parse_tools(Some(&tools_json));
+
+        assert_eq!(tools.len(), 1);
+        assert_eq!(tools[0].name, "get_weather");
+        assert_eq!(
+            tools[0].description,
+            Some("Get the current weather".to_string())
+        );
+    }
 }

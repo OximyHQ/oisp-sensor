@@ -211,3 +211,268 @@ impl Default for StreamReassembler {
         Self::new()
     }
 }
+
+/// Parse Anthropic streaming response
+pub struct AnthropicStreamReassembler {
+    parser: SseParser,
+    chunks: Vec<AnthropicStreamChunk>,
+    complete_content: String,
+    input_tokens: Option<u64>,
+    output_tokens: Option<u64>,
+    stop_reason: Option<String>,
+    model: Option<String>,
+    message_id: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AnthropicStreamChunk {
+    pub event_type: String,
+    pub index: Option<usize>,
+    pub content: Option<String>,
+    pub stop_reason: Option<String>,
+}
+
+impl AnthropicStreamReassembler {
+    pub fn new() -> Self {
+        Self {
+            parser: SseParser::new(),
+            chunks: Vec::new(),
+            complete_content: String::new(),
+            input_tokens: None,
+            output_tokens: None,
+            stop_reason: None,
+            model: None,
+            message_id: None,
+        }
+    }
+
+    pub fn feed(&mut self, data: &[u8]) {
+        self.parser.feed(data);
+
+        for event in self.parser.take_events() {
+            let event_type = event.event.clone().unwrap_or_default();
+
+            if let Ok(json) = serde_json::from_str::<Value>(&event.data) {
+                match event_type.as_str() {
+                    "message_start" => {
+                        if let Some(message) = json.get("message") {
+                            self.message_id =
+                                message.get("id").and_then(|i| i.as_str()).map(String::from);
+                            self.model = message
+                                .get("model")
+                                .and_then(|m| m.as_str())
+                                .map(String::from);
+                            if let Some(usage) = message.get("usage") {
+                                self.input_tokens =
+                                    usage.get("input_tokens").and_then(|t| t.as_u64());
+                            }
+                        }
+                    }
+                    "content_block_delta" => {
+                        if let Some(delta) = json.get("delta") {
+                            if let Some(text) = delta.get("text").and_then(|t| t.as_str()) {
+                                self.complete_content.push_str(text);
+                                self.chunks.push(AnthropicStreamChunk {
+                                    event_type: event_type.clone(),
+                                    index: json
+                                        .get("index")
+                                        .and_then(|i| i.as_u64())
+                                        .map(|i| i as usize),
+                                    content: Some(text.to_string()),
+                                    stop_reason: None,
+                                });
+                            }
+                        }
+                    }
+                    "message_delta" => {
+                        self.stop_reason = json
+                            .get("delta")
+                            .and_then(|d| d.get("stop_reason"))
+                            .and_then(|r| r.as_str())
+                            .map(String::from);
+                        if let Some(usage) = json.get("usage") {
+                            self.output_tokens =
+                                usage.get("output_tokens").and_then(|t| t.as_u64());
+                        }
+                    }
+                    "message_stop" => {
+                        // Stream complete
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    pub fn is_complete(&self) -> bool {
+        self.stop_reason.is_some()
+    }
+
+    pub fn content(&self) -> &str {
+        &self.complete_content
+    }
+
+    pub fn stop_reason(&self) -> Option<&str> {
+        self.stop_reason.as_deref()
+    }
+
+    pub fn model(&self) -> Option<&str> {
+        self.model.as_deref()
+    }
+
+    pub fn usage(&self) -> (Option<u64>, Option<u64>) {
+        (self.input_tokens, self.output_tokens)
+    }
+}
+
+impl Default for AnthropicStreamReassembler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sse_parser_basic() {
+        let mut parser = SseParser::new();
+        parser.feed(b"data: hello world\n\n");
+
+        let events = parser.events();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].data, "hello world");
+    }
+
+    #[test]
+    fn test_sse_parser_with_event_type() {
+        let mut parser = SseParser::new();
+        parser.feed(b"event: message\ndata: test\n\n");
+
+        let events = parser.events();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].event, Some("message".to_string()));
+        assert_eq!(events[0].data, "test");
+    }
+
+    #[test]
+    fn test_sse_parser_multiple_events() {
+        let mut parser = SseParser::new();
+        parser.feed(b"data: first\n\ndata: second\n\n");
+
+        let events = parser.events();
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].data, "first");
+        assert_eq!(events[1].data, "second");
+    }
+
+    #[test]
+    fn test_sse_parser_multiline_data() {
+        let mut parser = SseParser::new();
+        parser.feed(b"data: line1\ndata: line2\n\n");
+
+        let events = parser.events();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].data, "line1\nline2");
+    }
+
+    #[test]
+    fn test_sse_parser_done() {
+        let mut parser = SseParser::new();
+        parser.feed(b"data: [DONE]\n\n");
+
+        assert!(parser.is_done());
+    }
+
+    #[test]
+    fn test_sse_parser_with_id() {
+        let mut parser = SseParser::new();
+        parser.feed(b"id: 123\ndata: test\n\n");
+
+        let events = parser.events();
+        assert_eq!(events[0].id, Some("123".to_string()));
+    }
+
+    #[test]
+    fn test_sse_parser_incremental() {
+        let mut parser = SseParser::new();
+
+        // Feed partial data
+        parser.feed(b"data: hel");
+        assert_eq!(parser.events().len(), 0);
+
+        // Complete the event
+        parser.feed(b"lo\n\n");
+        assert_eq!(parser.events().len(), 1);
+        assert_eq!(parser.events()[0].data, "hello");
+    }
+
+    #[test]
+    fn test_stream_reassembler_openai() {
+        let mut reassembler = StreamReassembler::new();
+
+        // Simulate OpenAI streaming response
+        let chunk1 = br#"data: {"id":"chatcmpl-123","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}
+
+"#;
+        let chunk2 = br#"data: {"id":"chatcmpl-123","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}
+
+"#;
+        let chunk3 = br#"data: {"id":"chatcmpl-123","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"!"},"finish_reason":null}]}
+
+"#;
+        let chunk4 = br#"data: {"id":"chatcmpl-123","object":"chat.completion.chunk","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+"#;
+        let done = b"data: [DONE]\n\n";
+
+        reassembler.feed(chunk1);
+        reassembler.feed(chunk2);
+        reassembler.feed(chunk3);
+        reassembler.feed(chunk4);
+        reassembler.feed(done);
+
+        assert!(reassembler.is_complete());
+        assert_eq!(reassembler.content(), "Hello!");
+        assert_eq!(reassembler.finish_reason(), Some("stop"));
+    }
+
+    #[test]
+    fn test_anthropic_stream_reassembler() {
+        let mut reassembler = AnthropicStreamReassembler::new();
+
+        let start = br#"event: message_start
+data: {"type":"message_start","message":{"id":"msg_123","model":"claude-3-opus","usage":{"input_tokens":10}}}
+
+"#;
+        let delta1 = br#"event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}}
+
+"#;
+        let delta2 = br#"event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"!"}}
+
+"#;
+        let msg_delta = br#"event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":5}}
+
+"#;
+        let stop = br#"event: message_stop
+data: {"type":"message_stop"}
+
+"#;
+
+        reassembler.feed(start);
+        reassembler.feed(delta1);
+        reassembler.feed(delta2);
+        reassembler.feed(msg_delta);
+        reassembler.feed(stop);
+
+        assert!(reassembler.is_complete());
+        assert_eq!(reassembler.content(), "Hello!");
+        assert_eq!(reassembler.stop_reason(), Some("end_turn"));
+        assert_eq!(reassembler.model(), Some("claude-3-opus"));
+        assert_eq!(reassembler.usage(), (Some(10), Some(5)));
+    }
+}

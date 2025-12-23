@@ -1,0 +1,124 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary: #0d1117;
+  --bg-secondary: #161b22;
+  --bg-tertiary: #21262d;
+  --border-color: #30363d;
+  --text-primary: #e6edf3;
+  --text-secondary: #8b949e;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #484f58;
+}
+
+/* Code/mono text */
+.font-mono {
+  font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+}
+
+/* Process tree indentation line */
+.tree-line {
+  position: relative;
+}
+
+.tree-line::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(180deg, var(--border-color) 0%, transparent 100%);
+}
+
+/* Event badges */
+.badge {
+  @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
+}
+
+.badge-prompt {
+  @apply bg-accent-green/20 text-accent-green;
+}
+
+.badge-response {
+  @apply bg-accent-blue/20 text-accent-blue;
+}
+
+.badge-file {
+  @apply bg-accent-cyan/20 text-accent-cyan;
+}
+
+.badge-process {
+  @apply bg-accent-purple/20 text-accent-purple;
+}
+
+.badge-network {
+  @apply bg-accent-orange/20 text-accent-orange;
+}
+
+/* Pulse animation for live indicator */
+@keyframes live-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.live-indicator {
+  animation: live-pulse 2s ease-in-out infinite;
+}
+
+/* Card hover effect */
+.card-hover {
+  @apply transition-all duration-150;
+}
+
+.card-hover:hover {
+  @apply bg-bg-hover;
+}
+
+/* Focus styles */
+button:focus-visible,
+a:focus-visible {
+  @apply outline-none ring-2 ring-accent-blue ring-offset-2 ring-offset-bg-primary;
+}
+

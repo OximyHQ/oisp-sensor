@@ -169,6 +169,14 @@ pub struct AiStreamingChunkEvent {
     #[serde(flatten)]
     pub envelope: EventEnvelope,
 
+    /// Chunk-specific data
+    #[serde(flatten)]
+    pub data: AiStreamingChunkData,
+}
+
+/// AI streaming chunk data
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AiStreamingChunkData {
     /// Links back to the request
     pub request_id: String,
 
@@ -206,6 +214,14 @@ pub struct AiEmbeddingEvent {
     #[serde(flatten)]
     pub envelope: EventEnvelope,
 
+    /// Embedding-specific data
+    #[serde(flatten)]
+    pub data: AiEmbeddingData,
+}
+
+/// AI embedding data
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AiEmbeddingData {
     /// Provider information
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<ProviderInfo>,

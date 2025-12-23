@@ -6,6 +6,10 @@ use oisp_core::plugins::{CapturePlugin, PluginResult, RawCaptureEvent};
 use tokio::sync::mpsc;
 
 pub mod filter;
+pub mod test_generator;
+
+// Re-export the test generator for easy access
+pub use test_generator::{TestGenerator, TestGeneratorConfig};
 
 /// Capture configuration
 #[derive(Debug, Clone)]

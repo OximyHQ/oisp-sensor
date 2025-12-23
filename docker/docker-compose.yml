@@ -1,32 +1,220 @@
 # OISP Sensor Docker Compose
 #
-# Run: docker-compose up -d
+# Usage:
+#   Build:                    docker-compose build
+#   Run demo mode:            docker-compose up oisp-demo
+#   Run with eBPF capture:    docker-compose up oisp-sensor  (Linux only, requires privileged)
+#   Run with web UI:          docker-compose up oisp-web
+#   View logs:                docker-compose logs -f
+#   Stop all:                 docker-compose down
 #
-version: '3.8'
+# Requirements for eBPF mode:
+#   - Linux host with kernel 5.8+
+#   - Docker with privileged container support
+#   - libssl.so available on host (usually at /lib/x86_64-linux-gnu/libssl.so.3)
 
 services:
+  # ==========================================================================
+  # Main eBPF Sensor - Full capture mode (Linux only)
+  # ==========================================================================
+  # This service captures real SSL/TLS traffic using eBPF uprobes.
+  # Requires: privileged mode, host networking, host PID namespace.
   oisp-sensor:
-    build: ..
+    build:
+      context: ..
+      dockerfile: Dockerfile
     image: oisp-sensor:latest
     container_name: oisp-sensor
+    # eBPF requires privileged mode for:
+    # - Loading BPF programs into kernel
+    # - Attaching uprobes to libssl
+    # - Accessing /sys/kernel/debug
     privileged: true
+    # Host network mode required for:
+    # - Intercepting SSL traffic from host processes
+    # - Accessing host network stack
     network_mode: host
+    # Host PID namespace required for:
+    # - Seeing host processes
+    # - Correlating SSL events with process info
+    pid: host
     volumes:
-      # Required for eBPF
+      # Required for eBPF debugfs access
       - /sys/kernel/debug:/sys/kernel/debug:ro
-      - /sys/fs/bpf:/sys/fs/bpf:ro
-      - /proc:/host/proc:ro
+      # Required for BPF filesystem (pinning maps, etc.)
+      - /sys/fs/bpf:/sys/fs/bpf
+      # Read-only access to system info
+      - /sys:/sys:ro
+      - /proc:/proc:ro
+      # Access to host libraries (libssl.so)
+      - /usr/lib:/usr/lib:ro
+      - /lib:/lib:ro
+      # For Ubuntu/Debian libssl location
+      - /lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu:ro
       # Data persistence
       - oisp-data:/var/lib/oisp
       - oisp-logs:/var/log/oisp
     environment:
+      - RUST_LOG=info,oisp_sensor=debug,oisp_capture_ebpf=debug
+      - RUST_BACKTRACE=1
+    # Run in record mode with eBPF capture
+    command:
+      - record
+      - --output
+      - /var/lib/oisp/events.jsonl
+      - --port
+      - "7777"
+      - --web
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7777/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ==========================================================================
+  # Web UI Mode - eBPF capture with web dashboard
+  # ==========================================================================
+  oisp-web:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: oisp-sensor:latest
+    container_name: oisp-sensor-web
+    privileged: true
+    network_mode: host
+    pid: host
+    volumes:
+      - /sys/kernel/debug:/sys/kernel/debug:ro
+      - /sys/fs/bpf:/sys/fs/bpf
+      - /sys:/sys:ro
+      - /proc:/proc:ro
+      - /usr/lib:/usr/lib:ro
+      - /lib:/lib:ro
+      - /lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu:ro
+      - oisp-data:/var/lib/oisp
+    environment:
       - RUST_LOG=info
+    command:
+      - record
+      - --output
+      - /var/lib/oisp/events.jsonl
+      - --port
+      - "7777"
+      - --web
+    restart: unless-stopped
+
+  # ==========================================================================
+  # Demo Mode - Works on any platform (macOS, Windows, Linux)
+  # ==========================================================================
+  # This service generates synthetic AI events for testing/demo purposes.
+  # No eBPF required, no privileged mode needed.
+  oisp-demo:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: oisp-sensor:latest
+    container_name: oisp-sensor-demo
+    # Standard port mapping (no host networking)
     ports:
       - "7777:7777"
+    volumes:
+      - oisp-data:/var/lib/oisp
+    environment:
+      - RUST_LOG=info
+    command:
+      - demo
+      - --output
+      - /var/lib/oisp/demo-events.jsonl
+      - --port
+      - "7777"
+      - --interval
+      - "2000"
     restart: unless-stopped
-    command: ["record", "--output", "/var/lib/oisp/events.jsonl", "--port", "7777"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7777/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==========================================================================
+  # TUI Mode - Terminal UI for local monitoring
+  # ==========================================================================
+  oisp-tui:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: oisp-sensor:latest
+    container_name: oisp-sensor-tui
+    privileged: true
+    network_mode: host
+    pid: host
+    # Interactive terminal mode
+    stdin_open: true
+    tty: true
+    volumes:
+      - /sys/kernel/debug:/sys/kernel/debug:ro
+      - /sys/fs/bpf:/sys/fs/bpf
+      - /sys:/sys:ro
+      - /proc:/proc:ro
+      - /usr/lib:/usr/lib:ro
+      - /lib:/lib:ro
+      - /lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu:ro
+      - oisp-data:/var/lib/oisp
+    environment:
+      - RUST_LOG=warn
+      - TERM=xterm-256color
+    command:
+      - record
+      - --output
+      - /var/lib/oisp/events.jsonl
+      - --tui
+    # TUI mode is typically run interactively, not as a daemon
+    restart: "no"
+
+  # ==========================================================================
+  # Development Mode - For local development and testing
+  # ==========================================================================
+  oisp-dev:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: runtime
+    image: oisp-sensor:dev
+    container_name: oisp-sensor-dev
+    privileged: true
+    network_mode: host
+    pid: host
+    volumes:
+      - /sys/kernel/debug:/sys/kernel/debug:ro
+      - /sys/fs/bpf:/sys/fs/bpf
+      - /sys:/sys:ro
+      - /proc:/proc:ro
+      - /usr/lib:/usr/lib:ro
+      - /lib:/lib:ro
+      - /lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu:ro
+      # Mount source for live reload (optional)
+      - ../:/src:ro
+      - oisp-data:/var/lib/oisp
+    environment:
+      - RUST_LOG=debug,oisp_sensor=trace,oisp_capture_ebpf=trace
+      - RUST_BACKTRACE=full
+    command:
+      - record
+      - --output
+      - /var/lib/oisp/dev-events.jsonl
+      - --port
+      - "7777"
+      - --web
 
 volumes:
   oisp-data:
+    driver: local
   oisp-logs:
+    driver: local
 
+# Network configuration (for non-host mode services)
+networks:
+  default:
+    driver: bridge

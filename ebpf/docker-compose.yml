@@ -1,0 +1,85 @@
+# oisp-ebpf-capture Docker Compose
+#
+# For standalone eBPF capture testing and development.
+#
+# Usage:
+#   Build:            docker-compose build
+#   Run capture:      docker-compose up ebpf-capture
+#   Run tests:        docker-compose run --rm test
+#   Interactive:      docker-compose run --rm shell
+#
+# Requirements:
+#   - Linux host with kernel 5.8+
+#   - Docker with privileged container support
+
+services:
+  # Main eBPF capture service
+  ebpf-capture:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: oisp-ebpf-capture:latest
+    container_name: oisp-ebpf-capture
+    privileged: true
+    network_mode: host
+    pid: host
+    volumes:
+      - /sys/kernel/debug:/sys/kernel/debug:ro
+      - /sys/fs/bpf:/sys/fs/bpf
+      - /sys:/sys:ro
+      - /proc:/proc:ro
+      - /usr/lib:/usr/lib:ro
+      - /lib:/lib:ro
+      - /lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu:ro
+    environment:
+      - RUST_LOG=info
+    # Run capture with auto-detect libssl
+    command: []
+
+  # Test runner
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: oisp-ebpf-capture:latest
+    privileged: true
+    network_mode: host
+    pid: host
+    volumes:
+      - /sys/kernel/debug:/sys/kernel/debug:ro
+      - /sys/fs/bpf:/sys/fs/bpf
+      - /sys:/sys:ro
+      - /proc:/proc:ro
+      - /usr/lib:/usr/lib:ro
+      - /lib:/lib:ro
+      - /lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu:ro
+    environment:
+      - RUST_LOG=info
+    working_dir: /opt/oisp
+    entrypoint: ["/bin/bash"]
+    command: ["-c", "cd tests && ./run_all_tests.sh"]
+
+  # Interactive shell for debugging
+  shell:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: oisp-ebpf-capture:latest
+    privileged: true
+    network_mode: host
+    pid: host
+    stdin_open: true
+    tty: true
+    volumes:
+      - /sys/kernel/debug:/sys/kernel/debug:ro
+      - /sys/fs/bpf:/sys/fs/bpf
+      - /sys:/sys:ro
+      - /proc:/proc:ro
+      - /usr/lib:/usr/lib:ro
+      - /lib:/lib:ro
+      - /lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu:ro
+    environment:
+      - RUST_LOG=debug
+    working_dir: /opt/oisp
+    entrypoint: ["/bin/bash"]
+

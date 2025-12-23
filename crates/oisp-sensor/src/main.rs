@@ -3,6 +3,9 @@
 //! Zero-instrumentation sensor for AI activity monitoring and control.
 
 use clap::{Parser, Subcommand};
+use oisp_capture::{TestGenerator, TestGeneratorConfig};
+#[cfg(target_os = "linux")]
+use oisp_capture_ebpf::{EbpfCapture, EbpfCaptureConfig};
 use oisp_core::pipeline::{Pipeline, PipelineConfig};
 use oisp_decode::HttpDecoder;
 use oisp_enrich::{HostEnricher, ProcessTreeEnricher};
@@ -78,6 +81,14 @@ enum Commands {
         /// Disable network capture
         #[arg(long)]
         no_network: bool,
+
+        /// Path to eBPF bytecode file (Linux only, auto-detected if not specified)
+        #[arg(long)]
+        ebpf_path: Option<PathBuf>,
+
+        /// Path to libssl.so for SSL interception (auto-detected if not specified)
+        #[arg(long)]
+        libssl_path: Option<PathBuf>,
     },
 
     /// Show captured events
@@ -115,6 +126,37 @@ enum Commands {
 
     /// Self-test sensor capabilities
     Test,
+
+    /// Run demo mode with generated test events (no eBPF required)
+    Demo {
+        /// Output file for JSONL events
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Start web UI
+        #[arg(long, default_value = "true")]
+        web: bool,
+
+        /// Web UI port
+        #[arg(long, default_value = "7777")]
+        port: u16,
+
+        /// Start TUI
+        #[arg(long)]
+        tui: bool,
+
+        /// Event generation interval in milliseconds
+        #[arg(long, default_value = "2000")]
+        interval: u64,
+
+        /// Number of events to generate (0 = infinite)
+        #[arg(long, default_value = "0")]
+        count: u64,
+
+        /// Redaction mode (safe, full, minimal)
+        #[arg(long, default_value = "full")]
+        redaction: String,
+    },
 }
 
 #[tokio::main]
@@ -152,6 +194,8 @@ async fn main() -> anyhow::Result<()> {
             no_process,
             no_file,
             no_network,
+            ebpf_path,
+            libssl_path,
         } => {
             record_command(RecordConfig {
                 output,
@@ -165,6 +209,8 @@ async fn main() -> anyhow::Result<()> {
                 process: !no_process,
                 file: !no_file,
                 network: !no_network,
+                ebpf_path,
+                libssl_path,
             })
             .await
         }
@@ -180,6 +226,26 @@ async fn main() -> anyhow::Result<()> {
         } => analyze_command(&input, &analysis_type).await,
         Commands::Status => status_command().await,
         Commands::Test => test_command().await,
+        Commands::Demo {
+            output,
+            web,
+            port,
+            tui,
+            interval,
+            count,
+            redaction,
+        } => {
+            demo_command(DemoConfig {
+                output,
+                web,
+                port,
+                tui,
+                interval_ms: interval,
+                event_count: count,
+                redaction_mode: redaction,
+            })
+            .await
+        }
     }
 }
 
@@ -196,6 +262,8 @@ struct RecordConfig {
     process: bool,
     file: bool,
     network: bool,
+    ebpf_path: Option<PathBuf>,
+    libssl_path: Option<PathBuf>,
 }
 
 async fn record_command(config: RecordConfig) -> anyhow::Result<()> {
@@ -204,6 +272,36 @@ async fn record_command(config: RecordConfig) -> anyhow::Result<()> {
     // Create pipeline
     let pipeline_config = PipelineConfig::default();
     let mut pipeline = Pipeline::new(pipeline_config);
+
+    // Add eBPF capture on Linux
+    #[cfg(target_os = "linux")]
+    {
+        if config.ssl {
+            let ebpf_config = EbpfCaptureConfig {
+                ssl: config.ssl,
+                process: config.process,
+                file: config.file,
+                network: config.network,
+                ssl_binary_paths: config
+                    .libssl_path
+                    .map(|p| vec![p.to_string_lossy().to_string()])
+                    .unwrap_or_default(),
+                comm_filter: config.process_filter.clone(),
+                pid_filter: config.pid_filter.first().copied(),
+                ebpf_bytecode_path: config.ebpf_path.map(|p| p.to_string_lossy().to_string()),
+            };
+
+            let ebpf_capture = EbpfCapture::with_config(ebpf_config);
+            pipeline.add_capture(Box::new(ebpf_capture));
+            info!("eBPF capture plugin added");
+        }
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        info!("eBPF capture not available on this platform");
+        let _ = (&config.ebpf_path, &config.libssl_path); // Suppress unused warnings
+    }
 
     // Add decoder
     pipeline.add_decode(Box::new(HttpDecoder::new()));
@@ -252,17 +350,15 @@ async fn record_command(config: RecordConfig) -> anyhow::Result<()> {
     // Start web UI if requested
     if config.web {
         let web_config = oisp_web::WebConfig {
-            host: "127.0.0.1".to_string(),
+            host: "0.0.0.0".to_string(),
             port: config.port,
         };
 
-        let _event_tx = pipeline.subscribe();
+        let event_tx = pipeline.event_sender();
         let tb = trace_builder.clone();
 
         tokio::spawn(async move {
-            // Create a new broadcast sender from the receiver
-            let (tx, _) = tokio::sync::broadcast::channel(1000);
-            if let Err(e) = oisp_web::start_server(web_config, tx, tb).await {
+            if let Err(e) = oisp_web::start_server(web_config, event_tx, tb).await {
                 error!("Web server error: {}", e);
             }
         });
@@ -478,6 +574,130 @@ async fn status_command() -> anyhow::Result<()> {
     Ok(())
 }
 
+struct DemoConfig {
+    output: Option<PathBuf>,
+    web: bool,
+    port: u16,
+    tui: bool,
+    interval_ms: u64,
+    event_count: u64,
+    redaction_mode: String,
+}
+
+/// Demo mode - generates fake events to test the pipeline and UI
+async fn demo_command(config: DemoConfig) -> anyhow::Result<()> {
+    println!();
+    println!("  OISP Sensor v{} - DEMO MODE", env!("CARGO_PKG_VERSION"));
+    println!();
+    println!("  Generating test events every {}ms", config.interval_ms);
+    if config.event_count > 0 {
+        println!("  Will generate {} events total", config.event_count);
+    } else {
+        println!("  Generating events indefinitely");
+    }
+    println!();
+
+    info!("Starting OISP Sensor in demo mode...");
+
+    // Create pipeline
+    let pipeline_config = PipelineConfig::default();
+    let mut pipeline = Pipeline::new(pipeline_config);
+
+    // Add test generator as capture source
+    let test_generator = TestGenerator::with_config(TestGeneratorConfig {
+        interval_ms: config.interval_ms,
+        event_count: config.event_count,
+        generate_ai_events: true,
+        generate_process_events: true,
+        generate_file_events: true,
+        process_name: "cursor".to_string(),
+        pid: 12345,
+    });
+    pipeline.add_capture(Box::new(test_generator));
+
+    // Add decoder
+    pipeline.add_decode(Box::new(HttpDecoder::new()));
+
+    // Add enrichers
+    pipeline.add_enrich(Box::new(HostEnricher::new()));
+    pipeline.add_enrich(Box::new(ProcessTreeEnricher::new()));
+
+    // Add redaction
+    let redaction = match config.redaction_mode.as_str() {
+        "full" => RedactionPlugin::full_capture(),
+        "minimal" => RedactionPlugin::minimal(),
+        _ => RedactionPlugin::safe_mode(),
+    };
+    pipeline.add_action(Box::new(redaction));
+
+    // Add exporters
+    if let Some(output_path) = config.output {
+        pipeline.add_export(Box::new(JsonlExporter::new(JsonlExporterConfig {
+            path: output_path.clone(),
+            append: true,
+            pretty: false,
+            flush_each: true,
+        })));
+        println!("  Output: {}", output_path.display());
+    }
+
+    let ws_exporter = WebSocketExporter::new(WebSocketExporterConfig {
+        port: config.port,
+        host: "127.0.0.1".to_string(),
+        buffer_size: 1000,
+    });
+    pipeline.add_export(Box::new(ws_exporter));
+
+    // Enable traces
+    pipeline.enable_traces();
+
+    // Get event broadcast for UI
+    let event_rx = pipeline.subscribe();
+    let trace_builder = pipeline.trace_builder().unwrap();
+
+    // Start pipeline
+    pipeline.start().await?;
+
+    info!("Demo pipeline started");
+
+    // Start web UI if requested
+    if config.web {
+        let web_config = oisp_web::WebConfig {
+            host: "0.0.0.0".to_string(),
+            port: config.port,
+        };
+
+        let event_tx = pipeline.event_sender();
+        let tb = trace_builder.clone();
+
+        tokio::spawn(async move {
+            if let Err(e) = oisp_web::start_server(web_config, event_tx, tb).await {
+                error!("Web server error: {}", e);
+            }
+        });
+
+        println!("  Web UI: http://127.0.0.1:{}", config.port);
+    }
+
+    println!();
+    println!("  Press Ctrl+C to stop");
+    println!();
+
+    // Start TUI if requested
+    if config.tui {
+        oisp_tui::run(event_rx).await?;
+    } else {
+        // Wait for Ctrl+C
+        tokio::signal::ctrl_c().await?;
+    }
+
+    // Cleanup
+    pipeline.stop().await?;
+    info!("Demo stopped");
+
+    Ok(())
+}
+
 async fn test_command() -> anyhow::Result<()> {
     println!("Running sensor self-test...\n");
 
@@ -492,10 +712,11 @@ async fn test_command() -> anyhow::Result<()> {
     let provider = registry.detect_from_domain("api.openai.com");
     println!("OK (api.openai.com -> {:?})", provider);
 
-    // Test 3: Redaction
+    // Test 3: Redaction (API key must be 20+ chars after prefix)
     print!("  Testing redaction... ");
     let config = oisp_core::redaction::RedactionConfig::default();
-    let result = oisp_core::redaction::redact("My API key is sk-proj-abc123", &config);
+    let result =
+        oisp_core::redaction::redact("My API key is sk-proj-abc123def456ghi789jkl0", &config);
     let passed = result.content.contains("[API_KEY_REDACTED]");
     println!("{}", if passed { "OK" } else { "FAILED" });
 

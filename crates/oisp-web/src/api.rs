@@ -1,5 +1,6 @@
 //! REST API handlers
 
+use crate::web_event::{WebEvent, WebEventsResponse};
 use crate::AppState;
 use axum::{extract::State, Json};
 use serde::Serialize;
@@ -72,6 +73,24 @@ pub async fn get_events(State(state): State<Arc<AppState>>) -> Json<EventsRespon
     Json(EventsResponse {
         total: events.len(),
         events: event_values,
+    })
+}
+
+/// Get events in WebEvent format (optimized for frontend)
+///
+/// This endpoint returns events in a simplified, flat format where
+/// pid and comm are always present, making it easy to group by process.
+pub async fn get_web_events(State(state): State<Arc<AppState>>) -> Json<WebEventsResponse> {
+    let events = state.events.read().await;
+    let web_events: Vec<WebEvent> = events
+        .iter()
+        .take(500) // Allow more events for tree view
+        .map(|e| WebEvent::from_oisp_event(e.as_ref()))
+        .collect();
+
+    Json(WebEventsResponse {
+        total: events.len(),
+        events: web_events,
     })
 }
 

@@ -34,16 +34,17 @@ cargo test
 oisp-sensor/
 ├── Cargo.toml              # Workspace configuration
 ├── README.md               # Project overview
-├── bpf/                    # eBPF C programs
-│   ├── ssl_monitor.bpf.c   # SSL/TLS capture
-│   └── process_monitor.bpf.c
+├── ebpf/                   # eBPF programs (Rust/Aya, separate workspace)
+│   ├── oisp-ebpf-capture-ebpf/  # eBPF kernel programs
+│   ├── oisp-ebpf-capture-common/ # Shared types
+│   └── oisp-ebpf-capture/  # Standalone binary for testing
 ├── crates/
 │   ├── oisp-sensor/        # Main binary and CLI
 │   ├── oisp-core/          # Core types and traits
 │   ├── oisp-capture/       # Capture abstraction
-│   ├── oisp-capture-ebpf/  # Linux eBPF capture
-│   ├── oisp-capture-macos/ # macOS ESF capture
-│   ├── oisp-capture-windows/ # Windows ETW capture
+│   ├── oisp-capture-ebpf/  # Linux eBPF capture (loader)
+│   ├── oisp-capture-macos/ # macOS ESF capture (stub)
+│   ├── oisp-capture-windows/ # Windows ETW capture (stub)
 │   ├── oisp-decode/        # HTTP/SSE/AI decoding
 │   ├── oisp-enrich/        # Event enrichment
 │   ├── oisp-redact/        # Redaction/privacy
@@ -51,6 +52,7 @@ oisp-sensor/
 │   ├── oisp-export/        # Event export
 │   ├── oisp-tui/           # Terminal UI
 │   └── oisp-web/           # Web UI backend
+├── frontend/               # React/Next.js frontend
 └── docker/                 # Docker configuration
 ```
 
@@ -78,10 +80,15 @@ RUST_LOG=debug cargo test
 
 ### Building eBPF Programs (Linux only)
 
+The eBPF programs are written in Rust using the [Aya](https://aya-rs.dev/) framework. They compile automatically via `build.rs` when building with Docker:
+
 ```bash
-cd bpf
-make vmlinux  # Generate vmlinux.h
-make          # Compile eBPF programs
+# Build via Docker (recommended)
+./scripts/docker-build.sh
+
+# Or build the eBPF workspace directly (requires nightly Rust + bpf-linker)
+cd ebpf
+cargo build --release
 ```
 
 ## Contributing Areas

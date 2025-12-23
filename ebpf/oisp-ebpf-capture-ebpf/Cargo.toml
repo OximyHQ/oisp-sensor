@@ -1,0 +1,17 @@
+[package]
+name = "oisp-ebpf-capture-ebpf"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+oisp-ebpf-capture-common = { path = "../oisp-ebpf-capture-common", default-features = false }
+
+aya-ebpf = { workspace = true }
+# Note: aya-log-ebpf removed - causes verifier errors with maps
+
+[build-dependencies]
+which = { workspace = true }
+
+[[bin]]
+name = "oisp-ebpf-capture"
+path = "src/main.rs"

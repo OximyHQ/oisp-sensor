@@ -1,0 +1,150 @@
+# OISP Sensor Multi-Architecture Docker Image
+#
+# Supports: linux/amd64 (x86_64), linux/arm64 (aarch64)
+#
+# Build for current platform:
+#   docker build -f docker/Dockerfile.multiarch -t oisp-sensor .
+#
+# Build for specific platform:
+#   docker build -f docker/Dockerfile.multiarch --platform linux/amd64 -t oisp-sensor:amd64 .
+#   docker build -f docker/Dockerfile.multiarch --platform linux/arm64 -t oisp-sensor:arm64 .
+#
+# Build and push multi-arch image:
+#   docker buildx build -f docker/Dockerfile.multiarch \
+#     --platform linux/amd64,linux/arm64 \
+#     -t ghcr.io/oximyhq/oisp-sensor:latest \
+#     --push .
+
+ARG RUST_VERSION=1.83
+ARG DEBIAN_VERSION=bookworm
+
+# =============================================================================
+# Stage 1: eBPF Builder
+# =============================================================================
+FROM --platform=$BUILDPLATFORM rust:${RUST_VERSION}-slim-${DEBIAN_VERSION} AS ebpf-builder
+
+ARG TARGETPLATFORM
+ARG TARGETARCH
+
+# Install eBPF build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    pkg-config \
+    clang \
+    llvm \
+    libelf-dev \
+    linux-headers-generic \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install nightly toolchain
+RUN rustup toolchain install nightly --component rust-src
+
+# Add cross-compilation targets based on architecture
+RUN case "$TARGETARCH" in \
+        amd64) rustup target add x86_64-unknown-linux-gnu ;; \
+        arm64) rustup target add aarch64-unknown-linux-gnu ;; \
+    esac
+
+# Install bpf-linker
+RUN cargo install bpf-linker --locked
+
+WORKDIR /build/ebpf
+
+# Copy eBPF workspace
+COPY ebpf/Cargo.toml ebpf/Cargo.lock ./
+COPY ebpf/rustfmt.toml ./
+COPY ebpf/oisp-ebpf-capture ./oisp-ebpf-capture
+COPY ebpf/oisp-ebpf-capture-common ./oisp-ebpf-capture-common
+COPY ebpf/oisp-ebpf-capture-ebpf ./oisp-ebpf-capture-ebpf
+
+# Build eBPF programs
+# Note: eBPF bytecode is architecture-independent (BPF target)
+RUN cargo build --release --package oisp-ebpf-capture
+
+# Copy compiled eBPF bytecode
+RUN mkdir -p /build/ebpf-bytecode && \
+    find target -name "*.o" -path "*/bpfel-*/*" -exec cp {} /build/ebpf-bytecode/ \; || true
+
+# =============================================================================
+# Stage 2: Userspace Builder
+# =============================================================================
+FROM rust:${RUST_VERSION}-slim-${DEBIAN_VERSION} AS userspace-builder
+
+ARG TARGETARCH
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    pkg-config \
+    libssl-dev \
+    clang \
+    llvm \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install cross-compilation tools for ARM64 (if building on amd64)
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+        apt-get update && apt-get install -y \
+        gcc-aarch64-linux-gnu \
+        libc6-dev-arm64-cross \
+        && rm -rf /var/lib/apt/lists/*; \
+    fi
+
+WORKDIR /build
+
+# Copy Cargo workspace
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+
+# Build for target architecture
+RUN cargo build --release --package oisp-sensor
+
+# =============================================================================
+# Stage 3: Runtime
+# =============================================================================
+FROM debian:${DEBIAN_VERSION}-slim AS runtime
+
+ARG TARGETARCH
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
+    openssl \
+    procps \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN useradd -m -s /bin/bash -u 1000 oisp
+
+# Copy binaries
+COPY --from=ebpf-builder /build/oisp-ebpf-capture/target/release/oisp-ebpf-capture /usr/local/bin/
+COPY --from=userspace-builder /build/target/release/oisp-sensor /usr/local/bin/
+COPY --from=ebpf-builder /build/ebpf-bytecode /usr/share/oisp/ebpf/
+
+# Create directories
+RUN mkdir -p /var/lib/oisp /var/log/oisp /etc/oisp && \
+    chown -R oisp:oisp /var/lib/oisp /var/log/oisp
+
+# Copy example config
+COPY config.example.toml /etc/oisp/config.example.toml
+
+VOLUME /var/lib/oisp
+EXPOSE 7777
+
+# Architecture-specific labels
+LABEL org.opencontainers.image.title="OISP Sensor" \
+      org.opencontainers.image.description="Open Inference Security Protocol sensor for AI observability" \
+      org.opencontainers.image.vendor="Oximy" \
+      org.opencontainers.image.source="https://github.com/oximyHQ/oisp-sensor" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.architecture="${TARGETARCH}"
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:7777/api/health 2>/dev/null || exit 1
+
+ENTRYPOINT ["oisp-sensor"]
+CMD ["demo", "--output", "/var/lib/oisp/events.jsonl", "--port", "7777"]
+

@@ -54,7 +54,8 @@ web = []
 ebpf = []
 
 [target.'cfg(target_os = "linux")'.dependencies]
-# Linux-specific deps can go here
+# Linux-specific deps
+libc = "0.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # macOS-specific deps can go here

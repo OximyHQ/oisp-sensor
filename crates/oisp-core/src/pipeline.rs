@@ -126,6 +126,11 @@ impl Pipeline {
         self.event_broadcast.subscribe()
     }
 
+    /// Get the event broadcast sender (for sharing with web server, etc.)
+    pub fn event_sender(&self) -> broadcast::Sender<Arc<OispEvent>> {
+        self.event_broadcast.clone()
+    }
+
     /// Get the trace builder (if enabled)
     pub fn trace_builder(&self) -> Option<Arc<RwLock<TraceBuilder>>> {
         self.trace_builder.clone()

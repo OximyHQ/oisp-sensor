@@ -1,5 +1,8 @@
 //! WebSocket handler for real-time updates
+//!
+//! Sends events in WebEvent format for easy frontend consumption.
 
+use crate::web_event::WebEvent;
 use crate::AppState;
 use axum::{
     extract::{
@@ -18,14 +21,16 @@ pub async fn ws_handler(ws: WebSocketUpgrade, State(state): State<Arc<AppState>>
 async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
     debug!("WebSocket client connected");
 
-    let mut rx = state.event_rx.subscribe();
+    let mut rx = state.event_tx.subscribe();
 
     loop {
         tokio::select! {
             result = rx.recv() => {
                 match result {
                     Ok(event) => {
-                        if let Ok(json) = serde_json::to_string(event.as_ref()) {
+                        // Convert to WebEvent format for frontend
+                        let web_event = WebEvent::from_oisp_event(event.as_ref());
+                        if let Ok(json) = serde_json::to_string(&web_event) {
                             if socket.send(Message::Text(json.into())).await.is_err() {
                                 break;
                             }

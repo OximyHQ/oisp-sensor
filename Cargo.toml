@@ -74,6 +74,10 @@ regex = "1.11"
 toml = "0.8"
 directories = "5.0"
 
+# Embedded assets
+rust-embed = "8.5"
+mime_guess = "2.0"
+
 # Internal crates
 oisp-core = { path = "crates/oisp-core" }
 oisp-capture = { path = "crates/oisp-capture" }
