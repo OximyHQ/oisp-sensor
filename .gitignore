@@ -1,0 +1,42 @@
+# Build artifacts
+/target/
+**/*.rs.bk
+*.pdb
+
+# eBPF build artifacts
+/bpf/*.o
+/bpf/*.skel.h
+/bpf/vmlinux.h
+
+# Frontend build
+/frontend/node_modules/
+/frontend/dist/
+/frontend/.next/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+/logs/
+
+# Local config (user overrides)
+config.local.toml
+
+# Test outputs
+/test-output/
+*.jsonl
+
+# Coverage
+/coverage/
+*.profraw
+*.profdata
+
