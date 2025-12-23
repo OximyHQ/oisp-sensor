@@ -56,7 +56,7 @@ OISP Sensor observes at the **system boundary** - below applications, above the 
 
 ```bash
 # Install
-curl -fsSL https://oisp.dev/install.sh | sudo sh
+curl -fsSL https://sensor.oisp.dev/install.sh | sudo sh
 
 # Run with TUI
 sudo oisp-sensor
@@ -321,7 +321,7 @@ Trace: tr_01JGXYZ... (12.3s, 15,420 tokens)
 #### One-Line Install (Recommended)
 
 ```bash
-curl -fsSL https://oisp.dev/install.sh | sudo sh
+curl -fsSL https://sensor.oisp.dev/install.sh | sudo sh
 ```
 
 This will:
