@@ -1,0 +1,64 @@
+[package]
+name = "oisp-sensor"
+version.workspace = true
+edition = "2021"
+license.workspace = true
+description = "Universal AI observability sensor"
+readme = "../../README.md"
+
+[[bin]]
+name = "oisp-sensor"
+path = "src/main.rs"
+
+[dependencies]
+oisp-core = { workspace = true }
+oisp-capture = { path = "../oisp-capture" }
+oisp-decode = { path = "../oisp-decode" }
+oisp-enrich = { path = "../oisp-enrich" }
+oisp-redact = { path = "../oisp-redact" }
+oisp-correlate = { path = "../oisp-correlate" }
+oisp-export = { path = "../oisp-export" }
+oisp-tui = { path = "../oisp-tui" }
+oisp-web = { path = "../oisp-web" }
+
+# Platform-specific capture
+oisp-capture-ebpf = { path = "../oisp-capture-ebpf" }
+oisp-capture-macos = { path = "../oisp-capture-macos" }
+oisp-capture-windows = { path = "../oisp-capture-windows" }
+
+# Async runtime
+tokio = { workspace = true }
+
+# CLI
+clap = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Error handling
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Time
+chrono = { workspace = true }
+
+[features]
+default = ["tui", "web"]
+tui = []
+web = []
+ebpf = []
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# Linux-specific deps can go here
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# macOS-specific deps can go here
+
+[target.'cfg(target_os = "windows")'.dependencies]
+# Windows-specific deps can go here
+
