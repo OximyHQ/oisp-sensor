@@ -1,0 +1,26 @@
+[package]
+name = "oisp-export"
+version.workspace = true
+edition = "2021"
+license.workspace = true
+description = "Export plugins for OISP Sensor (JSONL, OTLP, WebSocket, Kafka)"
+
+[dependencies]
+oisp-core = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+tokio-tungstenite = { workspace = true }
+
+[features]
+default = ["jsonl", "websocket"]
+jsonl = []
+websocket = []
+otlp = []
+kafka = []
+
