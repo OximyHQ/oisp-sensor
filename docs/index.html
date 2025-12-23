@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OISP Sensor - Universal AI Observability</title>
+  <meta name="description" content="Zero-instrumentation sensor for AI activity monitoring across all platforms">
+  
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #12121a;
+      --surface-2: #1a1a24;
+      --border: #2a2a3a;
+      --text: #e4e4e7;
+      --text-muted: #71717a;
+      --accent: #f97316;
+      --accent-dim: #ea580c;
+      --accent-light: #fdba74;
+      --green: #4ade80;
+      --cyan: #22d3ee;
+      --purple: #a78bfa;
+      --red: #f87171;
+    }
+    
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+    
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+    
+    header {
+      text-align: center;
+      padding: 60px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    
+    .logo {
+      font-size: 2.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    
+    .logo .oisp {
+      background: linear-gradient(135deg, var(--accent), var(--accent-light));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    
+    .logo .sensor {
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+    
+    .tagline {
+      color: var(--text-muted);
+      font-size: 1.1rem;
+      margin-top: 10px;
+    }
+    
+    .badges {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+    
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 0.8rem;
+    }
+    
+    .badge.version { color: var(--accent); }
+    .badge.rust { color: var(--purple); }
+    .badge.license { color: var(--green); }
+    
+    .hero {
+      padding: 60px 0;
+      text-align: center;
+    }
+    
+    .hero h2 {
+      font-size: 1.5rem;
+      font-weight: 400;
+      color: var(--text);
+      max-width: 700px;
+      margin: 0 auto;
+    }
+    
+    .hero h2 strong {
+      color: var(--accent);
+    }
+    
+    .cta-buttons {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      margin-top: 40px;
+      flex-wrap: wrap;
+    }
+    
+    .cta-buttons a {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 28px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      text-decoration: none;
+      font-size: 0.95rem;
+      transition: all 0.2s;
+    }
+    
+    .cta-buttons a:hover {
+      border-color: var(--accent);
+      background: rgba(249, 115, 22, 0.1);
+    }
+    
+    .cta-buttons a.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--bg);
+      font-weight: 600;
+    }
+    
+    .cta-buttons a.primary:hover {
+      background: var(--accent-dim);
+    }
+    
+    .install-section {
+      padding: 40px 0;
+      text-align: center;
+    }
+    
+    .install-box {
+      display: inline-block;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px 40px;
+      margin-top: 20px;
+    }
+    
+    .install-box code {
+      font-size: 1.1rem;
+      color: var(--cyan);
+    }
+    
+    .install-box .comment {
+      color: var(--text-muted);
+    }
+    
+    .features {
+      padding: 60px 0;
+    }
+    
+    .features h3 {
+      font-size: 1.3rem;
+      color: var(--text-muted);
+      margin-bottom: 30px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      text-align: center;
+    }
+    
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+    }
+    
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+    }
+    
+    .feature-card .icon {
+      font-size: 1.5rem;
+      margin-bottom: 12px;
+    }
+    
+    .feature-card h4 {
+      font-size: 1.1rem;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+    
+    .feature-card p {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+    
+    .platforms {
+      padding: 40px 0;
+    }
+    
+    .platforms h3 {
+      font-size: 1.3rem;
+      color: var(--text-muted);
+      margin-bottom: 30px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      text-align: center;
+    }
+    
+    .platform-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    
+    @media (max-width: 600px) {
+      .platform-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    
+    .platform-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+      text-align: center;
+    }
+    
+    .platform-card .name {
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    
+    .platform-card .tech {
+      font-size: 0.8rem;
+      color: var(--cyan);
+    }
+    
+    .platform-card .status {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 8px;
+    }
+    
+    .platform-card .status.full { color: var(--green); }
+    .platform-card .status.partial { color: var(--accent); }
+    
+    .architecture {
+      padding: 60px 0;
+    }
+    
+    .architecture h3 {
+      font-size: 1.3rem;
+      color: var(--text-muted);
+      margin-bottom: 30px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      text-align: center;
+    }
+    
+    .arch-diagram {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 30px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    
+    .arch-flow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    
+    .arch-box {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 16px 24px;
+      text-align: center;
+      min-width: 120px;
+    }
+    
+    .arch-box .label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+    }
+    
+    .arch-box .value {
+      color: var(--cyan);
+      font-weight: 600;
+    }
+    
+    .arch-arrow {
+      color: var(--text-muted);
+      font-size: 1.5rem;
+    }
+    
+    .crates {
+      padding: 40px 0;
+    }
+    
+    .crates h3 {
+      font-size: 1.3rem;
+      color: var(--text-muted);
+      margin-bottom: 30px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      text-align: center;
+    }
+    
+    .crate-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    
+    .crate-tag {
+      padding: 8px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 0.85rem;
+      color: var(--purple);
+    }
+    
+    .links-section {
+      padding: 40px 0;
+      border-top: 1px solid var(--border);
+    }
+    
+    .links-grid {
+      display: flex;
+      gap: 40px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    
+    .links-group h4 {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 12px;
+    }
+    
+    .links-group a {
+      display: block;
+      color: var(--text);
+      text-decoration: none;
+      font-size: 0.9rem;
+      margin-bottom: 8px;
+    }
+    
+    .links-group a:hover {
+      color: var(--accent);
+    }
+    
+    footer {
+      padding: 40px 0;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+    
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">
+        <span class="oisp">OISP</span><span class="sensor"> Sensor</span>
+      </div>
+      <div class="tagline">Universal AI Observability - Zero Instrumentation</div>
+      <div class="badges">
+        <span class="badge version">v0.1.0</span>
+        <span class="badge rust">Rust</span>
+        <span class="badge license">Apache-2.0</span>
+      </div>
+    </header>
+    
+    <section class="hero">
+      <h2>
+        Answer <strong>"what AI is happening here?"</strong> on day one.
+        Capture every LLM call, agent action, and tool execution with 
+        <strong>zero code changes</strong>.
+      </h2>
+      
+      <div class="cta-buttons">
+        <a href="https://github.com/oximyHQ/oisp-sensor" class="primary">
+          View on GitHub
+        </a>
+        <a href="https://oisp.dev">
+          OISP Spec
+        </a>
+        <a href="https://github.com/oximyHQ/oisp-sensor/releases">
+          Download
+        </a>
+      </div>
+    </section>
+    
+    <section class="install-section">
+      <h3 style="color: var(--text-muted); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.1em;">Quick Install</h3>
+      <div class="install-box">
+        <code><span class="comment"># One-command install</span><br>curl -sSL https://sensor.oisp.dev/install.sh | sh</code>
+      </div>
+    </section>
+    
+    <section class="features">
+      <h3>Key Features</h3>
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="icon">&#128269;</div>
+          <h4>Full Content Capture</h4>
+          <p>Capture complete request/response bodies, not just metadata. See prompts, completions, tool calls, and results.</p>
+        </div>
+        <div class="feature-card">
+          <div class="icon">&#128279;</div>
+          <h4>Causal Tracing</h4>
+          <p>Trace the full chain: user prompt to LLM call to tool execution to sub-agent calls. Understand agent behavior.</p>
+        </div>
+        <div class="feature-card">
+          <div class="icon">&#128274;</div>
+          <h4>Privacy-First Redaction</h4>
+          <p>Local redaction of API keys, PII, and sensitive data. Three modes: minimal, safe, and full capture.</p>
+        </div>
+        <div class="feature-card">
+          <div class="icon">&#9888;&#65039;</div>
+          <h4>Zero Instrumentation</h4>
+          <p>No SDK integration, no code changes. Works with any AI framework, language, or provider.</p>
+        </div>
+        <div class="feature-card">
+          <div class="icon">&#127760;</div>
+          <h4>Universal Detection</h4>
+          <p>Detect 80+ AI providers and 2,200+ models automatically from network traffic.</p>
+        </div>
+        <div class="feature-card">
+          <div class="icon">&#128187;</div>
+          <h4>Real-time UI</h4>
+          <p>Built-in Terminal UI and Web UI for live event visualization, trace inspection, and analysis.</p>
+        </div>
+      </div>
+    </section>
+    
+    <section class="platforms">
+      <h3>Platform Support</h3>
+      <div class="platform-grid">
+        <div class="platform-card">
+          <div class="name">Linux</div>
+          <div class="tech">eBPF + TLS Capture</div>
+          <div class="status full">Full Fidelity</div>
+        </div>
+        <div class="platform-card">
+          <div class="name">macOS</div>
+          <div class="tech">ESF + Network Extension</div>
+          <div class="status partial">Metadata + Optional MITM</div>
+        </div>
+        <div class="platform-card">
+          <div class="name">Windows</div>
+          <div class="tech">ETW</div>
+          <div class="status partial">Metadata + Optional MITM</div>
+        </div>
+      </div>
+    </section>
+    
+    <section class="architecture">
+      <h3>Pipeline Architecture</h3>
+      <div class="arch-diagram">
+        <div class="arch-flow">
+          <div class="arch-box">
+            <div class="label">Capture</div>
+            <div class="value">eBPF/ESF/ETW</div>
+          </div>
+          <div class="arch-arrow">&#8594;</div>
+          <div class="arch-box">
+            <div class="label">Decode</div>
+            <div class="value">HTTP/SSE/AI</div>
+          </div>
+          <div class="arch-arrow">&#8594;</div>
+          <div class="arch-box">
+            <div class="label">Enrich</div>
+            <div class="value">Process/Host</div>
+          </div>
+          <div class="arch-arrow">&#8594;</div>
+          <div class="arch-box">
+            <div class="label">Action</div>
+            <div class="value">Redact/Filter</div>
+          </div>
+          <div class="arch-arrow">&#8594;</div>
+          <div class="arch-box">
+            <div class="label">Export</div>
+            <div class="value">JSONL/WS/SIEM</div>
+          </div>
+        </div>
+      </div>
+    </section>
+    
+    <section class="crates">
+      <h3>Modular Crates</h3>
+      <div class="crate-list">
+        <span class="crate-tag">oisp-core</span>
+        <span class="crate-tag">oisp-capture</span>
+        <span class="crate-tag">oisp-capture-ebpf</span>
+        <span class="crate-tag">oisp-capture-macos</span>
+        <span class="crate-tag">oisp-capture-windows</span>
+        <span class="crate-tag">oisp-decode</span>
+        <span class="crate-tag">oisp-enrich</span>
+        <span class="crate-tag">oisp-redact</span>
+        <span class="crate-tag">oisp-correlate</span>
+        <span class="crate-tag">oisp-export</span>
+        <span class="crate-tag">oisp-tui</span>
+        <span class="crate-tag">oisp-web</span>
+      </div>
+    </section>
+    
+    <section class="links-section">
+      <div class="links-grid">
+        <div class="links-group">
+          <h4>Resources</h4>
+          <a href="https://github.com/oximyHQ/oisp-sensor">GitHub Repository</a>
+          <a href="https://github.com/oximyHQ/oisp-sensor/blob/main/README.md">Documentation</a>
+          <a href="https://github.com/oximyHQ/oisp-sensor/blob/main/CONTRIBUTING.md">Contributing</a>
+        </div>
+        <div class="links-group">
+          <h4>Related</h4>
+          <a href="https://oisp.dev">OISP Specification</a>
+          <a href="https://github.com/oximyHQ/oisp-spec">OISP Schema</a>
+          <a href="https://oximy.com">Oximy</a>
+        </div>
+        <div class="links-group">
+          <h4>Install</h4>
+          <a href="https://github.com/oximyHQ/oisp-sensor/releases">Releases</a>
+          <a href="#" onclick="return false;">cargo install oisp-sensor</a>
+          <a href="https://hub.docker.com/r/oximy/oisp-sensor">Docker Hub</a>
+        </div>
+      </div>
+    </section>
+    
+    <footer>
+      <p>
+        Apache 2.0 License &middot; 
+        Part of <a href="https://oximy.com">Oximy</a> &middot;
+        Implements the <a href="https://oisp.dev">OISP Specification</a>
+      </p>
+    </footer>
+  </div>
+</body>
+</html>
+
