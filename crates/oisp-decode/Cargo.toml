@@ -1,0 +1,23 @@
+[package]
+name = "oisp-decode"
+version.workspace = true
+edition = "2021"
+license.workspace = true
+description = "HTTP/SSE decoder and AI provider fingerprinting for OISP Sensor"
+
+[dependencies]
+oisp-core = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+httparse = { workspace = true }
+http = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+ulid = { workspace = true }
+
