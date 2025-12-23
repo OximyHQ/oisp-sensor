@@ -3,7 +3,7 @@ name = "oisp-export"
 version.workspace = true
 edition = "2021"
 license.workspace = true
-description = "Export plugins for OISP Sensor (JSONL, OTLP, WebSocket, Kafka)"
+description = "Export plugins for OISP Sensor (JSONL, OTLP, WebSocket, Kafka, Webhook)"
 
 [dependencies]
 oisp-core = { workspace = true }
@@ -17,10 +17,25 @@ serde_json = { workspace = true }
 chrono = { workspace = true }
 tokio-tungstenite = { workspace = true }
 
+# OTLP dependencies (optional)
+opentelemetry = { workspace = true, optional = true }
+opentelemetry_sdk = { workspace = true, optional = true }
+opentelemetry-otlp = { workspace = true, optional = true }
+opentelemetry-semantic-conventions = { workspace = true, optional = true }
+opentelemetry-proto = { workspace = true, optional = true }
+tonic = { workspace = true, optional = true }
+
+# Kafka dependencies (optional)
+rdkafka = { workspace = true, optional = true }
+
+# Webhook dependencies (optional)
+reqwest = { workspace = true, optional = true }
+
 [features]
 default = ["jsonl", "websocket"]
 jsonl = []
 websocket = []
-otlp = []
-kafka = []
+otlp = ["opentelemetry", "opentelemetry_sdk", "opentelemetry-otlp", "opentelemetry-semantic-conventions", "opentelemetry-proto", "tonic"]
+kafka = ["rdkafka"]
+webhook = ["reqwest"]
 

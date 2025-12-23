@@ -23,23 +23,17 @@ interface EventBlockProps {
 export function EventBlock({ event, isExpanded, onToggle }: EventBlockProps) {
   const colorClass = getEventTypeColor(event.type);
   const Icon = getEventIcon(event.type);
+  const borderColor = getBorderColor(event.type);
   
   return (
-    <div className="animate-slide-in">
+    <div className="animate-slide-up">
       {/* Event Header */}
       <div
         onClick={onToggle}
         className={clsx(
-          'flex items-center gap-3 py-2 px-3 rounded-lg cursor-pointer transition-colors',
+          'flex items-center gap-3 py-2 px-3 rounded-lg cursor-pointer transition-all',
           'hover:bg-bg-tertiary border-l-2',
-          event.type === 'ai_prompt' && 'border-accent-green',
-          event.type === 'ai_response' && 'border-accent-blue',
-          event.type === 'file_open' && 'border-accent-cyan',
-          event.type === 'file_write' && 'border-accent-cyan',
-          event.type === 'process_exec' && 'border-accent-purple',
-          event.type === 'process_exit' && 'border-accent-red',
-          event.type === 'network_connect' && 'border-accent-orange',
-          !['ai_prompt', 'ai_response', 'file_open', 'file_write', 'process_exec', 'process_exit', 'network_connect'].includes(event.type) && 'border-border'
+          borderColor
         )}
       >
         {/* Expand Icon */}
@@ -55,29 +49,27 @@ export function EventBlock({ event, isExpanded, onToggle }: EventBlockProps) {
         </div>
         
         {/* Event Title & Subtitle */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className={clsx('font-mono text-sm font-medium', colorClass.split(' ')[0])}>
-              {event.title}
+        <div className="flex-1 min-w-0 flex items-center gap-2">
+          <span className={clsx('font-mono text-xs font-medium', colorClass.split(' ')[0])}>
+            {event.title}
+          </span>
+          {event.subtitle && (
+            <span className="text-xs text-text-muted truncate">
+              {event.subtitle}
             </span>
-            {event.subtitle && (
-              <span className="text-sm text-text-secondary truncate">
-                {event.subtitle}
-              </span>
-            )}
-          </div>
+          )}
         </div>
         
         {/* Timestamp */}
-        <span className="text-xs font-mono text-text-muted flex-shrink-0">
+        <span className="text-[10px] font-mono text-text-muted flex-shrink-0">
           {formatTimestamp(event.timestamp)}
         </span>
       </div>
       
       {/* Expanded Content */}
       {isExpanded && (
-        <div className="ml-9 mt-1 mb-2">
-          <pre className="p-3 bg-bg-tertiary rounded-lg text-xs font-mono text-text-secondary overflow-x-auto">
+        <div className="ml-9 mt-1 mb-2 animate-fade-in">
+          <pre className="p-3 bg-bg-tertiary rounded-lg text-xs font-mono text-text-secondary overflow-x-auto border border-border">
             {JSON.stringify(event.data, null, 2)}
           </pre>
         </div>
@@ -106,3 +98,22 @@ function getEventIcon(type: string) {
   }
 }
 
+function getBorderColor(type: string): string {
+  switch (type) {
+    case 'ai_prompt':
+      return 'border-accent-green';
+    case 'ai_response':
+      return 'border-accent-blue';
+    case 'file_open':
+    case 'file_write':
+      return 'border-accent-cyan';
+    case 'process_exec':
+      return 'border-accent-purple';
+    case 'process_exit':
+      return 'border-accent-red';
+    case 'network_connect':
+      return 'border-accent-orange';
+    default:
+      return 'border-border';
+  }
+}

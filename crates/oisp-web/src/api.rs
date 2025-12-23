@@ -180,10 +180,98 @@ pub async fn get_stats(State(state): State<Arc<AppState>>) -> Json<StatsResponse
 
     let ai_events = events.iter().filter(|e| e.is_ai_event()).count() as u64;
 
+    let uptime_seconds = state
+        .metrics
+        .as_ref()
+        .map(|m| m.uptime_seconds())
+        .unwrap_or(0);
+
     Json(StatsResponse {
         total_events: events.len() as u64,
         ai_events,
         active_traces: builder.active_traces().len(),
-        uptime_seconds: 0, // TODO: Track uptime
+        uptime_seconds,
     })
+}
+
+/// Get detailed metrics in JSON format
+pub async fn get_metrics(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    if let Some(metrics) = &state.metrics {
+        Json(metrics.to_json())
+    } else {
+        Json(serde_json::json!({
+            "error": "Metrics not available",
+            "message": "Metrics collector not initialized"
+        }))
+    }
+}
+
+/// Get metrics in Prometheus format
+pub async fn get_metrics_prometheus(
+    State(state): State<Arc<AppState>>,
+) -> axum::response::Response<axum::body::Body> {
+    use axum::http::{header, StatusCode};
+    use axum::response::IntoResponse;
+
+    if let Some(metrics) = &state.metrics {
+        let body = metrics.to_prometheus();
+        (
+            StatusCode::OK,
+            [(
+                header::CONTENT_TYPE,
+                "text/plain; version=0.0.4; charset=utf-8",
+            )],
+            body,
+        )
+            .into_response()
+    } else {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            [(header::CONTENT_TYPE, "text/plain")],
+            "Metrics not available\n".to_string(),
+        )
+            .into_response()
+    }
+}
+
+/// Process resource metrics response
+#[derive(Serialize)]
+pub struct ProcessMetricsResponse {
+    pub processes: Vec<ProcessResourceInfo>,
+}
+
+#[derive(Serialize)]
+pub struct ProcessResourceInfo {
+    pub pid: u32,
+    pub comm: String,
+    pub cpu_percent: f64,
+    pub memory_rss_mb: f64,
+    pub memory_vms_mb: f64,
+}
+
+/// Get process resource metrics (CPU/memory per process)
+pub async fn get_process_metrics(
+    State(state): State<Arc<AppState>>,
+) -> Json<ProcessMetricsResponse> {
+    if let Some(metrics) = &state.metrics {
+        let processes = metrics.processes.read();
+        let process_list: Vec<ProcessResourceInfo> = processes
+            .iter()
+            .map(|(pid, m)| ProcessResourceInfo {
+                pid: *pid,
+                comm: m.comm.clone(),
+                cpu_percent: m.cpu_percent,
+                memory_rss_mb: m.memory_rss_bytes as f64 / (1024.0 * 1024.0),
+                memory_vms_mb: m.memory_vms_bytes as f64 / (1024.0 * 1024.0),
+            })
+            .collect();
+
+        Json(ProcessMetricsResponse {
+            processes: process_list,
+        })
+    } else {
+        Json(ProcessMetricsResponse {
+            processes: Vec::new(),
+        })
+    }
 }

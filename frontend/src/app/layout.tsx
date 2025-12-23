@@ -1,9 +1,12 @@
-import type { Metadata } from 'next';
 import './globals.css';
+import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'OISP Sensor',
-  description: 'AI Agent Observability - See what your AI agents are doing',
+  title: 'OISP Sensor - AI Agent Observability',
+  description: 'Real-time monitoring and observability for AI agents and LLM applications',
+  icons: {
+    icon: '/favicon.ico',
+  },
 };
 
 export default function RootLayout({
@@ -12,11 +15,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className="bg-bg-primary text-text-primary min-h-screen">
+    <html lang="en" className="dark">
+      <body className="bg-bg-primary text-text-primary antialiased">
         {children}
       </body>
     </html>
   );
 }
-

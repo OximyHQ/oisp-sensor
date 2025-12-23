@@ -1,7 +1,7 @@
 'use client';
 
 import { ProcessNode, TimelineItem } from '@/types/event';
-import { countEventsByType, formatTimestamp } from '@/utils/eventParsers';
+import { countEventsByType } from '@/utils/eventParsers';
 import { EventBlock } from './EventBlock';
 import { 
   ChevronRightIcon, 
@@ -29,7 +29,7 @@ export function ProcessNodeComponent({
 }: ProcessNodeComponentProps) {
   const isExpanded = expandedProcesses.has(node.pid);
   const hasContent = node.events.length > 0 || node.children.length > 0;
-  const indent = depth * 28;
+  const indent = depth * 24;
   
   // Count events by type
   const eventCounts = countEventsByType(node.events);
@@ -40,66 +40,62 @@ export function ProcessNodeComponent({
       <div
         onClick={() => onToggleProcess(node.pid)}
         className={clsx(
-          'flex items-center gap-3 py-3 px-4 rounded-lg cursor-pointer transition-colors',
-          'hover:bg-bg-tertiary',
-          depth > 0 && 'ml-2 border-l-2 border-border'
+          'flex items-center gap-3 py-2.5 px-3 rounded-lg cursor-pointer transition-all',
+          'hover:bg-bg-tertiary group',
+          depth > 0 && 'border-l-2 border-border ml-2'
         )}
         style={{ marginLeft: indent }}
       >
         {/* Expand/Collapse Icon */}
         {hasContent ? (
           isExpanded ? (
-            <ChevronDownIcon className="w-4 h-4 text-text-muted flex-shrink-0" />
+            <ChevronDownIcon className="w-4 h-4 text-text-muted flex-shrink-0 transition-transform" />
           ) : (
-            <ChevronRightIcon className="w-4 h-4 text-text-muted flex-shrink-0" />
+            <ChevronRightIcon className="w-4 h-4 text-text-muted flex-shrink-0 transition-transform" />
           )
         ) : (
           <div className="w-4" />
         )}
         
         {/* Process Icon */}
-        <div className="w-8 h-8 rounded-lg bg-accent-purple/20 flex items-center justify-center flex-shrink-0">
+        <div className="w-8 h-8 rounded-lg bg-accent-purple/10 flex items-center justify-center flex-shrink-0">
           <CpuChipIcon className="w-4 h-4 text-accent-purple" />
         </div>
         
         {/* Process Info */}
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <span className="px-2 py-0.5 bg-bg-tertiary rounded text-xs font-mono text-text-muted">
-            PID {node.pid}
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <span className="font-semibold text-sm text-text-primary truncate">
+            {node.comm}
           </span>
           
-          <span className="font-semibold text-text-primary truncate">
-            [{node.comm}]
+          <span className="px-1.5 py-0.5 bg-bg-tertiary rounded text-[10px] font-mono text-text-muted group-hover:bg-bg-elevated">
+            {node.pid}
           </span>
           
           {node.ppid && (
-            <span className="text-xs text-text-muted">
-              &larr; {node.ppid}
+            <span className="text-[10px] text-text-muted hidden sm:inline">
+              PPID {node.ppid}
             </span>
           )}
         </div>
         
         {/* Event Badges */}
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {eventCounts.ai_prompt && (
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {eventCounts.ai_prompt && eventCounts.ai_prompt > 0 && (
             <Badge color="green" count={eventCounts.ai_prompt} label="prompts" />
           )}
-          {eventCounts.ai_response && (
+          {eventCounts.ai_response && eventCounts.ai_response > 0 && (
             <Badge color="blue" count={eventCounts.ai_response} label="responses" />
           )}
-          {(eventCounts.file_open || eventCounts.file_write) && (
+          {((eventCounts.file_open || 0) + (eventCounts.file_write || 0)) > 0 && (
             <Badge 
               color="cyan" 
               count={(eventCounts.file_open || 0) + (eventCounts.file_write || 0)} 
               label="files" 
             />
           )}
-          {(eventCounts.process_exec || eventCounts.process_exit) && (
-            <Badge 
-              color="purple" 
-              count={(eventCounts.process_exec || 0) + (eventCounts.process_exit || 0)} 
-              label="process" 
-            />
+          {node.children.length > 0 && (
+            <Badge color="purple" count={node.children.length} label="children" />
           )}
         </div>
       </div>
@@ -107,8 +103,8 @@ export function ProcessNodeComponent({
       {/* Expanded Content */}
       {isExpanded && hasContent && (
         <div 
-          className="mt-1 space-y-1"
-          style={{ marginLeft: indent + 32 }}
+          className="mt-0.5 space-y-0.5"
+          style={{ marginLeft: indent + 28 }}
         >
           {node.timeline.map((item, index) => (
             <TimelineItemComponent
@@ -178,21 +174,23 @@ function Badge({
   label: string;
 }) {
   const colorClasses = {
-    green: 'bg-accent-green/20 text-accent-green',
-    blue: 'bg-accent-blue/20 text-accent-blue',
-    cyan: 'bg-accent-cyan/20 text-accent-cyan',
-    purple: 'bg-accent-purple/20 text-accent-purple',
-    orange: 'bg-accent-orange/20 text-accent-orange',
-    red: 'bg-accent-red/20 text-accent-red',
+    green: 'bg-accent-green/10 text-accent-green',
+    blue: 'bg-accent-blue/10 text-accent-blue',
+    cyan: 'bg-accent-cyan/10 text-accent-cyan',
+    purple: 'bg-accent-purple/10 text-accent-purple',
+    orange: 'bg-accent-orange/10 text-accent-orange',
+    red: 'bg-accent-red/10 text-accent-red',
   };
   
   return (
-    <span className={clsx(
-      'px-2 py-0.5 rounded-full text-xs font-medium',
-      colorClasses[color]
-    )}>
-      {count} {count === 1 ? label.replace(/s$/, '') : label}
+    <span 
+      className={clsx(
+        'px-1.5 py-0.5 rounded text-[10px] font-medium',
+        colorClasses[color]
+      )}
+      title={`${count} ${label}`}
+    >
+      {count}
     </span>
   );
 }
-

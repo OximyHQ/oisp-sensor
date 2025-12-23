@@ -37,6 +37,12 @@ hostname = "0.4"
 # Regex
 regex = { workspace = true }
 
+# Config
+toml = { workspace = true }
+
+# Sync primitives
+parking_lot = "0.12"
+
 [dev-dependencies]
 tokio-test = "0.4"
 

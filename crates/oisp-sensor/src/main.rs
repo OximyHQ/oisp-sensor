@@ -6,6 +6,7 @@ use clap::{Parser, Subcommand};
 use oisp_capture::{TestGenerator, TestGeneratorConfig};
 #[cfg(target_os = "linux")]
 use oisp_capture_ebpf::{EbpfCapture, EbpfCaptureConfig};
+use oisp_core::config::{ConfigLoader, SensorConfig};
 use oisp_core::pipeline::{Pipeline, PipelineConfig};
 use oisp_decode::HttpDecoder;
 use oisp_enrich::{HostEnricher, ProcessTreeEnricher};
@@ -13,7 +14,7 @@ use oisp_export::jsonl::{JsonlExporter, JsonlExporterConfig};
 use oisp_export::websocket::{WebSocketExporter, WebSocketExporterConfig};
 use oisp_redact::RedactionPlugin;
 use std::path::PathBuf;
-use tracing::{error, info, Level};
+use tracing::{error, info, warn, Level};
 use tracing_subscriber::FmtSubscriber;
 
 #[derive(Parser)]
@@ -29,6 +30,10 @@ struct Cli {
     /// Output format (json, text)
     #[arg(short, long, default_value = "text")]
     format: String,
+
+    /// Path to configuration file
+    #[arg(short, long, global = true, env = "OISP_CONFIG")]
+    config: Option<PathBuf>,
 
     #[command(subcommand)]
     command: Commands,

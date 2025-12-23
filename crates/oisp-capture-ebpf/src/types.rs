@@ -110,3 +110,146 @@ impl std::fmt::Debug for SslEvent {
 // Implement Pod trait for aya ring buffer
 #[cfg(target_os = "linux")]
 unsafe impl aya::Pod for SslEvent {}
+
+// =============================================================================
+// Network Events
+// =============================================================================
+
+/// Network connect event from eBPF tracepoint
+///
+/// This struct must match the eBPF-side structure exactly.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct NetworkConnectEvent {
+    /// Timestamp in nanoseconds
+    pub timestamp_ns: u64,
+    /// Process ID
+    pub pid: u32,
+    /// Thread ID
+    pub tid: u32,
+    /// User ID
+    pub uid: u32,
+    /// Socket file descriptor
+    pub fd: i32,
+    /// Address family (AF_INET=2, AF_INET6=10)
+    pub family: u16,
+    /// Padding for alignment
+    _pad1: u16,
+    /// Return value from connect() (0 = success, -errno on error)
+    pub ret: i32,
+    /// Destination port (host byte order)
+    pub port: u16,
+    /// Padding for alignment
+    _pad2: u16,
+    /// IPv4 address (for AF_INET) - network byte order
+    pub addr_v4: u32,
+    /// IPv6 address (for AF_INET6) - network byte order
+    pub addr_v6: [u8; 16],
+    /// Process command name
+    pub comm: [u8; COMM_LEN],
+}
+
+impl NetworkConnectEvent {
+    /// Create a new zeroed event
+    pub const fn zeroed() -> Self {
+        Self {
+            timestamp_ns: 0,
+            pid: 0,
+            tid: 0,
+            uid: 0,
+            fd: 0,
+            family: 0,
+            _pad1: 0,
+            ret: 0,
+            port: 0,
+            _pad2: 0,
+            addr_v4: 0,
+            addr_v6: [0u8; 16],
+            comm: [0u8; COMM_LEN],
+        }
+    }
+
+    /// Get process command name as string
+    pub fn comm_str(&self) -> String {
+        let end = self.comm.iter().position(|&c| c == 0).unwrap_or(COMM_LEN);
+        String::from_utf8_lossy(&self.comm[..end]).to_string()
+    }
+
+    /// Check if connection succeeded
+    pub fn is_success(&self) -> bool {
+        // 0 = success, -EINPROGRESS (-115) = non-blocking in progress
+        self.ret == 0 || self.ret == -115
+    }
+
+    /// Check if this is an IPv4 connection
+    pub fn is_ipv4(&self) -> bool {
+        self.family == 2 // AF_INET
+    }
+
+    /// Check if this is an IPv6 connection
+    pub fn is_ipv6(&self) -> bool {
+        self.family == 10 // AF_INET6
+    }
+
+    /// Get IPv4 address as string
+    pub fn ipv4_str(&self) -> Option<String> {
+        if self.is_ipv4() {
+            let bytes = self.addr_v4.to_be_bytes();
+            Some(format!(
+                "{}.{}.{}.{}",
+                bytes[0], bytes[1], bytes[2], bytes[3]
+            ))
+        } else {
+            None
+        }
+    }
+
+    /// Get IPv6 address as string
+    pub fn ipv6_str(&self) -> Option<String> {
+        if self.is_ipv6() {
+            use std::net::Ipv6Addr;
+            let addr = Ipv6Addr::from(self.addr_v6);
+            Some(addr.to_string())
+        } else {
+            None
+        }
+    }
+
+    /// Get address as string (works for both IPv4 and IPv6)
+    pub fn addr_str(&self) -> String {
+        if self.is_ipv4() {
+            self.ipv4_str().unwrap_or_default()
+        } else if self.is_ipv6() {
+            self.ipv6_str().unwrap_or_default()
+        } else {
+            "unknown".to_string()
+        }
+    }
+}
+
+impl std::fmt::Debug for NetworkConnectEvent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let addr = self.addr_str();
+        let status = if self.is_success() {
+            "success"
+        } else {
+            "failed"
+        };
+
+        f.debug_struct("NetworkConnectEvent")
+            .field("timestamp_ns", &self.timestamp_ns)
+            .field("pid", &self.pid)
+            .field("tid", &self.tid)
+            .field("uid", &self.uid)
+            .field("fd", &self.fd)
+            .field("family", &self.family)
+            .field("ret", &self.ret)
+            .field("status", &status)
+            .field("addr", &format!("{}:{}", addr, self.port))
+            .field("comm", &self.comm_str())
+            .finish()
+    }
+}
+
+#[cfg(target_os = "linux")]
+unsafe impl aya::Pod for NetworkConnectEvent {}

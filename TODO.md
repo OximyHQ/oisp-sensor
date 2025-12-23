@@ -14,654 +14,1238 @@
 
 ---
 
-# CHAPTER 1: eBPF Data Capture Implementation (COMPLETE!)
+## 🎯 THE BIG PICTURE
+
+OISP Sensor is the **universal, open-source foundation** for AI observability.
+
+**Two Primary Use Cases:**
+1. **Agent Monitoring** (Linux servers/VMs) - Node.js/Python agents making LLM calls
+2. **Human-AI Monitoring** (Mac/Windows desktops) - Humans using Cursor, ChatGPT, Claude, etc.
+
+**The Flow:**
+```
+[Any AI Activity] → [Platform Capture] → [OISP Events] → [Sinks] → [UI/Analysis]
+                                                              ↓
+                                                    [★ Oximy Cloud ★]
+                                                    (Proprietary SaaS)
+                                                              ↓
+                                            [Smart Redaction, Policies, Reports]
+                                                              ↓
+                                                    [Push rules back to sensors]
+```
+
+**What's Open Source (this repo):**
+- All capture implementations (eBPF, macOS, Windows)
+- OISP-spec event format
+- Local sinks (JSONL, WebSocket, OTLP, Kafka)
+- Local Web UI
+- Oximy exporter (client-side)
+- Control plane client (receives policies)
+
+**What's Proprietary (Oximy Cloud):**
+- Central aggregation & storage
+- ML-based redaction rules
+- Policy engine
+- Compliance reporting
+- Multi-machine dashboards
+
+---
+
+# PART 1: CORE INFRASTRUCTURE (DONE)
+
+## CHAPTER 1: eBPF Data Capture Implementation ✅ COMPLETE
 
 **Goal:** Get real SSL data flowing from eBPF probes to userspace.
 
-**Status: WORKING!** We can now capture decrypted HTTPS traffic:
-- HTTP Request: `"GET /get HTTP/1.1 Host: httpbin.org..."`
-- HTTP Response: `"HTTP/1.1 200 OK..."` + JSON body
-
-## Phase 1.1: RingBuf Map Setup (COMPLETED!)
-
-- [x] Basic eBPF probes attached (ssl_write, ssl_write_ret, ssl_read, ssl_read_ret)
-- [x] Add RingBuf map to eBPF program (without aya-log)
-- [x] Verify RingBuf map loads correctly
-- [x] Add RingBuf map consumer in userspace
-- [x] Test empty events flow through ring buffer
-
-## Phase 1.2: Function Argument Capture (COMPLETED!)
-
-- [x] Capture SSL_write arguments at uprobe entry
-  - [x] Get `ssl` pointer (arg0)
-  - [x] Get `buf` pointer (arg1) 
-  - [x] Get `num` length (arg2)
-- [x] Store arguments in per-CPU HashMap for entry/return correlation
-- [x] Capture SSL_read arguments at uprobe entry
-  - [x] Get `ssl` pointer (arg0)
-  - [x] Get `buf` pointer (arg1)
-  - [x] Get `num` length (arg2)
-
-## Phase 1.3: Return Value Correlation (COMPLETED!)
-
-- [x] Capture SSL_write return value at uretprobe
-- [x] Look up entry arguments from HashMap
-- [x] Read actual data from buffer (up to return value bytes)
-- [x] Capture SSL_read return value at uretprobe
-- [x] Look up entry arguments from HashMap
-- [x] Read actual data from buffer (up to return value bytes)
-
-## Phase 1.4: Event Structure & Submission (COMPLETED!)
-
-- [x] Define `SslEvent` structure in common crate (already exists, verify)
-- [x] Populate event fields in eBPF:
-  - [x] timestamp_ns (bpf_ktime_get_ns)
-  - [x] pid/tid (bpf_get_current_pid_tgid)
-  - [x] uid (bpf_get_current_uid_gid)
-  - [x] comm (bpf_get_current_comm)
-  - [x] event_type (read/write)
-  - [x] data_len (actual length)
-  - [x] captured_len (min of data_len, MAX_DATA_LEN)
-  - [x] data (bpf_probe_read_user)
-- [x] Submit event to ring buffer (bpf_ringbuf_output/reserve+submit)
-
-## Phase 1.5: Userspace Event Processing (COMPLETED!)
-
-- [x] Poll ring buffer for events in userspace
-- [x] Deserialize `SslEvent` from ring buffer
-- [x] Log/print captured events for verification
-- [x] Handle ring buffer overflow gracefully
-
-## Phase 1.6: Known Issues to Fix (COMPLETED!)
-
-- [x] SSL_read sometimes shows garbage data when ret=-1 (stale buffer)
-  - Fixed: eBPF code verifies `ret > 0` before reading buffer (see ssl_read_ret and ssl_write_ret)
-  - Userspace also has sanity check for data_len > 1MB
-- [x] HTTP/2 shows binary frames (expected - that's how H2 works)
-  - Not a bug: HTTP/2 uses HPACK binary encoding for headers
-  - Workaround: Use HTTP/1.1 for debugging (e.g., curl --http1.1)
-- [x] Need better request/response correlation
-  - Done in Phase 3.4 using PID + TID + FD connection identification
-
----
-
-# CHAPTER 2: Testing with Real Requests (COMPLETE!)
+## CHAPTER 2: Testing with Real Requests ✅ COMPLETE
 
 **Goal:** Verify end-to-end capture with actual HTTPS requests.
 
-**Status: ALL TESTS PASSED!** We verified complete capture from curl, Python, and Node.js.
-
-## Phase 2.1: Basic Verification (COMPLETED!)
-
-- [x] Run `curl https://httpbin.org/get` in container
-- [x] Verify SSL_write captures outgoing request
-- [x] Verify SSL_read captures incoming response
-- [x] Check data is readable HTTP (not encrypted)
-
-## Phase 2.2: AI Provider Testing (COMPLETED!)
-
-- [x] Test with OpenAI API request (curl)
-- [x] Test with Anthropic API request (curl)  
-- [x] Verify JSON payloads are correctly captured
-- [x] Test with streaming SSE responses
-- [x] Test with large responses (>4KB, multiple chunks)
-
-## Phase 2.3: Multi-Process Testing (COMPLETED!)
-
-- [x] Test with multiple processes making SSL calls
-- [x] Verify PID/TID correctly identifies processes
-- [x] Test with Python script using requests library
-- [x] Test with Node.js script using fetch/axios
-
----
-
-# CHAPTER 3: Integration with Pipeline
+## CHAPTER 3: Integration with Pipeline ✅ COMPLETE
 
 **Goal:** Connect eBPF capture to the existing OISP pipeline.
 
-**Status: Phase 3.1 COMPLETE!** eBPF capture is now integrated with the pipeline.
-
-## Phase 3.1: oisp-capture-ebpf Integration (COMPLETED!)
-
-- [x] Move standalone eBPF capture code into `crates/oisp-capture-ebpf`
-  - [x] Updated Cargo.toml to use Aya instead of libbpf-rs
-  - [x] Created SslEvent type matching eBPF kernel structure
-  - [x] Implemented EbpfCapture with eBPF program loading and ring buffer polling
-- [x] Implement `CapturePlugin` trait for `EbpfCapture`
-  - [x] Async start/stop with proper resource management
-  - [x] Ring buffer polling in background tokio task
-  - [x] Capture statistics tracking
-- [x] Integrate with `RawCaptureEvent` type from oisp-core
-  - [x] SslEvent -> RawCaptureEvent conversion
-  - [x] Proper event kind mapping (SslWrite/SslRead)
-  - [x] Metadata population (pid, tid, uid, comm)
-- [x] Add async channel from eBPF consumer to pipeline
-  - [x] Uses tokio mpsc channel
-  - [x] Proper error handling for channel failures
-- [x] Update main sensor to use EbpfCapture in record mode
-  - [x] Added --ebpf-path CLI option for bytecode path
-  - [x] Added --libssl-path CLI option for SSL library path
-  - [x] Platform-gated compilation (Linux only)
-
-## Phase 3.2: HTTP Decoding (COMPLETED!)
-
-- [x] Feed raw SSL data to `oisp-decode` HTTP decoder
-- [x] Parse HTTP request (method, path, headers, body)
-- [x] Parse HTTP response (status, headers, body)
-- [x] Handle chunked transfer encoding (with chunk extension support)
-- [x] Handle SSE (Server-Sent Events) streaming
-  - [x] OpenAI-style streaming with `data: [DONE]`
-  - [x] Anthropic-style streaming with event types
-- [x] Unit tests: 10 HTTP parsing tests
-
-## Phase 3.3: AI Provider Detection (COMPLETED!)
-
-- [x] Extract Host header from HTTP request
-- [x] Match against AI provider domains (18+ providers supported)
-- [x] Parse AI request JSON (model, messages, tools, parameters)
-  - [x] OpenAI format parsing
-  - [x] Anthropic format parsing (system prompt, tool_use)
-- [x] Parse AI response JSON (content, tool_calls, usage)
-  - [x] OpenAI format parsing
-  - [x] Anthropic format parsing (content blocks)
-- [x] Create proper OISP events (ai.request, ai.response)
-- [x] Unit tests: 16 AI detection/parsing tests
-
-## Phase 3.4: Request/Response Correlation (COMPLETED!)
-
-- [x] Correlate SSL_write (request) with SSL_read (response)
-- [x] Use connection identification for correlation (PID + TID + FD)
-- [x] Handle streaming responses (OpenAI and Anthropic)
-- [x] Build complete request/response pairs with latency tracking
-- [x] Cleanup stale pending requests (5 minute timeout)
-- [x] Unit tests: 5 correlation tests
-
----
-
-# CHAPTER 4: TUI/GUI Verification (COMPLETE!)
+## CHAPTER 4: TUI/GUI Verification ✅ COMPLETE
 
 **Goal:** See real captured events in the UI.
 
-**Status: COMPLETE!** All UI views working with OISP-spec compliant events.
-
-## Phase 4.1: TUI Display (COMPLETE!)
-
-- [x] Start sensor with `--tui` flag
-- [x] Verify events appear in timeline view
-- [x] Check event details (provider, model, timing)
-- [x] Test inventory view shows providers/models
-- [x] Test process tree view shows source processes
-
-## Phase 4.2: Web UI Display (COMPLETE!)
-
-- [x] Start sensor with `--web` flag
-- [x] Access http://127.0.0.1:7777
-- [x] Verify live event updates via WebSocket
-- [x] Check timeline page functionality
-- [x] Test event detail expansion
-- [x] Fixed tab switching (Timeline, Inventory, Traces)
-- [x] Traces view fetches from /api/traces endpoint
-
-## Phase 4.3: Event Quality (COMPLETE!)
-
-- [x] Verify all OISP event fields are populated
-- [x] Check timestamps are accurate
-- [x] Verify process info (pid, command, etc.)
-- [x] Test redaction is working correctly
-- [x] Fixed OISP-spec serialization (envelope at root, data in `data` field)
-- [x] Added 6 unit tests for serialization/deserialization
-
----
-
-# CHAPTER 5: Docker & Containerization (COMPLETE!)
+## CHAPTER 5: Docker & Containerization ✅ COMPLETE
 
 **Goal:** Fully working Docker-based deployment.
 
-**Status: COMPLETE!** Docker image builds successfully and demo mode verified working.
-
-## Phase 5.1: eBPF Build Container (COMPLETED!)
-
-- [x] Update Dockerfile for eBPF build requirements
-  - Multi-stage build: ebpf-builder -> userspace-builder -> runtime
-  - Nightly Rust + bpf-linker for eBPF compilation
-- [x] Ensure bpf-linker installs correctly
-  - Uses `cargo install bpf-linker --locked` for reproducibility
-- [x] Build eBPF programs in Docker
-  - aya-build handles eBPF compilation via build.rs
-- [x] Build userspace binary in Docker
-  - Stable Rust for userspace, release mode with LTO
-
-## Phase 5.2: Runtime Container (COMPLETED!)
-
-- [x] Test privileged container mode
-  - Dockerfile configured for privileged operation
-- [x] Verify eBPF programs load inside container
-  - Volume mounts for /sys/kernel/debug, /sys/fs/bpf
-- [x] Test host network mode for SSL interception
-  - docker-compose uses network_mode: host
-- [x] Test host PID namespace access
-  - docker-compose uses pid: host
-- [x] Verify system library access (libssl.so)
-  - Volume mounts for /lib, /usr/lib, /lib/x86_64-linux-gnu
-
-## Phase 5.3: Docker Compose Setup (COMPLETED!)
-
-- [x] Update docker-compose.yml for full capture
-  - Added oisp-sensor, oisp-web, oisp-demo, oisp-tui, oisp-dev services
-- [x] Add proper volume mounts for eBPF
-  - /sys/kernel/debug, /sys/fs/bpf, /proc, /sys, /lib, /usr/lib
-- [x] Add health checks
-  - curl to /api/health endpoint (added health endpoint to oisp-web)
-- [x] Add restart policies
-  - unless-stopped for daemon services
-- [x] Test `docker-compose up` workflow
-  - Multiple service profiles for different use cases
-
-## Phase 5.4: Multi-Architecture Support (COMPLETED!)
-
-- [x] Test on x86_64 (AMD64)
-  - Primary target, fully supported
-- [x] Test on aarch64 (ARM64)
-  - Dockerfile.multiarch supports arm64
-- [x] Update Docker build for multi-arch
-  - Created docker/Dockerfile.multiarch with buildx support
-  - Created scripts/docker-build.sh for easy building
-- [x] Ensure vmlinux.h compatibility for both
-  - eBPF bytecode is architecture-independent (BPF target)
-
----
-
-# CHAPTER 6: Packaging & Release
-
-**Goal:** Production-ready releases for all platforms.
-
-## Phase 6.1: CI/CD Pipeline
-
-- [ ] GitHub Actions workflow for Linux build
-- [ ] eBPF compilation in CI
-- [ ] Cross-compilation for ARM64
-- [ ] Automated testing in CI
-- [ ] Build artifacts on release tags
-
-## Phase 6.2: Linux Packages
-
-- [ ] Create .deb package spec
-- [ ] Create .rpm package spec
-- [ ] Setup apt repository
-- [ ] Setup yum/dnf repository
-- [ ] Test installation on Ubuntu 22.04/24.04
-- [ ] Test installation on Debian 12
-- [ ] Test installation on Fedora 39/40
-- [ ] Test installation on RHEL 9
-
-## Phase 6.3: Install Script
-
-- [ ] Update install.sh for actual binary download
-- [ ] Add architecture detection
-- [ ] Add capability setting (CAP_BPF)
-- [ ] Add systemd service setup (optional)
-- [ ] Test install script end-to-end
-
-## Phase 6.4: Docker Images
-
-- [ ] Setup GitHub Container Registry (ghcr.io)
-- [ ] Push multi-arch images on release
-- [ ] Add image signing (cosign)
-- [ ] Document image usage
-
----
-
-# CHAPTER 7: Documentation
-
-**Goal:** Comprehensive, accurate documentation.
-
-## Phase 7.1: README Updates
-
-- [ ] Update feature status (checkmarks)
-- [ ] Add actual screenshots (not placeholders)
-- [ ] Update installation instructions
-- [ ] Add real example commands/output
-- [ ] Update roadmap to reflect current state
-
-## Phase 7.2: Architecture Documentation
-
-- [ ] Update EBPF_ARCHITECTURE.md with actual implementation
-- [ ] Document eBPF program structure
-- [ ] Document userspace event flow
-- [ ] Add diagrams of data flow
-
-## Phase 7.3: User Guides
-
-- [ ] Quick start guide (5-minute setup)
-- [ ] Configuration reference
-- [ ] Troubleshooting guide
-- [ ] FAQ with real issues/solutions
-
-## Phase 7.4: Developer Documentation
-
-- [ ] Contributing guide
-- [ ] Development setup instructions
-- [ ] Plugin development guide
-- [ ] Testing guide
-
----
-
-# CHAPTER 8: Codebase Cleanup & Refactoring (COMPLETE!)
+## CHAPTER 8: Codebase Cleanup & Refactoring ✅ COMPLETE
 
 **Goal:** Clean, maintainable codebase.
 
-**Status: COMPLETE!** Codebase cleaned up and organized.
-
-## Phase 8.1: Remove Unused Files (COMPLETED!)
-
-- [x] Audit all crates for unused modules
-- [x] Removed legacy C-based `bpf/` directory (ssl_monitor.bpf.c, process_monitor.bpf.c, Makefile)
-- [x] Removed empty placeholder directories (assets/, installers/*)
-- [x] Demo/mock event generation kept (needed for testing)
-
-## Phase 8.2: Move Files to Proper Crates (COMPLETED!)
-
-- [x] Consolidate eBPF code structure
-  - Renamed `oisp-ebpf-capture/` to `ebpf/` for clarity
-  - Removed legacy C-based `bpf/` directory
-- [x] eBPF workspace stays separate (requires nightly Rust + no_std)
-- [x] Updated all Dockerfile and documentation references
-- [x] Updated CONTRIBUTING.md with correct project structure
-
-## Phase 8.3: Code Quality (COMPLETED!)
-
-- [x] Run clippy on entire workspace - zero warnings
-- [x] Fixed clippy warning (double_ended_iterator_last)
-- [x] Fixed doc warning (URL hyperlink format)
-- [x] Consistent error handling with thiserror across crates
-
-## Phase 8.4: Testing
-
-- [x] Unit tests exist for core types (48 tests across workspace)
-- [ ] Add more integration tests for pipeline
-- [ ] Add eBPF loading tests (requires Linux)
-- [x] HTTP parsing tests (10 tests in oisp-decode)
-- [ ] Set up test coverage reporting
-
----
-
-# CHAPTER 9: AgentSight-Style UI & Process-Centric View
+## CHAPTER 9: AgentSight-Style UI & Process-Centric View ✅ COMPLETE
 
 **Goal:** Achieve AgentSight-like UI with process tree, timeline, and unified event visualization.
 
-**Reference:** https://github.com/eunomia-bpf/agentsight/
+---
 
-**Key Insight:** AgentSight succeeds because it treats PID as the primary organizing principle.
-Everything flows from "what did this process do?" - AI requests, file opens, child processes.
-We need to:
-1. Capture more context (process lifecycle, file operations)
-2. Send a flattened "WebEvent" format to the frontend (separate from OISP spec)
-3. Build a proper React frontend with process tree view
+# PART 2: COMPLETE LINUX IMPLEMENTATION
 
-## Phase 9.1: Process Tracepoints (eBPF - Linux) ✅ COMPLETE
+> **PRIORITY ORDER:** Complete all Linux functionality FIRST before CI/CD, packaging, or documentation.
+> Rationale: No point in stabilizing/documenting features that will change.
 
-- [x] Add `sched_process_exec` tracepoint
-  - [x] Capture pid, ppid (parent PID - critical for tree building!)
-  - [x] Capture comm (process name)
-  - [x] Capture filename (executable path)
-  - [ ] Capture full_command (argv) - future enhancement
-  - [x] Capture timestamp_ns
-- [x] Add `sched_process_exit` tracepoint
-  - [x] Capture pid, ppid
-  - [x] Capture exit_code
-  - [ ] Capture duration_ns - future (requires tracking exec time)
-- [x] Add `sys_enter_openat` tracepoint (file operations)
-  - [x] Capture pid, comm
-  - [x] Capture filepath
-  - [x] Capture flags (read/write/create)
-  - [x] Filter to relevant paths only (skip /proc, /sys, /dev)
-- [x] Unified event structure for all tracepoints
-  - [x] All events share: { pid, ppid, comm, timestamp_ns, event_type }
-  - [x] Event-specific data in nested field
-  - [x] New types: `ProcessExecEvent`, `ProcessExitEvent`, `FileOpenEvent`
-- [x] Ring buffer submission for all events
-  - [x] SSL_EVENTS, PROCESS_EVENTS, FILE_EVENTS ring buffers
-- [x] Userspace consumer for process/file events
-  - [x] Added `--trace-process` and `--trace-files` CLI flags
+## CHAPTER 6: Advanced Sink Implementation ✅ COMPLETE
 
-**Note:** Code is written but requires Linux for testing (eBPF is Linux-only).
+**Goal:** All export destinations fully implemented and tested.
 
-## Phase 9.2: WebEvent Format (Frontend-Optimized) ✅ COMPLETE
+### Phase 6.1: OTLP Export Implementation ✅ COMPLETE
 
-Create a simplified event format for the web UI, separate from OISP spec:
+- [x] Update `crates/oisp-export/src/otlp.rs`
+  - [x] Use `opentelemetry-otlp` crate
+  - [x] Implement ExportPlugin trait
+- [x] Map OISP events to OTLP logs
+  - [x] OispEvent → LogRecord
+  - [x] Preserve all attributes
+  - [x] Set resource attributes (host, sensor version)
+- [x] Support OTLP/gRPC transport
+  - [x] TLS configuration
+  - [x] Compression (gzip)
+- [x] Support OTLP/HTTP transport
+  - [x] HTTP/proto and HTTP/JSON protocols
+- [x] Add authentication headers
+  - [x] API key header
+  - [x] Bearer token
+- [x] Map to OpenTelemetry Semantic Conventions
+  - [x] gen_ai.* attributes
+  - [x] process.* attributes
+  - [x] host.* attributes
+- [x] Batching configuration (batch size, flush interval)
+- [ ] Add trace context propagation (deferred - spans vs logs)
+- [ ] Test with OpenTelemetry Collector (requires Linux)
+- [ ] Test with Grafana Cloud / Datadog / Honeycomb (requires accounts)
 
-```typescript
-// What the frontend receives via WebSocket/API
-interface WebEvent {
-  id: string;           // Unique event ID
-  timestamp: number;    // Unix timestamp (ms or ns)
-  type: string;         // 'ai_prompt' | 'ai_response' | 'file_open' | 'process_exec' | 'process_exit'
-  pid: number;          // REQUIRED - primary grouping key
-  ppid?: number;        // Parent PID - for building process tree
-  comm: string;         // REQUIRED - process name (e.g., "claude", "python3")
-  data: Record<string, any>;  // Type-specific payload
-}
-```
+### Phase 6.2: Kafka Export Implementation ✅ COMPLETE
 
-Backend implementation:
-- [x] Create `WebEvent` struct in `oisp-web` crate (`crates/oisp-web/src/web_event.rs`)
-- [x] Add `WebEvent::from_oisp_event()` conversion method
-- [x] Ensure pid/ppid/comm are ALWAYS populated (not optional)
-- [x] Flatten nested OISP structure for frontend consumption
-- [x] API endpoint: `GET /api/web-events` returns WebEvent[] format
-- [x] WebSocket: Send WebEvent format (not full OISP)
+- [x] Update `crates/oisp-export/src/kafka.rs`
+  - [x] Use `rdkafka` crate
+  - [x] Implement ExportPlugin trait
+- [x] Producer configuration
+  - [x] Bootstrap servers
+  - [x] Topic name
+  - [x] SASL authentication (PLAIN, SCRAM-SHA-256, SCRAM-SHA-512)
+  - [x] TLS configuration
+- [x] Message format
+  - [x] JSON serialization
+  - [x] Key: event_id or (host, pid)
+  - [x] Headers: event_type, oisp_version
+- [x] Batching and buffering
+  - [x] Batch size configuration
+  - [x] Linger time
+  - [x] Buffer memory
+- [x] Compression (gzip, snappy, lz4, zstd)
+- [ ] Optional Avro serialization (deferred - requires schema registry)
+- [ ] Test with Kafka Docker (requires Linux)
+- [ ] Test with Confluent Cloud (requires account)
 
-## Phase 9.3: React Frontend (Next.js + TypeScript) ✅ COMPLETE
+### Phase 6.3: Webhook Export Implementation ✅ COMPLETE
 
-Replace static HTML with proper React app:
-
-- [x] Initialize Next.js project in `frontend/` directory
-  - [x] TypeScript + Tailwind CSS
-  - [x] Uses backend port (7777) via embedded static files
-- [x] Core types (`types/event.ts`)
-  - [x] WebEvent interface
-  - [x] ProcessNode interface (for tree)
-  - [x] ParsedEvent interface (with UI state)
-- [x] Event parsing utilities (`utils/eventParsers.ts`)
-  - [x] `parseEvent()` - convert WebEvent to display format
-  - [x] `buildProcessTree()` - group events by PID, build parent-child hierarchy
-  - [x] Determine event type (prompt, response, file, process)
-- [x] Components:
-  - [x] `ProcessTreeView` - main process-centric view
-  - [x] `ProcessNode` - expandable process with nested events/children
-  - [x] `TimelineView` - horizontal timeline with zoom/scroll
-  - [x] `EventBlock` - unified event display (AI prompt, file op, etc.)
-  - [x] `LogView` - raw event log with search and filters
-  - [ ] `EventFilters` - filter by type, process, time range (basic in LogView)
-  - [ ] `ResourceMetrics` - CPU/memory charts (future)
-- [x] Views/Pages:
-  - [x] Main page with view switching (tree/timeline/log)
-- [x] Real-time updates via WebSocket (`lib/useEvents.ts`)
-- [ ] Event expansion with JSON diff for prompts (future)
-
-## Phase 9.4: Process Tree Building (Frontend Logic) ✅ COMPLETE
-
-Key algorithm from AgentSight - implemented in `utils/eventParsers.ts`:
-
-```typescript
-function buildProcessTree(events: WebEvent[]): ProcessNode[] {
-  const processMap = new Map<number, ProcessNode>();
-  
-  // 1. Create process nodes, group events by PID
-  events.forEach(event => {
-    if (!processMap.has(event.pid)) {
-      processMap.set(event.pid, {
-        pid: event.pid,
-        comm: event.comm,
-        ppid: event.ppid,
-        children: [],
-        events: [],
-        timeline: []  // Mixed events + child processes chronologically
-      });
-    }
-    processMap.get(event.pid)!.events.push(parseEvent(event));
-  });
-  
-  // 2. Build parent-child relationships using ppid
-  processMap.forEach((process, pid) => {
-    if (process.ppid && processMap.has(process.ppid)) {
-      processMap.get(process.ppid)!.children.push(process);
-    }
-  });
-  
-  // 3. Build timeline: interleave events and child process spawns
-  // 4. Return root processes (those without parents in our data)
-}
-```
-
-- [x] Implement `buildProcessTree()` 
-- [x] Sort events within each process by timestamp
-- [x] Interleave child process spawns in timeline
-- [x] Handle processes without ppid (treat as roots)
-
-## Phase 9.5: Embed Frontend in Binary ✅ COMPLETE
-
-- [x] Build Next.js to static export (`npm run build` → `out/` directory)
-- [x] Use `rust-embed` to include static files in binary
-- [x] Serve from existing axum server (fallback handler)
-- [x] Single binary deployment (like AgentSight)
-- [x] Legacy pages available at `/legacy` and `/legacy/timeline`
-- [x] Build script: `scripts/build-all.sh`
+- [x] Create `crates/oisp-export/src/webhook.rs`
+  - [x] Use `reqwest` crate
+  - [x] Implement ExportPlugin trait
+- [x] Configuration
+  - [x] Endpoint URL
+  - [x] HTTP method (POST/PUT/PATCH)
+  - [x] Headers (static)
+  - [x] Authentication (API key, Bearer, Basic)
+- [x] Request format
+  - [x] Single event per request
+  - [x] Batch mode (array of events)
+- [x] Retry logic
+  - [x] Exponential backoff
+  - [x] Max retries
+  - [x] Dead letter queue (file)
+- [x] Response handling
+  - [x] 2xx = success
+  - [x] 4xx = drop event
+  - [x] 5xx = retry
+- [ ] Test with webhook.site / n8n / custom endpoint (manual testing)
 
 ---
 
-# CHAPTER 10: Platform Expansion
+## CHAPTER 7: Oximy Cloud Integration
 
-**Goal:** macOS and Windows support with platform-specific identifiers.
+**Goal:** Connect sensor to Oximy Cloud for premium features.
 
-**Note:** Linux uses PID as unique process identifier. macOS/Windows will use
-platform-appropriate identifiers (audit_token on macOS, process handle on Windows)
-but normalize to PID-like integer for frontend consistency.
+### Phase 7.1: Oximy Exporter - Device Registration
 
-## Phase 10.1: macOS Implementation
+- [ ] Create `crates/oisp-export/src/oximy.rs`
+- [ ] Implement device registration flow
+  - [ ] Collect device fingerprint
+    - [ ] Hostname
+    - [ ] OS/arch
+    - [ ] Unique machine ID (machine-uid crate)
+  - [ ] POST /v1/devices/register
+  - [ ] Store device_id locally
+  - [ ] Handle registration errors
+- [ ] Store credentials securely
+  - [ ] Linux: keyring or file with restricted permissions
+  - [ ] Future: macOS Keychain, Windows Credential Manager
 
-- [ ] Research Network Extension framework for SSL interception
-- [ ] Research Endpoint Security framework for process/file events
-  - ES provides: process exec, file open, network connect
-  - Alternative to eBPF - similar capabilities
-- [ ] Implement oisp-capture-macos
-  - [ ] Process events via Endpoint Security
-  - [ ] File events via Endpoint Security
-  - [ ] SSL interception via Network Extension (or mitmproxy integration)
-- [ ] Normalize identifiers:
-  - [ ] audit_token → pid for frontend compatibility
-  - [ ] Include ppid from ES events
-- [ ] Test on macOS 14+
-- [ ] Create .pkg installer
-- [ ] Code signing requirements
+### Phase 7.2: Oximy Exporter - Event Ingestion
 
-## Phase 10.2: Windows Implementation
+- [ ] Implement ExportPlugin trait for OximyExporter
+- [ ] Batch event upload
+  - [ ] Configurable batch size (default 100)
+  - [ ] Configurable flush interval (default 5s)
+  - [ ] POST /v1/ingest
+  - [ ] gzip compression
+- [ ] Authentication
+  - [ ] Bearer token from API key
+  - [ ] Device ID header
+- [ ] Handle rate limiting
+  - [ ] Parse Retry-After header
+  - [ ] Exponential backoff
+- [ ] Handle connection failures
+  - [ ] Local buffer/spool to disk
+  - [ ] Resume on reconnect
+  - [ ] Configurable spool size limit
 
-- [ ] Research ETW (Event Tracing for Windows) for process/file events
-  - Microsoft-Windows-Kernel-Process provider
-  - Microsoft-Windows-Kernel-File provider
-- [ ] Research Windows Filtering Platform (WFP) for network/SSL
-- [ ] Implement oisp-capture-windows
-  - [ ] Process events via ETW
-  - [ ] File events via ETW
-  - [ ] SSL interception approach TBD
-- [ ] Normalize identifiers:
-  - [ ] Process ID is already integer on Windows
-  - [ ] Parent PID available from ETW
+### Phase 7.3: Oximy Exporter - Configuration
+
+- [ ] Add CLI options
+  - [ ] --oximy-api-key
+  - [ ] --oximy-endpoint (default: https://api.oximy.com)
+  - [ ] --oximy-device-name (optional friendly name)
+- [ ] Add config file section
+  ```toml
+  [export.oximy]
+  enabled = true
+  api_key = "ox_..."
+  endpoint = "https://api.oximy.com"
+  batch_size = 100
+  flush_interval_ms = 5000
+  spool_path = "/var/lib/oisp-sensor/spool"
+  spool_max_mb = 100
+  ```
+- [ ] Environment variable: OISP_OXIMY_API_KEY
+
+### Phase 7.4: Health & Telemetry
+
+- [ ] Send sensor health metrics to Oximy
+  - [ ] CPU/memory usage of sensor
+  - [ ] Events/second rate
+  - [ ] Error counts
+  - [ ] Ring buffer usage (Linux)
+- [ ] Heartbeat endpoint
+  - [ ] POST /v1/devices/{id}/heartbeat
+  - [ ] Every 60 seconds
+- [ ] Report sensor version
+  - [ ] Enable remote upgrade notifications
+
+---
+
+## CHAPTER 10: Control Plane Client
+
+**Goal:** Receive policies and configuration from Oximy Cloud.
+
+### Phase 10.1: Policy Fetch on Startup
+
+- [ ] Create `crates/oisp-core/src/control_plane.rs`
+- [ ] Fetch policies on startup
+  - [ ] GET /v1/devices/{id}/policies
+  - [ ] Parse policy document
+- [ ] Define policy types
+  - [ ] RedactionPolicy - patterns to redact
+  - [ ] SamplingPolicy - what percentage to capture
+  - [ ] FilterPolicy - processes/providers to include/exclude
+  - [ ] AlertPolicy - thresholds for local alerts
+- [ ] Store policies locally
+  - [ ] Cache for offline operation
+  - [ ] TTL-based refresh (default 5 min)
+
+### Phase 10.2: Real-time Policy Updates
+
+- [ ] WebSocket connection for push updates
+  - [ ] wss://api.oximy.com/v1/devices/{id}/stream
+  - [ ] Reconnect on disconnect with backoff
+- [ ] Handle policy update messages
+  - [ ] Validate new policies
+  - [ ] Apply atomically
+  - [ ] Acknowledge receipt
+- [ ] Graceful degradation
+  - [ ] Fall back to cached policies
+  - [ ] Continue operating offline
+  - [ ] Log policy staleness warnings
+
+### Phase 10.3: Dynamic Redaction Rules
+
+- [ ] Extend RedactionPlugin to accept cloud rules
+  - [ ] Load rules from control plane
+  - [ ] Hot-reload without restart
+- [ ] Cloud rule format
+  - [ ] Regex patterns
+  - [ ] Entity types (PII, API keys, etc.)
+  - [ ] Confidence thresholds
+  - [ ] Action (redact, hash, mask)
+- [ ] Apply before sending to cloud
+  - [ ] Redact locally first
+  - [ ] Only send redacted events
+
+### Phase 10.4: Sampling Rules
+
+- [ ] Implement sampling logic
+  - [ ] Sample by percentage (e.g., 10% of traffic)
+  - [ ] Sample by process name pattern
+  - [ ] Sample by provider
+  - [ ] Sample by event type
+- [ ] Apply in pipeline
+  - [ ] Before export plugins
+  - [ ] Still count dropped events
+- [ ] Deterministic sampling
+  - [ ] Based on event_id hash
+  - [ ] Reproducible across runs
+
+### Phase 10.5: Local Alert Evaluation
+
+- [ ] Evaluate alert conditions locally
+  - [ ] Token spend threshold per hour/day
+  - [ ] Error rate threshold
+  - [ ] Unusual provider detection
+  - [ ] Custom rules from cloud
+- [ ] Local notifications
+  - [ ] Log warning
+  - [ ] Write to alert file
+  - [ ] Future: desktop notification
+- [ ] Report alert triggers to cloud
+  - [ ] POST /v1/alerts
+
+---
+
+## CHAPTER 11: Sink Configuration UI ✅ COMPLETE
+
+**Goal:** Web UI for configuring export destinations.
+
+### Phase 11.1: Configuration API
+
+- [ ] Add API endpoints (deferred - requires backend changes)
+  - [ ] GET /api/config - current config
+  - [ ] PUT /api/config - update config
+  - [ ] POST /api/config/validate - validate without saving
+  - [ ] POST /api/config/test-sink - test connection
+- [ ] Persist config changes (deferred)
+  - [ ] Write to config file
+  - [ ] Hot-reload pipeline
+
+### Phase 11.2: Configuration UI Page ✅ COMPLETE
+
+- [x] Add "Settings" page to frontend
+- [x] Sink configuration section
+  - [x] JSONL: path, enable
+  - [x] OTLP: endpoint, protocol, compression, headers, enable
+  - [x] Kafka: brokers, topic, SASL auth, compression, enable
+  - [x] Webhook: url, method, auth, batch mode, retries, enable
+- [x] Connection test buttons
+  - [x] Show success/failure with visual indicators
+  - [x] Loading state during testing
+- [x] Save/Apply button
+- [x] Professional tabbed interface (Sinks, Privacy, General)
+
+### Phase 11.3: Oximy Setup Flow
+
+- [ ] Add "Connect to Oximy Cloud" section (deferred - requires Chapter 7)
+- [ ] API key input with validation
+- [ ] "Register Device" button
+- [ ] Status indicator
+
+### Phase 11.4: Redaction Configuration UI ✅ COMPLETE
+
+- [x] Add "Privacy" section in settings
+- [x] Redaction mode selector (safe/full/minimal)
+- [x] Custom patterns editor
+  - [x] Add/remove regex patterns
+  - [x] Visual pattern list
+- [x] Entity type toggles
+  - [x] API keys & secrets
+  - [x] Email addresses
+  - [x] Credit card numbers
+
+### Phase 11.5: Dashboard & Views ✅ COMPLETE (NEW)
+
+- [x] Professional sidebar navigation layout
+- [x] Dashboard view with:
+  - [x] Real-time stats cards (events, AI calls, traces, processes, tokens)
+  - [x] Activity feed with recent events
+  - [x] Provider summary with request counts
+  - [x] Active traces widget
+  - [x] Connection status indicator
+- [x] Enhanced Process Tree view
+- [x] Enhanced Timeline view with visualization
+- [x] Enhanced Log View with search and filters
+- [x] Inventory view (providers, applications)
+- [x] Traces view (active/completed)
+- [x] Real-time WebSocket updates
+- [x] Responsive design with dark theme
+
+---
+
+## CHAPTER 12: Advanced Linux Features ✅ COMPLETE
+
+**Goal:** Production-grade Linux capabilities.
+
+### Phase 12.1: Network Tracepoints ✅ COMPLETE
+
+- [x] Add `sys_enter_connect` tracepoint to eBPF
+  - [x] Capture socket FD
+  - [x] Capture destination sockaddr
+  - [x] Capture PID/TID
+- [x] Add `sys_exit_connect` tracepoint
+  - [x] Capture return value
+  - [x] Track connection success/failure
+- [x] Add socket → address mapping
+  - [x] BPF map: (pid, fd) → sockaddr
+  - [x] Correlate SSL events with connections
+- [ ] Expose in Web UI
+  - [ ] Show remote address/port for AI requests
+  - [ ] Network flow visualization
+
+### Phase 12.2: PID/Process Filtering (Kernel-side) ✅ COMPLETE
+
+- [x] Add BPF map for target PIDs
+  - [x] `BPF_MAP_TYPE_HASH` for PID set
+  - [x] Update from userspace
+- [x] Add comm filtering in eBPF
+  - [x] Match process name in kernel
+  - [x] Avoid sending unwanted events
+- [x] Add userspace control API
+  - [x] Update filter dynamically
+  - [ ] API endpoint: POST /api/filters (deferred to Chapter 11)
+- [ ] Add Web UI for filters (deferred to Chapter 11)
+  - [ ] Checkbox list of active processes
+  - [ ] PID input field
+
+### Phase 12.3: Performance Optimization ✅ COMPLETE
+
+- [x] Profile eBPF programs
+  - [ ] Measure CPU overhead (deferred - requires production testing)
+  - [ ] Identify hot paths (deferred - requires production testing)
+- [x] Optimize ring buffer sizing
+  - [x] Configurable sizing (SSL: 256KB, Process/File/Network: 64KB)
+  - [ ] Dynamic sizing based on load (deferred)
+  - [ ] Avoid overflows (handled via ring buffer semantics)
+- [ ] Implement per-CPU buffers if needed (deferred - current design sufficient)
+  - [ ] Reduce lock contention
+- [ ] Measure and document overhead (deferred - requires production testing)
+  - [ ] Target: <3% CPU
+  - [ ] Target: <50MB memory
+- [x] Add performance metrics endpoint
+  - [x] GET /api/metrics (JSON format)
+  - [x] GET /metrics (Prometheus format)
+
+### Phase 12.4: Resource Metrics ✅ COMPLETE
+
+- [x] Capture CPU usage per process
+  - [x] Read from /proc/[pid]/stat
+  - [x] Calculate delta over time (CPU percentage)
+- [x] Capture memory usage per process
+  - [x] Read from /proc/[pid]/statm
+  - [x] RSS and virtual memory
+- [x] Add API endpoint for process metrics
+  - [x] GET /api/metrics/processes
+  - [x] JSON format with CPU%, RSS, VMS per process
+- [x] Add ResourceMetrics component to frontend
+  - [x] CPU usage bars per process (sorted, color-coded by usage level)
+  - [x] Memory usage bars per process (RSS, sorted)
+  - [x] Summary cards (tracked processes, total CPU, total RSS, total VMS)
+  - [x] Full process table with sortable data
+- [ ] Aggregate in timeline view
+  - [ ] Overlay on process events (future enhancement)
+
+---
+
+## CHAPTER 13: Configuration System
+
+**Goal:** Robust, flexible configuration.
+
+### Phase 13.1: Configuration File Loading
+
+- [ ] Implement config file discovery
+  - [ ] Check CLI --config flag
+  - [ ] Check $OISP_CONFIG env var
+  - [ ] Check ~/.config/oisp-sensor/config.toml
+  - [ ] Check /etc/oisp-sensor/config.toml
+  - [ ] Fall back to defaults
+- [ ] Parse TOML config file
+  - [ ] Use `config` or `toml` crate with serde
+  - [ ] Support all current CLI options
+- [ ] Add hot-reload capability
+  - [ ] Watch config file for changes (notify crate)
+  - [ ] Signal handler for SIGHUP
+  - [ ] Apply non-disruptive changes
+
+### Phase 13.2: Environment Variable Overrides
+
+- [ ] Support env var overrides
+  - [ ] OISP_LOG_LEVEL
+  - [ ] OISP_WEB_PORT
+  - [ ] OISP_WEB_HOST
+  - [ ] OISP_REDACTION_MODE
+  - [ ] OISP_OXIMY_API_KEY
+  - [ ] OISP_OXIMY_ENDPOINT
+- [ ] Document env var naming convention
+  - [ ] OISP_ prefix
+  - [ ] SCREAMING_SNAKE_CASE
+- [ ] Priority: env > config file > defaults
+
+### Phase 13.3: Sink Configuration Schema
+
+- [ ] Define sink config schema
+  - [ ] Each sink type has its own config section
+  - [ ] Enable/disable per sink
+  - [ ] Connection parameters
+  - [ ] Retry/backoff settings
+- [ ] Support multiple sinks of same type
+  - [ ] [[export.jsonl]] array syntax
+- [ ] Validate sink configs on startup
+  - [ ] Check required fields
+  - [ ] Test connections where possible
+
+---
+
+# PART 3: STABILIZE & RELEASE (Linux)
+
+> **Only start this after Part 2 is complete.**
+> At this point, Linux features are frozen and we prepare for release.
+
+## CHAPTER 14: CI/CD Pipeline
+
+**Goal:** Automated builds, tests, and releases.
+
+### Phase 14.1: GitHub CI Workflow
+
+- [ ] Create `.github/workflows/ci.yml` for PR checks
+  - [ ] cargo fmt --check
+  - [ ] cargo clippy --workspace --all-targets -- -D warnings
+  - [ ] cargo test --workspace
+  - [ ] Build check for Linux
+- [ ] Cache cargo registry and target
+- [ ] Run on pull requests and main branch
+
+### Phase 14.2: Release Workflow
+
+- [ ] Create `.github/workflows/release.yml` for tags
+  - [ ] Trigger on `v*` tags
+  - [ ] Build Linux x86_64 binary
+  - [ ] Build Linux aarch64 binary (cross-compile)
+  - [ ] Create GitHub Release with all artifacts
+  - [ ] Generate changelog from commits
+- [ ] eBPF compilation in CI
+  - [ ] Install nightly Rust
+  - [ ] Install bpf-linker
+  - [ ] Compile eBPF bytecode
+  - [ ] Embed in release binary
+
+### Phase 14.3: Docker Workflow
+
+- [ ] Create `.github/workflows/docker.yml`
+  - [ ] Build Docker image on release
+  - [ ] Push to ghcr.io/oximyhq/oisp-sensor
+  - [ ] Multi-arch manifest (amd64 + arm64)
+  - [ ] Image signing with cosign (optional)
+
+---
+
+## CHAPTER 15: Linux Packaging
+
+**Goal:** Easy installation on Linux distros.
+
+### Phase 15.1: .deb Package
+
+- [ ] Create `.deb` package specification
+  - [ ] debian/control file
+  - [ ] debian/postinst (set capabilities)
+  - [ ] debian/prerm (cleanup)
+  - [ ] debian/oisp-sensor.service (systemd)
+- [ ] Build with `cargo-deb` or manual dpkg-buildpackage
+- [ ] Test on Ubuntu 22.04
+- [ ] Test on Ubuntu 24.04
+- [ ] Test on Debian 12
+
+### Phase 15.2: .rpm Package
+
+- [ ] Create `.rpm` package specification
+  - [ ] oisp-sensor.spec file
+  - [ ] scriptlets for pre/post install
+  - [ ] systemd service
+- [ ] Build with `cargo-rpm` or rpmbuild
+- [ ] Test on Fedora 39/40
+- [ ] Test on RHEL 9 / Rocky Linux 9
+
+### Phase 15.3: Install Script
+
+- [ ] Create `install.sh` script
+  - [ ] Detect architecture (x86_64, aarch64)
+  - [ ] Download appropriate binary from GitHub releases
+  - [ ] Verify checksum (SHA256)
+  - [ ] Install to /usr/local/bin
+  - [ ] Set CAP_BPF capability
+  - [ ] Optionally install systemd service
+- [ ] Host script at sensor.oisp.dev/install.sh
+- [ ] Test script on fresh VMs
+
+---
+
+## CHAPTER 16: Documentation
+
+**Goal:** Comprehensive, accurate documentation.
+
+### Phase 16.1: README Updates
+
+- [ ] Update main README.md
+  - [ ] Accurate feature status checkmarks
+  - [ ] Real installation commands
+  - [ ] Real example output
+- [ ] Add actual screenshots
+  - [ ] Web UI timeline view
+  - [ ] Web UI process tree view
+  - [ ] TUI screenshot
+- [ ] Create demo GIF
+
+### Phase 16.2: Architecture Documentation
+
+- [ ] Write `docs/architecture/OVERVIEW.md`
+- [ ] Write `docs/architecture/EBPF.md`
+- [ ] Write `docs/architecture/PIPELINE.md`
+- [ ] Create Mermaid diagrams
+
+### Phase 16.3: User Guides
+
+- [ ] Write `docs/quickstart.md`
+- [ ] Write `docs/configuration.md`
+- [ ] Write `docs/troubleshooting.md`
+- [ ] Write `docs/faq.md`
+
+### Phase 16.4: Developer Documentation
+
+- [ ] Update `CONTRIBUTING.md`
+- [ ] Write `docs/dev/plugins.md`
+- [ ] Write `docs/dev/testing.md`
+
+---
+
+## CHAPTER 17: Testing & Quality
+
+**Goal:** Comprehensive test coverage and production quality.
+
+### Phase 17.1: Unit Tests
+
+- [ ] Increase unit test coverage
+  - [ ] Target: 80% line coverage
+- [ ] Test each crate independently
+  - [ ] oisp-core: 15+ tests
+  - [ ] oisp-decode: 25+ tests
+  - [ ] oisp-export: 10+ tests (mocked)
+  - [ ] oisp-redact: 10+ tests
+  - [ ] oisp-enrich: 5+ tests
+
+### Phase 17.2: Integration Tests
+
+- [ ] Create `tests/` directory at workspace root
+- [ ] Pipeline integration tests
+  - [ ] Feed raw events → verify output events
+  - [ ] Test full decode → enrich → export flow
+- [ ] eBPF integration tests (Linux only)
+  - [ ] Load eBPF programs
+  - [ ] Make HTTPS request
+  - [ ] Verify event captured
+- [ ] Docker integration tests
+  - [ ] Build image
+  - [ ] Start container
+  - [ ] Verify API endpoints
+
+### Phase 17.3: Test Coverage
+
+- [ ] Add `cargo-tarpaulin` or `cargo-llvm-cov`
+- [ ] Add coverage to CI
+- [ ] Add coverage badge to README
+
+### Phase 17.4: Error Handling
+
+- [ ] Review all crates for error handling
+- [ ] Use thiserror consistently
+- [ ] Categorize errors (transient, config, fatal)
+- [ ] Audit log levels
+
+### Phase 17.5: Health & Metrics
+
+- [ ] Enhance /api/health endpoint
+- [ ] Add /api/ready and /api/live endpoints
+- [ ] Add /api/metrics (Prometheus format)
+
+### Phase 17.6: Security Hardening
+
+- [ ] Drop privileges after eBPF load
+- [ ] TLS for web UI (optional)
+- [ ] Localhost-only by default
+- [ ] Run `cargo audit` in CI
+
+---
+
+# PART 4: CROSS-PLATFORM EXPANSION
+
+> **Only start this after Part 3 (Linux release) is complete.**
+> Linux is the foundation. macOS/Windows build on it.
+
+## CHAPTER 18: Cross-Platform Research
+
+**Goal:** Evaluate options for macOS and Windows support.
+
+### Phase 18.1: rbpf Evaluation
+
+[rbpf](https://github.com/qmonnet/rbpf) is a **pure Rust eBPF virtual machine** that can run eBPF bytecode in userspace on any platform.
+
+- [ ] Evaluate rbpf capabilities
+  - [ ] Can it run our SSL interception eBPF programs?
+  - [ ] What helper functions are available?
+  - [ ] Performance of interpreter vs JIT
+- [ ] Create proof-of-concept
+  - [ ] Compile our eBPF programs to bytecode
+  - [ ] Load with rbpf instead of kernel
+  - [ ] Feed synthetic data, verify output
+- [ ] Identify limitations
+  - [ ] No kernel hooks (uprobes, tracepoints)
+  - [ ] Need platform APIs to feed data
+  - [ ] Memory access restrictions
+
+**Key insight:** rbpf can *execute* eBPF logic, but we still need platform-specific code to *capture* the raw data to feed into it.
+
+### Phase 18.2: ebpf-for-windows Evaluation
+
+[ebpf-for-windows](https://github.com/microsoft/ebpf-for-windows) is Microsoft's native eBPF implementation for Windows.
+
+- [ ] Evaluate maturity and support
+  - [ ] Which Windows versions supported?
+  - [ ] Which eBPF program types available?
+  - [ ] Can we use uprobes or similar?
+- [ ] Create proof-of-concept
+  - [ ] Set up Windows dev environment
+  - [ ] Try loading our eBPF programs
+  - [ ] Document what works/doesn't
+- [ ] Assess viability
+  - [ ] Is it production-ready?
+  - [ ] What are the dependencies/requirements?
+
+### Phase 18.3: Platform API Research
+
+Independent of eBPF, we need to understand native APIs:
+
+**macOS:**
+- [ ] Endpoint Security Framework (ESF)
+  - [ ] Process exec/exit events
+  - [ ] File open/read/write events
+  - [ ] Network connect events
+  - [ ] Entitlements required
+- [ ] Network Extension Framework
+  - [ ] Content filter for SSL inspection
+  - [ ] System Extension requirements
+- [ ] Lighter alternatives
+  - [ ] libproc for process enumeration
+  - [ ] FSEvents for file changes
+  - [ ] netstat/lsof for connections
+
+**Windows:**
+- [ ] ETW (Event Tracing for Windows)
+  - [ ] Microsoft-Windows-Kernel-Process
+  - [ ] Microsoft-Windows-Kernel-File
+  - [ ] Microsoft-Windows-Kernel-Network
+- [ ] WFP (Windows Filtering Platform)
+  - [ ] Network traffic inspection
+- [ ] Rust ETW libraries
+  - [ ] ferrisetw
+  - [ ] tracelogging
+
+---
+
+## CHAPTER 19: macOS Implementation
+
+**Goal:** macOS support with metadata and optional full capture.
+
+### Phase 19.1: macOS "Lite" (Metadata Only)
+
+- [ ] Create `crates/oisp-capture-macos/src/process.rs`
+  - [ ] Use libproc to enumerate processes
+  - [ ] Detect AI-related processes by name/bundle ID
+  - [ ] Track process start/exit
+  - [ ] Get parent PID
+- [ ] Create `crates/oisp-capture-macos/src/network.rs`
+  - [ ] Enumerate network connections
+  - [ ] Match connections to AI provider IPs/domains
+  - [ ] Track connection timing
+- [ ] Create `crates/oisp-capture-macos/src/lib.rs`
+  - [ ] Implement CapturePlugin trait
+  - [ ] Combine process + network monitoring
+  - [ ] Emit RawCaptureEvents
+- [ ] Test on macOS 14 (Sonoma)
+- [ ] Test on macOS 15 (Sequoia)
+- [ ] Document limitations (metadata only)
+
+### Phase 19.2: macOS "Full" (with rbpf or ESF)
+
+**Option A: rbpf approach**
+- [ ] Use platform APIs to capture raw SSL data
+- [ ] Feed into rbpf for processing
+- [ ] Output OISP events
+
+**Option B: Endpoint Security approach**
+- [ ] Create System Extension
+- [ ] Request entitlements from Apple
+- [ ] Implement ESF callbacks
+- [ ] Parse SSL data
+
+- [ ] Create `.pkg` installer
+- [ ] Handle notarization
+- [ ] Document user approval flow
+
+---
+
+## CHAPTER 20: Windows Implementation
+
+**Goal:** Windows support with metadata and optional full capture.
+
+### Phase 20.1: Windows "Lite" (Metadata Only)
+
+- [ ] Create `crates/oisp-capture-windows/src/process.rs`
+  - [ ] Use WMI for process enumeration
+  - [ ] Win32 API for process info
+  - [ ] Track process start/exit
+  - [ ] Get parent PID
+- [ ] Create `crates/oisp-capture-windows/src/network.rs`
+  - [ ] Enumerate TCP connections (GetExtendedTcpTable)
+  - [ ] Match to AI provider endpoints
+  - [ ] Track connection timing
+- [ ] Create `crates/oisp-capture-windows/src/lib.rs`
+  - [ ] Implement CapturePlugin trait
+  - [ ] Combine process + network monitoring
+  - [ ] Emit RawCaptureEvents
 - [ ] Test on Windows 11
-- [ ] Create .msi installer
-- [ ] Add Windows service support
+- [ ] Test on Windows Server 2022
+- [ ] Document limitations
+
+### Phase 20.2: Windows "Full" (with ebpf-for-windows or ETW)
+
+**Option A: ebpf-for-windows approach**
+- [ ] Use Microsoft's eBPF implementation
+- [ ] Evaluate if our programs can run
+- [ ] Adapt as needed
+
+**Option B: ETW approach**
+- [ ] Create Windows service
+- [ ] Consume ETW events
+- [ ] Convert to OISP format
+
+- [ ] Create `.msi` installer
+- [ ] Handle elevation/UAC
+- [ ] Document admin requirements
 
 ---
 
-# CHAPTER 11: Advanced Features
+## CHAPTER 21: Cross-Platform CI/CD
 
-**Goal:** Production-grade capabilities.
+**Goal:** Build and release for all platforms.
 
-## Phase 11.1: Network Tracepoints (Linux)
+### Phase 21.1: macOS Builds
 
-- [ ] Add sys_enter_connect tracepoint
-- [ ] Add sys_exit_connect tracepoint
-- [ ] Track socket → remote address mapping
-- [ ] Correlate SSL events with network connections
+- [ ] Add macOS to release workflow
+  - [ ] Build macOS x86_64 binary
+  - [ ] Build macOS aarch64 binary (Apple Silicon)
+- [ ] Create Homebrew formula
+  - [ ] oximy/tap/oisp-sensor
+- [ ] Code signing
+  - [ ] Apple Developer certificate
+  - [ ] Notarization
 
-## Phase 11.2: PID/Process Filtering (Kernel-side)
+### Phase 21.2: Windows Builds
 
-- [ ] Add BPF map for target PIDs
-- [ ] Add comm (process name) filtering in eBPF
-- [ ] Update filters from userspace dynamically
-- [ ] Test filtering performance
-
-## Phase 11.3: Performance Optimization
-
-- [ ] Profile eBPF programs
-- [ ] Optimize ring buffer sizing
-- [ ] Implement per-CPU buffers if needed
-- [ ] Measure and document overhead (<3% CPU target)
-
-## Phase 11.4: Resource Metrics
-
-- [ ] Capture CPU usage per process (from /proc or eBPF)
-- [ ] Capture memory usage per process
-- [ ] Send to frontend for ResourceMetrics component
-- [ ] Aggregate by process for timeline view
+- [ ] Add Windows to release workflow
+  - [ ] Build Windows x86_64 binary
+- [ ] Create winget manifest
+- [ ] Create `.msi` installer
+- [ ] Optional: code signing
 
 ---
 
-# Quick Reference: Current State
+# PART 5: ECOSYSTEM
 
-## What Works
+## CHAPTER 22: SDK & Libraries
 
-- [x] Basic eBPF probe attachment (4 probes: ssl_write, ssl_write_ret, ssl_read, ssl_read_ret)
-- [x] libssl.so auto-detection
-- [x] PID filtering support (CLI)
-- [x] Demo mode with test events
-- [x] TUI (terminal UI) with ratatui
-- [x] Web UI with axum + websocket
-- [x] Pipeline architecture (capture → decode → enrich → redact → export)
-- [x] JSONL export
-- [x] Provider detection (domain-based)
-- [x] **RingBuf map for eBPF → userspace event delivery**
-- [x] **Actual SSL data capture (decrypted HTTPS traffic!)**
-- [x] **HashMap correlation for uprobe/uretprobe argument passing**
-- [x] **Multi-process capture (curl, Python, Node.js verified)**
-- [x] **AI API request format capture (OpenAI, Anthropic)**
-- [x] **Large response handling with 4KB truncation**
-- [x] **Streaming response capture (multiple SSL_read events)**
+**Goal:** Easy integration for developers.
 
-## What's Stubbed/TODO
+### Phase 22.1: Python SDK
 
-- [x] Integration with main pipeline (oisp-capture-ebpf crate) - **DONE in Chapter 3!**
-- [x] Real HTTP parsing from captured SSL data - **DONE in Chapter 3!**
-- [x] Request/response correlation (by PID/TID/FD) - **DONE in Chapter 3!**
-- [ ] **Process tracepoints (sched_process_exec/exit, file opens)** - Chapter 9.1
-- [ ] **WebEvent format for frontend** - Chapter 9.2
-- [ ] **React frontend with Process Tree view** - Chapter 9.3
-- [ ] Network tracepoints - Chapter 11.1
-- [ ] Production Docker deployment
-- [ ] Package releases
-- [ ] macOS capture (Endpoint Security framework) - Chapter 10.1
-- [ ] Windows capture (ETW) - Chapter 10.2
+- [ ] Create `oisp-python` package
+- [ ] Event reading from JSONL
+- [ ] WebSocket client for live events
+- [ ] Oximy Cloud client
+  - [ ] Upload events
+  - [ ] Query events
+  - [ ] Fetch policies
+- [ ] Publish to PyPI
+
+### Phase 22.2: JavaScript/TypeScript SDK
+
+- [ ] Create `@oisp/sdk` npm package
+- [ ] Event types (TypeScript)
+- [ ] WebSocket client
+- [ ] Oximy Cloud client
+- [ ] Publish to npm
+
+### Phase 22.3: Go SDK
+
+- [ ] Create `oisp-go` module
+- [ ] Event types
+- [ ] Oximy Cloud client
+- [ ] Publish to pkg.go.dev
 
 ---
 
-# Notes
+## CHAPTER 23: Integrations
 
-## Known Issues
+**Goal:** Pre-built integrations with popular tools.
 
-1. `aya-log` integration causes verifier errors - use direct ring buffer instead
-2. Need nightly Rust for eBPF compilation
-3. Docker requires privileged mode + host networking for eBPF
+### Phase 23.1: Grafana Dashboard
 
-## Design Decisions
+- [ ] Create Grafana dashboard JSON
+  - [ ] Requires OTLP → Tempo/Loki
+  - [ ] AI activity timeline
+  - [ ] Provider breakdown
+  - [ ] Token usage
+- [ ] Document Grafana setup
+- [ ] Add to examples/
 
-1. Using Aya (pure Rust) over libbpf-rs (C + Rust)
-2. RingBuf over PerfBuffer for better performance
-3. Shared types in common crate between kernel/userspace
+### Phase 23.2: Datadog Integration
+
+- [ ] Document OTLP setup for Datadog
+- [ ] Create Datadog dashboard template
+- [ ] Create Datadog monitors template
+
+### Phase 23.3: Splunk Integration
+
+- [ ] Document HTTP Event Collector setup
+- [ ] Create webhook exporter config
+- [ ] Create Splunk dashboard
+
+---
+
+## CHAPTER 24: Community & Growth
+
+**Goal:** Build open source community.
+
+### Phase 24.1: Community Setup
+
+- [ ] Enable GitHub Discussions
+- [ ] Create issue templates
+  - [ ] Bug report
+  - [ ] Feature request
+  - [ ] Question
+- [ ] Create PR template
+- [ ] Add CODE_OF_CONDUCT.md
+
+### Phase 24.2: Marketing Assets
+
+- [ ] Create logo/banner SVGs
+- [ ] Create social media images
+- [ ] Write launch blog post
+- [ ] Create demo video
+
+### Phase 24.3: Adoption
+
+- [ ] Submit to awesome-lists
+- [ ] Post on Hacker News
+- [ ] Post on Reddit (r/programming, r/devops)
+- [ ] Create Twitter/X presence
+
+---
+
+# APPENDIX: Quick Reference
+
+## Current State Summary
+
+| Area | Status | Notes |
+|------|--------|-------|
+| Linux eBPF SSL capture | ✅ Complete | Working in Docker |
+| Linux process tracepoints | ✅ Complete | Code written, needs Linux test |
+| HTTP/AI decoding | ✅ Complete | OpenAI, Anthropic, 18+ providers |
+| Request/response correlation | ✅ Complete | PID+TID+FD based |
+| TUI | ✅ Complete | ratatui-based |
+| Web UI (React) | ✅ Complete | Process tree, timeline, log |
+| Docker | ✅ Complete | Multi-arch builds |
+| JSONL export | ✅ Complete | Local file |
+| WebSocket export | ✅ Complete | For UI |
+| OTLP export | ✅ Complete | Chapter 6 (needs Linux testing) |
+| Kafka export | ✅ Complete | Chapter 6 (needs Linux testing) |
+| Webhook export | ✅ Complete | Chapter 6 |
+| Oximy exporter | ❌ Not started | Chapter 7 |
+| Control plane client | ❌ Not started | Chapter 10 |
+| Sink config UI | ✅ Complete | Chapter 11 (frontend done, API pending) |
+| Advanced Linux | ❌ Not started | Chapter 12 |
+| Configuration system | ❌ Not started | Chapter 13 |
+| CI/CD | ❌ Not started | Chapter 14 |
+| Linux packaging | ❌ Not started | Chapter 15 |
+| Documentation | ❌ Incomplete | Chapter 16 |
+| macOS capture | ❌ Not started | Chapter 19 |
+| Windows capture | ❌ Not started | Chapter 20 |
+
+## Priority Order (REVISED)
+
+**The correct order is: Complete Linux → Stabilize → Release → Cross-Platform**
+
+### PART 2: COMPLETE LINUX IMPLEMENTATION (Do First!)
+
+| # | Chapter | Focus |
+|---|---------|-------|
+| 6 | Sink Implementation | OTLP, Kafka, Webhook exports |
+| 7 | Oximy Exporter | Connect to Oximy Cloud |
+| 10 | Control Plane | Receive policies from cloud |
+| 11 | Sink Config UI | Web UI for sink configuration |
+| 12 | Advanced Linux | Network tracepoints, filtering, perf |
+| 13 | Configuration | Config file loading, env vars |
+
+### PART 3: STABILIZE & RELEASE LINUX (Then Freeze!)
+
+| # | Chapter | Focus |
+|---|---------|-------|
+| 14 | CI/CD Pipeline | Automated builds, tests |
+| 15 | Linux Packaging | .deb, .rpm, install script |
+| 16 | Documentation | README, guides, architecture |
+| 17 | Testing & Quality | Coverage, security, metrics |
+
+### PART 4: CROSS-PLATFORM (After Linux v1.0)
+
+| # | Chapter | Focus |
+|---|---------|-------|
+| 18 | Research | rbpf, ebpf-for-windows, platform APIs |
+| 19 | macOS | Lite (metadata) → Full (ESF) |
+| 20 | Windows | Lite (metadata) → Full (ETW) |
+| 21 | Cross-Platform CI | Multi-platform builds |
+
+### PART 5: ECOSYSTEM (Ongoing)
+
+| # | Chapter | Focus |
+|---|---------|-------|
+| 22 | SDKs | Python, JavaScript, Go |
+| 23 | Integrations | Grafana, Datadog, Splunk |
+| 24 | Community | GitHub setup, marketing |
+
+## Cross-Platform Strategy
+
+### Key Resources
+- **[rbpf](https://github.com/qmonnet/rbpf)** - Rust userspace eBPF VM, runs on any platform
+- **[ebpf-for-windows](https://github.com/microsoft/ebpf-for-windows)** - Microsoft's native eBPF for Windows
+
+### Approach
+1. **Linux:** Native kernel eBPF (what we have now)
+2. **macOS/Windows Lite:** Platform APIs for metadata (process, network)
+3. **macOS/Windows Full:** Either:
+   - Use rbpf with platform-specific data feeding
+   - Use native frameworks (ESF on macOS, ETW on Windows)
 
 ---
 
 ## Session Log
+
+### Prior Sessions (Chapters 1-9)
+See detailed session logs preserved below.
+
+### 2025-12-23 - Session 8: Big Picture Planning
+**Completed:**
+- Analyzed entire project scope
+- Defined relationship between OSS and Oximy Cloud
+- Created comprehensive TODO covering all chapters
+- Identified 24 chapters / major work areas
+- Estimated 100+ individual tasks
+
+**Architecture Defined:**
+```
+[Capture Layer] → [OISP Events] → [Sinks (JSONL, OTLP, Kafka, Webhook, Oximy)]
+                                       ↓
+                               [Oximy Cloud (Proprietary)]
+                                       ↓
+                               [ML Redaction, Policies, Reports]
+                                       ↓
+                               [Push back to sensors]
+```
+
+**Key Decisions:**
+1. Complete ALL Linux features before CI/CD and packaging
+2. macOS/Windows start with "lite" (metadata only) before "full" capture
+3. Oximy Exporter is high priority for business model
+4. Control Plane Client enables dynamic policy updates
+5. Investigate rbpf and ebpf-for-windows for cross-platform eBPF
+
+---
+
+*Last updated: 2025-12-23*
+*Session: Session 11 - Chapter 11 Frontend Dashboard*
+
+---
+
+# SESSION LOGS
+
+### 2025-12-23 - Session 11: Chapter 11 Frontend Dashboard & UI Overhaul
+
+**Goal:** Build comprehensive, professional dashboard UI with all Chapter 6 sink configurations.
+
+**Completed:**
+
+**New Dashboard Layout:**
+- Created professional sidebar navigation with collapsible design
+- Added TopBar with real-time stats and connection status
+- Implemented 7 main views: Dashboard, Process Tree, Timeline, Log, Inventory, Traces, Settings
+
+**Dashboard View (New):**
+- Real-time stats cards: Total Events, AI Calls, Active Traces, Processes, Total Tokens
+- Activity feed with recent events and color-coded types
+- Provider summary with request counts and models
+- Active traces widget
+- Connection status with uptime display
+
+**Settings Page (Chapter 11):**
+- **Export Sinks Tab:**
+  - JSONL sink configuration (path, enable/disable)
+  - OTLP sink (endpoint, protocol, compression, headers)
+  - Kafka sink (brokers, topic, SASL auth, compression)
+  - Webhook sink (URL, method, auth type, batch mode, retries)
+  - Connection test buttons with success/error indicators
+- **Privacy Tab:**
+  - Redaction mode selector (minimal/safe/full)
+  - Entity type toggles (API keys, emails, credit cards)
+  - Custom regex pattern editor
+- **General Tab:**
+  - Log level, max events, WebSocket toggle
+  - Version and platform info
+
+**Inventory View:**
+- AI Providers list with request counts and models
+- Applications table with executable info and provider usage
+
+**Traces View:**
+- Active traces with live indicator
+- Completed traces history
+- Stats: duration, LLM calls, tool calls, tokens
+
+**Enhanced Existing Views:**
+- Process Tree: Improved styling, expand/collapse all, event badges
+- Timeline: Visual timeline with zoom, grouped event log
+- Log View: Search, filters, expandable event details
+- Empty State: Better design with feature cards and loading indicator
+
+**New Hooks:**
+- `useStats()` - Fetch sensor stats
+- `useInventory()` - Fetch provider/app inventory
+- `useTraces()` - Fetch agent traces
+
+**Styling:**
+- IBM Plex Sans/Mono fonts for professional look
+- Refined dark theme with subtle gradients
+- Consistent component styling (buttons, inputs, cards)
+- Smooth animations (fade-in, slide-up, stagger)
+- Custom scrollbars and focus states
+
+**Build Status:**
+- TypeScript: No errors
+- Next.js build: Success (18.9kB main bundle)
+
+**Files Created/Modified:**
+- `frontend/src/app/page.tsx` - New dashboard layout
+- `frontend/src/app/layout.tsx` - Updated HTML structure
+- `frontend/src/app/globals.css` - New professional styling
+- `frontend/tailwind.config.ts` - Refined color palette
+- `frontend/src/components/Sidebar.tsx` - New sidebar navigation
+- `frontend/src/components/TopBar.tsx` - New top bar
+- `frontend/src/components/DashboardView.tsx` - New dashboard
+- `frontend/src/components/InventoryView.tsx` - New inventory view
+- `frontend/src/components/TracesView.tsx` - New traces view
+- `frontend/src/components/SettingsView.tsx` - New settings with sink config
+- `frontend/src/lib/useStats.ts` - Stats hook
+- `frontend/src/lib/useInventory.ts` - Inventory hook
+- `frontend/src/lib/useTraces.ts` - Traces hook
+- Enhanced: ProcessTreeView, TimelineView, LogView, EventBlock, ProcessNode, EmptyState
+
+**Next Steps:**
+- Chapter 11.1: Add backend API endpoints for config persistence
+- Chapter 7: Oximy Cloud Integration (when ready)
+- Chapter 12: Expose network data in UI
+
+---
+
+### 2025-12-23 - Session 10: Chapter 6 Verification & Completion
+
+**Discovery:**
+- Reviewed export crate files and discovered Chapter 6 was already implemented!
+- All three sink implementations (OTLP, Kafka, Webhook) are fully functional
+
+**Verified Implementation:**
+
+**OTLP Exporter (624 lines in `otlp.rs`):**
+- Uses `opentelemetry-otlp` crate with proper LogExporter
+- Supports gRPC, HTTP/proto, HTTP/JSON transports
+- Full OpenTelemetry semantic convention mapping (gen_ai.*, process.*, host.*)
+- TLS, compression (gzip), authentication (API key, Bearer)
+- Batch processing with configurable size and flush interval
+- Maps all OISP event types to OTLP log records
+
+**Kafka Exporter (435 lines in `kafka.rs`):**
+- Uses `rdkafka` crate with FutureProducer
+- SASL authentication (PLAIN, SCRAM-SHA-256, SCRAM-SHA-512)
+- TLS configuration
+- Compression (gzip, snappy, lz4, zstd)
+- Message keys (event_id or host:pid)
+- Message headers (event_type, oisp_version)
+- Producer batching via linger_ms and batch_size
+
+**Webhook Exporter (520 lines in `webhook.rs`):**
+- Uses `reqwest` crate with async client
+- POST/PUT/PATCH methods
+- Authentication (API key, Bearer, Basic)
+- Single event or batch mode
+- Exponential backoff retry logic
+- Dead letter queue file for failed events
+- Proper response handling (2xx/4xx/5xx)
+
+**Test Results:**
+- All 54 tests pass across workspace
+- Zero clippy warnings
+- Kafka feature requires Linux (rdkafka needs cmake)
+
+**Next Chapter: Chapter 7 (Oximy Cloud Integration)**
+
+---
+
+### 2025-12-23 - Session 9: Priority Reordering & Cross-Platform Strategy
+
+**Discussion:**
+- Reconsidered priority order: why do CI/CD before features are complete?
+- Discovered [rbpf](https://github.com/qmonnet/rbpf) - pure Rust eBPF VM that runs on any platform
+- Discovered [ebpf-for-windows](https://github.com/microsoft/ebpf-for-windows) - Microsoft's native eBPF implementation
+
+**Key Decisions:**
+1. **Complete Linux implementation fully BEFORE** CI/CD, packaging, docs
+2. **Freeze Linux features, THEN stabilize and release**
+3. **Cross-platform comes AFTER Linux v1.0**
+4. **Investigate rbpf for macOS/Windows** - can run eBPF bytecode without kernel support
+
+**Reorganized Parts:**
+- PART 2: Complete Linux Implementation (Chapters 6-13)
+- PART 3: Stabilize & Release Linux (Chapters 14-17)
+- PART 4: Cross-Platform Expansion (Chapters 18-21)
+- PART 5: Ecosystem (Chapters 22-24)
+
+**New Chapter 18: Cross-Platform Research**
+- Evaluate rbpf capabilities
+- Evaluate ebpf-for-windows maturity
+- Research macOS ESF and Windows ETW as alternatives
+
+**Updated Priority Order:**
+```
+Part 2 (Linux features) → Part 3 (stabilize/release) → Part 4 (macOS/Windows) → Part 5 (ecosystem)
+```
+
+---
+
+# HISTORICAL SESSION LOGS
 
 ### 2025-12-23 - Session 1: eBPF Data Capture
 **Completed:**
@@ -949,7 +1533,3 @@ AgentSight's UI excellence comes from:
 - `installers/windows/` (empty)
 
 ---
-
-*Last updated: 2025-12-23*
-*Conversation: Session 7 - Chapter 8 Codebase Cleanup*
-

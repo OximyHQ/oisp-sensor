@@ -6,8 +6,11 @@
 //! - **Plugins**: Trait definitions for all pipeline stages
 //! - **Pipeline**: Event routing and orchestration
 //! - **Providers**: AI provider detection and metadata
+//! - **Config**: Configuration loading and management
 
+pub mod config;
 pub mod events;
+pub mod metrics;
 pub mod pipeline;
 pub mod plugins;
 pub mod providers;
@@ -18,12 +21,19 @@ pub mod trace;
 pub use events::{
     Actor, Confidence, EventEnvelope, EventType, Host, OispEvent, ProcessInfo, Source,
 };
+pub use metrics::{create_metrics, MetricsCollector, SharedMetrics};
 pub use pipeline::{Pipeline, PipelineConfig};
 pub use plugins::{
     ActionPlugin, CapturePlugin, DecodePlugin, EnrichPlugin, ExportPlugin, Plugin, PluginInfo,
 };
 pub use providers::{Provider, ProviderRegistry};
 pub use trace::{AgentTrace, Span, SpanKind};
+pub use config::{
+    ConfigLoader, SensorConfig, ConfigError, ConfigResult,
+    CaptureSettings, RedactionSettings, ExportSettings, WebSettings,
+    JsonlExportConfig, WebSocketExportConfig, OtlpExportConfig,
+    KafkaExportConfig, WebhookExportConfig, OximyExportConfig,
+};
 
 /// OISP specification version this crate implements
 pub const OISP_VERSION: &str = "0.1";

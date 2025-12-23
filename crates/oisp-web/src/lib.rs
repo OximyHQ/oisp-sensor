@@ -16,6 +16,7 @@ use axum::{
     Router,
 };
 use oisp_core::events::OispEvent;
+use oisp_core::metrics::SharedMetrics;
 use oisp_core::trace::TraceBuilder;
 use rust_embed::RustEmbed;
 use std::sync::Arc;
@@ -54,6 +55,7 @@ pub struct AppState {
     pub event_tx: broadcast::Sender<Arc<OispEvent>>,
     pub trace_builder: Arc<RwLock<TraceBuilder>>,
     pub events: Arc<RwLock<Vec<Arc<OispEvent>>>>,
+    pub metrics: Option<SharedMetrics>,
 }
 
 /// Start the web server
@@ -61,6 +63,16 @@ pub async fn start_server(
     config: WebConfig,
     event_tx: broadcast::Sender<Arc<OispEvent>>,
     trace_builder: Arc<RwLock<TraceBuilder>>,
+) -> anyhow::Result<()> {
+    start_server_with_metrics(config, event_tx, trace_builder, None).await
+}
+
+/// Start the web server with optional metrics collector
+pub async fn start_server_with_metrics(
+    config: WebConfig,
+    event_tx: broadcast::Sender<Arc<OispEvent>>,
+    trace_builder: Arc<RwLock<TraceBuilder>>,
+    metrics: Option<SharedMetrics>,
 ) -> anyhow::Result<()> {
     let events = Arc::new(RwLock::new(Vec::new()));
 
@@ -93,6 +105,7 @@ pub async fn start_server(
         event_tx,
         trace_builder,
         events,
+        metrics,
     });
 
     let cors = CorsLayer::new()
@@ -107,6 +120,9 @@ pub async fn start_server(
         .route("/api/traces", get(api::get_traces))
         .route("/api/inventory", get(api::get_inventory))
         .route("/api/stats", get(api::get_stats))
+        .route("/api/metrics", get(api::get_metrics))
+        .route("/api/metrics/processes", get(api::get_process_metrics))
+        .route("/metrics", get(api::get_metrics_prometheus))
         .route("/api/health", get(health_check))
         .route("/ws", get(ws::ws_handler))
         // Static file serving (fallback to legacy pages)

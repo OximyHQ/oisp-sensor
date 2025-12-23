@@ -3,7 +3,7 @@
 #![cfg(target_os = "linux")]
 
 use crate::ssl::find_ssl_libraries;
-use crate::types::{SslEvent, SslEventType, MAX_DATA_LEN};
+use crate::types::{NetworkConnectEvent, SslEvent, SslEventType, MAX_DATA_LEN};
 
 use async_trait::async_trait;
 use oisp_core::plugins::{
@@ -11,11 +11,31 @@ use oisp_core::plugins::{
     RawCaptureEvent, RawEventKind, RawEventMetadata,
 };
 use std::any::Any;
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 use ulid::Ulid;
+
+/// Socket info cached in userspace for correlation
+#[derive(Debug, Clone)]
+pub struct SocketCacheEntry {
+    /// Remote address (IPv4 or IPv6 string)
+    pub remote_addr: String,
+    /// Remote port
+    pub remote_port: u16,
+    /// Timestamp when connection was established (ns)
+    pub connect_time_ns: u64,
+}
+
+/// Cache of socket connections per PID for SSL correlation
+/// Key: PID, Value: Most recent connection info
+///
+/// This is a simplification - in practice, a process may have multiple connections.
+/// For now, we use the most recent connection which works well for single-threaded
+/// AI agent processes making sequential API calls.
+type SocketCache = Arc<RwLock<HashMap<u32, SocketCacheEntry>>>;
 
 /// eBPF capture configuration
 #[derive(Debug, Clone)]
@@ -60,11 +80,30 @@ impl Default for EbpfCaptureConfig {
     }
 }
 
+/// Filter configuration that can be sent to the eBPF program
+#[derive(Debug, Clone, Default)]
+pub struct EbpfFilterConfig {
+    /// PIDs to trace (empty = all)
+    pub pids: Vec<u32>,
+    /// Process names (comm) to trace (empty = all)
+    pub comms: Vec<String>,
+}
+
+// Config flag constants (must match eBPF side)
+const CONFIG_KEY_FLAGS: u32 = 0;
+const FLAG_PID_FILTER_ENABLED: u32 = 1 << 0;
+const FLAG_COMM_FILTER_ENABLED: u32 = 1 << 1;
+const COMM_LEN: usize = 16;
+
 /// eBPF capture plugin
 pub struct EbpfCapture {
     config: EbpfCaptureConfig,
     running: Arc<AtomicBool>,
     stats: Arc<CaptureStatsInner>,
+    /// Socket cache for correlating SSL events with network connections
+    socket_cache: SocketCache,
+    /// Current filter configuration
+    filter_config: Arc<RwLock<EbpfFilterConfig>>,
 }
 
 struct CaptureStatsInner {
@@ -89,7 +128,126 @@ impl EbpfCapture {
                 bytes_captured: AtomicU64::new(0),
                 errors: AtomicU64::new(0),
             }),
+            socket_cache: Arc::new(RwLock::new(HashMap::new())),
+            filter_config: Arc::new(RwLock::new(EbpfFilterConfig::default())),
         }
+    }
+
+    /// Get the current filter configuration
+    pub fn get_filter_config(&self) -> EbpfFilterConfig {
+        self.filter_config.read().unwrap().clone()
+    }
+
+    /// Set PIDs to filter (empty = all PIDs)
+    ///
+    /// Note: This only takes effect after the eBPF program is loaded.
+    /// For dynamic updates, use update_pid_filter() after start().
+    pub fn set_pid_filter(&mut self, pids: Vec<u32>) {
+        if let Ok(mut config) = self.filter_config.write() {
+            config.pids = pids;
+        }
+    }
+
+    /// Set process names to filter (empty = all processes)
+    ///
+    /// Note: This only takes effect after the eBPF program is loaded.
+    /// For dynamic updates, use update_comm_filter() after start().
+    pub fn set_comm_filter(&mut self, comms: Vec<String>) {
+        if let Ok(mut config) = self.filter_config.write() {
+            config.comms = comms;
+        }
+    }
+
+    /// Apply filter configuration to eBPF maps
+    fn apply_filters_to_ebpf(&self, ebpf: &mut aya::Ebpf) -> PluginResult<()> {
+        use aya::maps::HashMap as AyaHashMap;
+
+        let filter_config = self.filter_config.read().unwrap();
+        let mut flags: u32 = 0;
+
+        // Apply PID filter if configured
+        if !filter_config.pids.is_empty() {
+            flags |= FLAG_PID_FILTER_ENABLED;
+
+            if let Some(map) = ebpf.map_mut("TARGET_PIDS") {
+                let mut target_pids: AyaHashMap<_, u32, u8> = map.try_into().map_err(|e| {
+                    PluginError::InitializationFailed(format!(
+                        "Failed to get TARGET_PIDS map: {}",
+                        e
+                    ))
+                })?;
+
+                for &pid in &filter_config.pids {
+                    target_pids.insert(pid, 1, 0).map_err(|e| {
+                        PluginError::InitializationFailed(format!(
+                            "Failed to insert PID {} into filter: {}",
+                            pid, e
+                        ))
+                    })?;
+                }
+                info!("Applied PID filter: {:?}", filter_config.pids);
+            } else {
+                debug!("TARGET_PIDS map not found - PID filtering unavailable");
+            }
+        }
+
+        // Apply comm filter if configured
+        if !filter_config.comms.is_empty() {
+            flags |= FLAG_COMM_FILTER_ENABLED;
+
+            if let Some(map) = ebpf.map_mut("TARGET_COMMS") {
+                let mut target_comms: AyaHashMap<_, [u8; COMM_LEN], u8> =
+                    map.try_into().map_err(|e| {
+                        PluginError::InitializationFailed(format!(
+                            "Failed to get TARGET_COMMS map: {}",
+                            e
+                        ))
+                    })?;
+
+                for comm in &filter_config.comms {
+                    let mut comm_bytes = [0u8; COMM_LEN];
+                    let bytes = comm.as_bytes();
+                    let len = bytes.len().min(COMM_LEN - 1); // Leave room for null terminator
+                    comm_bytes[..len].copy_from_slice(&bytes[..len]);
+
+                    target_comms.insert(comm_bytes, 1, 0).map_err(|e| {
+                        PluginError::InitializationFailed(format!(
+                            "Failed to insert comm '{}' into filter: {}",
+                            comm, e
+                        ))
+                    })?;
+                }
+                info!("Applied comm filter: {:?}", filter_config.comms);
+            } else {
+                debug!("TARGET_COMMS map not found - comm filtering unavailable");
+            }
+        }
+
+        // Set config flags
+        if flags != 0 {
+            if let Some(map) = ebpf.map_mut("CONFIG_FLAGS") {
+                let mut config_flags: AyaHashMap<_, u32, u32> = map.try_into().map_err(|e| {
+                    PluginError::InitializationFailed(format!(
+                        "Failed to get CONFIG_FLAGS map: {}",
+                        e
+                    ))
+                })?;
+
+                config_flags
+                    .insert(CONFIG_KEY_FLAGS, flags, 0)
+                    .map_err(|e| {
+                        PluginError::InitializationFailed(format!(
+                            "Failed to set config flags: {}",
+                            e
+                        ))
+                    })?;
+                info!("Applied config flags: {:#x}", flags);
+            } else {
+                debug!("CONFIG_FLAGS map not found - filtering unavailable");
+            }
+        }
+
+        Ok(())
     }
 
     /// Bump memlock rlimit for eBPF (required on older kernels)
@@ -107,8 +265,8 @@ impl EbpfCapture {
         }
     }
 
-    /// Convert SslEvent to RawCaptureEvent
-    fn ssl_event_to_raw(event: &SslEvent) -> RawCaptureEvent {
+    /// Convert SslEvent to RawCaptureEvent, enriching with socket info if available
+    fn ssl_event_to_raw(event: &SslEvent, socket_cache: &SocketCache) -> RawCaptureEvent {
         let kind = match event.event_type {
             SslEventType::Write => RawEventKind::SslWrite,
             SslEventType::Read => RawEventKind::SslRead,
@@ -116,6 +274,19 @@ impl EbpfCapture {
 
         let captured_len = (event.captured_len as usize).min(MAX_DATA_LEN);
         let data = event.data[..captured_len].to_vec();
+
+        // Look up socket info from cache
+        let (remote_addr, remote_port) = {
+            if let Ok(cache) = socket_cache.read() {
+                if let Some(entry) = cache.get(&event.pid) {
+                    (Some(entry.remote_addr.clone()), Some(entry.remote_port))
+                } else {
+                    (None, None)
+                }
+            } else {
+                (None, None)
+            }
+        };
 
         RawCaptureEvent {
             id: Ulid::new().to_string(),
@@ -127,6 +298,28 @@ impl EbpfCapture {
             metadata: RawEventMetadata {
                 comm: Some(event.comm_str()),
                 uid: Some(event.uid),
+                remote_addr,
+                remote_port,
+                ..Default::default()
+            },
+        }
+    }
+
+    /// Convert NetworkConnectEvent to RawCaptureEvent
+    fn network_event_to_raw(event: &NetworkConnectEvent) -> RawCaptureEvent {
+        RawCaptureEvent {
+            id: Ulid::new().to_string(),
+            timestamp_ns: event.timestamp_ns,
+            kind: RawEventKind::NetworkConnect,
+            pid: event.pid,
+            tid: Some(event.tid),
+            data: Vec::new(), // Network events don't carry payload data
+            metadata: RawEventMetadata {
+                comm: Some(event.comm_str()),
+                uid: Some(event.uid),
+                fd: Some(event.fd),
+                remote_addr: Some(event.addr_str()),
+                remote_port: Some(event.port),
                 ..Default::default()
             },
         }
@@ -252,6 +445,9 @@ impl CapturePlugin for EbpfCapture {
             PluginError::InitializationFailed(format!("Failed to load eBPF program: {}", e))
         })?;
 
+        // Apply filter configuration to eBPF maps
+        self.apply_filters_to_ebpf(&mut ebpf)?;
+
         // Attach SSL_write probes
         let ssl_write: &mut UProbe = ebpf
             .program_mut("ssl_write")
@@ -345,18 +541,19 @@ impl CapturePlugin for EbpfCapture {
         // Spawn background task to poll ring buffer
         let running = self.running.clone();
         let stats = self.stats.clone();
+        let socket_cache = self.socket_cache.clone();
 
         tokio::spawn(async move {
             // Move ebpf ownership into the task so it stays alive
-            // and create ring buffer inside the task
+            // and create ring buffers inside the task
             let mut ebpf = ebpf;
 
-            // Get ring buffer map (inside the spawned task to avoid lifetime issues)
-            let ring_buf = match ebpf.map_mut("SSL_EVENTS") {
+            // Get SSL ring buffer map (inside the spawned task to avoid lifetime issues)
+            let ssl_ring_buf = match ebpf.map_mut("SSL_EVENTS") {
                 Some(map) => match RingBuf::try_from(map) {
                     Ok(rb) => rb,
                     Err(e) => {
-                        error!("Failed to create ring buffer: {}", e);
+                        error!("Failed to create SSL ring buffer: {}", e);
                         return;
                     }
                 },
@@ -365,11 +562,30 @@ impl CapturePlugin for EbpfCapture {
                     return;
                 }
             };
-            let mut ring_buf = ring_buf;
+            let mut ssl_ring_buf = ssl_ring_buf;
+
+            // Get Network ring buffer map (optional - may not exist in older eBPF programs)
+            let network_ring_buf = match ebpf.map_mut("NETWORK_EVENTS") {
+                Some(map) => match RingBuf::try_from(map) {
+                    Ok(rb) => {
+                        info!("NETWORK_EVENTS ring buffer initialized");
+                        Some(rb)
+                    }
+                    Err(e) => {
+                        warn!("Failed to create network ring buffer: {}", e);
+                        None
+                    }
+                },
+                None => {
+                    debug!("NETWORK_EVENTS map not found - network capture disabled");
+                    None
+                }
+            };
+            let mut network_ring_buf = network_ring_buf;
 
             while running.load(Ordering::SeqCst) {
-                // Poll ring buffer (non-blocking)
-                while let Some(item) = ring_buf.next() {
+                // Poll SSL ring buffer (non-blocking)
+                while let Some(item) = ssl_ring_buf.next() {
                     let data = item.as_ref();
                     if data.len() >= std::mem::size_of::<SslEvent>() {
                         let event: &SslEvent = unsafe { &*(data.as_ptr() as *const SslEvent) };
@@ -383,8 +599,8 @@ impl CapturePlugin for EbpfCapture {
                             continue;
                         }
 
-                        // Convert to RawCaptureEvent
-                        let raw_event = Self::ssl_event_to_raw(event);
+                        // Convert to RawCaptureEvent (with socket correlation)
+                        let raw_event = Self::ssl_event_to_raw(event, &socket_cache);
 
                         // Update stats
                         stats.events_captured.fetch_add(1, Ordering::Relaxed);
@@ -396,6 +612,52 @@ impl CapturePlugin for EbpfCapture {
                         if let Err(e) = tx.send(raw_event).await {
                             error!("Failed to send event to pipeline: {}", e);
                             stats.events_dropped.fetch_add(1, Ordering::Relaxed);
+                        }
+                    }
+                }
+
+                // Poll Network ring buffer (non-blocking)
+                if let Some(ref mut net_rb) = network_ring_buf {
+                    while let Some(item) = net_rb.next() {
+                        let data = item.as_ref();
+                        if data.len() >= std::mem::size_of::<NetworkConnectEvent>() {
+                            let event: &NetworkConnectEvent =
+                                unsafe { &*(data.as_ptr() as *const NetworkConnectEvent) };
+
+                            // Update socket cache for SSL correlation (only for successful connections)
+                            if event.is_success() {
+                                if let Ok(mut cache) = socket_cache.write() {
+                                    cache.insert(
+                                        event.pid,
+                                        SocketCacheEntry {
+                                            remote_addr: event.addr_str(),
+                                            remote_port: event.port,
+                                            connect_time_ns: event.timestamp_ns,
+                                        },
+                                    );
+                                    // Limit cache size to prevent unbounded growth
+                                    if cache.len() > 10000 {
+                                        // Remove oldest entries (simple LRU approximation)
+                                        let keys_to_remove: Vec<u32> =
+                                            cache.iter().take(1000).map(|(k, _)| *k).collect();
+                                        for key in keys_to_remove {
+                                            cache.remove(&key);
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Convert to RawCaptureEvent
+                            let raw_event = Self::network_event_to_raw(event);
+
+                            // Update stats
+                            stats.events_captured.fetch_add(1, Ordering::Relaxed);
+
+                            // Send to pipeline
+                            if let Err(e) = tx.send(raw_event).await {
+                                error!("Failed to send network event to pipeline: {}", e);
+                                stats.events_dropped.fetch_add(1, Ordering::Relaxed);
+                            }
                         }
                     }
                 }

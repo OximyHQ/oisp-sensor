@@ -30,6 +30,8 @@ pub enum EventType {
     ProcessExit = 4,
     /// File open
     FileOpen = 5,
+    /// Network connect (outgoing connection)
+    NetworkConnect = 6,
 }
 
 // =============================================================================
@@ -198,6 +200,148 @@ pub enum FileOpenFlags {
     Truncate = 0o1000,
     Append = 0o2000,
 }
+
+// =============================================================================
+// Network Events
+// =============================================================================
+
+/// Socket address family (matches AF_* constants)
+#[repr(u16)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AddressFamily {
+    /// AF_UNSPEC (0)
+    Unspec = 0,
+    /// AF_UNIX/AF_LOCAL (1)
+    Unix = 1,
+    /// AF_INET - IPv4 (2)
+    Inet = 2,
+    /// AF_INET6 - IPv6 (10)
+    Inet6 = 10,
+}
+
+impl Default for AddressFamily {
+    fn default() -> Self {
+        AddressFamily::Unspec
+    }
+}
+
+/// Network connect event - captured from sys_enter/exit_connect tracepoints
+/// 
+/// This event captures outgoing TCP/UDP connections, which is critical for
+/// correlating SSL events with their destination addresses.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct NetworkConnectEvent {
+    /// Timestamp in nanoseconds
+    pub timestamp_ns: u64,
+    /// Process ID
+    pub pid: u32,
+    /// Thread ID
+    pub tid: u32,
+    /// User ID
+    pub uid: u32,
+    /// Socket file descriptor
+    pub fd: i32,
+    /// Address family (AF_INET, AF_INET6, etc.)
+    pub family: u16,
+    /// Padding for alignment
+    _pad1: u16,
+    /// Return value from connect() (0 = success, -errno on error, -EINPROGRESS for non-blocking)
+    pub ret: i32,
+    /// Destination port (host byte order)
+    pub port: u16,
+    /// Padding for alignment
+    _pad2: u16,
+    /// IPv4 address (for AF_INET) - network byte order
+    pub addr_v4: u32,
+    /// IPv6 address (for AF_INET6) - network byte order
+    pub addr_v6: [u8; 16],
+    /// Process command name
+    pub comm: [u8; COMM_LEN],
+}
+
+impl NetworkConnectEvent {
+    /// Create a new zeroed event
+    pub const fn zeroed() -> Self {
+        Self {
+            timestamp_ns: 0,
+            pid: 0,
+            tid: 0,
+            uid: 0,
+            fd: 0,
+            family: 0,
+            _pad1: 0,
+            ret: 0,
+            port: 0,
+            _pad2: 0,
+            addr_v4: 0,
+            addr_v6: [0u8; 16],
+            comm: [0u8; COMM_LEN],
+        }
+    }
+    
+    /// Check if connection succeeded
+    pub fn is_success(&self) -> bool {
+        // 0 = success, -EINPROGRESS (-115) = non-blocking in progress (also considered success)
+        self.ret == 0 || self.ret == -115
+    }
+    
+    /// Check if this is an IPv4 connection
+    pub fn is_ipv4(&self) -> bool {
+        self.family == AddressFamily::Inet as u16
+    }
+    
+    /// Check if this is an IPv6 connection
+    pub fn is_ipv6(&self) -> bool {
+        self.family == AddressFamily::Inet6 as u16
+    }
+}
+
+#[cfg(feature = "user")]
+unsafe impl aya::Pod for NetworkConnectEvent {}
+
+/// Socket key for correlating connections with SSL events
+/// Key: (pid, fd) -> SocketInfo
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SocketKey {
+    pub pid: u32,
+    pub fd: i32,
+}
+
+/// Socket info stored in BPF map for correlation
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct SocketInfo {
+    /// Address family
+    pub family: u16,
+    /// Destination port (host byte order)
+    pub port: u16,
+    /// IPv4 address (network byte order)
+    pub addr_v4: u32,
+    /// IPv6 address (network byte order)  
+    pub addr_v6: [u8; 16],
+    /// Connection timestamp
+    pub connect_ts: u64,
+}
+
+impl SocketInfo {
+    pub const fn zeroed() -> Self {
+        Self {
+            family: 0,
+            port: 0,
+            addr_v4: 0,
+            addr_v6: [0u8; 16],
+            connect_ts: 0,
+        }
+    }
+}
+
+#[cfg(feature = "user")]
+unsafe impl aya::Pod for SocketKey {}
+
+#[cfg(feature = "user")]
+unsafe impl aya::Pod for SocketInfo {}
 
 /// File open event - captured from sys_enter_openat tracepoint
 #[repr(C)]
