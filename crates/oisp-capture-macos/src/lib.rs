@@ -17,6 +17,9 @@ use std::any::Any;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::sync::mpsc;
+#[cfg(not(target_os = "macos"))]
+use tracing::info;
+#[cfg(target_os = "macos")]
 use tracing::{info, warn};
 
 /// macOS capture configuration

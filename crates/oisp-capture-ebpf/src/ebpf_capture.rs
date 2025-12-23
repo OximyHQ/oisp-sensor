@@ -27,6 +27,7 @@ pub struct SocketCacheEntry {
     /// Remote port
     pub remote_port: u16,
     /// Timestamp when connection was established (ns)
+    #[allow(dead_code)]
     pub connect_time_ns: u64,
 }
 
@@ -839,8 +840,8 @@ impl CapturePlugin for EbpfCapture {
                 tokio::time::sleep(std::time::Duration::from_millis(10)).await;
             }
 
-            // Keep ebpf alive by explicitly referencing it
-            drop(ebpf);
+            // _ebpf keeps the eBPF programs alive for the duration of the task
+            drop(_ebpf);
             info!("eBPF ring buffer polling stopped");
         });
 

@@ -81,7 +81,7 @@ impl std::fmt::Debug for SslEvent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let data_preview = if self.captured_len > 0 {
             let data = self.captured_data();
-            if data.iter().filter(|&&b| b >= 0x20 && b < 0x7f).count() > data.len() * 8 / 10 {
+            if data.iter().filter(|&&b| (0x20..0x7f).contains(&b)).count() > data.len() * 8 / 10 {
                 // Mostly printable
                 let s = String::from_utf8_lossy(&data[..data.len().min(100)]);
                 format!("\"{}...\"", s)

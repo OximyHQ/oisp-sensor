@@ -2,8 +2,9 @@
 #
 # Multi-stage build for eBPF-enabled OISP sensor:
 # 1. Stage 1: Build eBPF bytecode (requires nightly Rust + bpf-linker)
-# 2. Stage 2: Build userspace binary (stable Rust)
-# 3. Stage 3: Runtime image (minimal Debian)
+# 2. Stage 2: Build React frontend (Node.js)
+# 3. Stage 3: Build userspace binary (stable Rust)
+# 4. Stage 4: Runtime image (minimal Debian)
 #
 # Build:
 #   docker build -t oisp-sensor .
@@ -64,7 +65,22 @@ RUN mkdir -p /build/ebpf-bytecode && \
     find target -name "*.o" -path "*/bpfel-*/*" -exec cp {} /build/ebpf-bytecode/ \; || true
 
 # =============================================================================
-# Stage 2: Userspace Builder - Build the main sensor binary
+# Stage 2: Frontend Builder - Build the React frontend
+# =============================================================================
+FROM node:20-slim AS frontend-builder
+
+WORKDIR /build/frontend
+
+# Copy package files and install dependencies
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+
+# Copy frontend source and build
+COPY frontend/ ./
+RUN npm run build
+
+# =============================================================================
+# Stage 3: Userspace Builder - Build the main sensor binary
 # =============================================================================
 # Use latest Rust since Aya from git requires edition 2024 (Rust 1.86+)
 FROM rust:latest AS userspace-builder
@@ -85,11 +101,14 @@ WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 
+# Copy the built frontend assets from frontend-builder
+COPY --from=frontend-builder /build/frontend/out ./frontend/out
+
 # Build the sensor binary in release mode
 RUN cargo build --release --package oisp-sensor
 
 # =============================================================================
-# Stage 3: Runtime - Minimal production image
+# Stage 4: Runtime - Minimal production image
 # =============================================================================
 # Use trixie (Debian 13) to match the glibc version from rust:latest
 FROM debian:trixie-slim AS runtime
