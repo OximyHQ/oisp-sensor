@@ -1,7 +1,5 @@
 //! SSL/TLS capture via eBPF uprobes
 
-#![cfg(target_os = "linux")]
-
 use std::path::Path;
 
 /// Common SSL library paths

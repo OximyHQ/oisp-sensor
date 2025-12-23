@@ -1,7 +1,5 @@
 //! File capture via eBPF
 
-#![cfg(target_os = "linux")]
-
 /// Tracepoints for file events
 pub static FILE_TRACEPOINTS: &[(&str, &str)] = &[
     ("syscalls", "sys_enter_openat"),

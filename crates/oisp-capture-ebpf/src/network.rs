@@ -1,7 +1,5 @@
 //! Network capture via eBPF
 
-#![cfg(target_os = "linux")]
-
 /// Tracepoints for network events
 pub static NETWORK_TRACEPOINTS: &[(&str, &str)] = &[
     ("syscalls", "sys_enter_connect"),

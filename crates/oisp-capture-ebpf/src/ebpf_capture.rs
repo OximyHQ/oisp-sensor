@@ -1,7 +1,5 @@
 //! Main eBPF capture implementation
 
-#![cfg(target_os = "linux")]
-
 use crate::ssl::find_ssl_libraries;
 use crate::types::{
     FileOpenEvent, NetworkConnectEvent, ProcessExecEvent, ProcessExitEvent, SslEvent, SslEventType,
@@ -615,8 +613,18 @@ impl CapturePlugin for EbpfCapture {
             // and create ring buffers inside the task
             let mut ebpf = ebpf;
 
-            // Get SSL ring buffer map (inside the spawned task to avoid lifetime issues)
-            let ssl_ring_buf = match ebpf.map_mut("SSL_EVENTS") {
+            // Take ownership of maps to avoid multiple mutable borrows
+            // We use take() to extract the map from ebpf, then convert to RingBuf
+            let ssl_map = ebpf.take_map("SSL_EVENTS");
+            let network_map = ebpf.take_map("NETWORK_EVENTS");
+            let process_map = ebpf.take_map("PROCESS_EVENTS");
+            let file_map = ebpf.take_map("FILE_EVENTS");
+
+            // Keep ebpf alive for the duration of the task (programs are attached)
+            let _ebpf = ebpf;
+
+            // Get SSL ring buffer map (required)
+            let mut ssl_ring_buf = match ssl_map {
                 Some(map) => match RingBuf::try_from(map) {
                     Ok(rb) => rb,
                     Err(e) => {
@@ -629,10 +637,9 @@ impl CapturePlugin for EbpfCapture {
                     return;
                 }
             };
-            let mut ssl_ring_buf = ssl_ring_buf;
 
             // Get Network ring buffer map (optional - may not exist in older eBPF programs)
-            let network_ring_buf = match ebpf.map_mut("NETWORK_EVENTS") {
+            let mut network_ring_buf = match network_map {
                 Some(map) => match RingBuf::try_from(map) {
                     Ok(rb) => {
                         info!("NETWORK_EVENTS ring buffer initialized");
@@ -648,10 +655,9 @@ impl CapturePlugin for EbpfCapture {
                     None
                 }
             };
-            let mut network_ring_buf = network_ring_buf;
 
             // Get Process ring buffer map (optional)
-            let process_ring_buf = match ebpf.map_mut("PROCESS_EVENTS") {
+            let mut process_ring_buf = match process_map {
                 Some(map) => match RingBuf::try_from(map) {
                     Ok(rb) => {
                         info!("PROCESS_EVENTS ring buffer initialized");
@@ -667,10 +673,9 @@ impl CapturePlugin for EbpfCapture {
                     None
                 }
             };
-            let mut process_ring_buf = process_ring_buf;
 
             // Get File ring buffer map (optional)
-            let file_ring_buf = match ebpf.map_mut("FILE_EVENTS") {
+            let mut file_ring_buf = match file_map {
                 Some(map) => match RingBuf::try_from(map) {
                     Ok(rb) => {
                         info!("FILE_EVENTS ring buffer initialized");
@@ -686,7 +691,6 @@ impl CapturePlugin for EbpfCapture {
                     None
                 }
             };
-            let mut file_ring_buf = file_ring_buf;
 
             while running.load(Ordering::SeqCst) {
                 // Poll SSL ring buffer (non-blocking)

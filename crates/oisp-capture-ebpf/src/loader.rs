@@ -1,7 +1,5 @@
 //! eBPF program loader
 
-#![cfg(target_os = "linux")]
-
 use std::path::Path;
 use tracing::warn;
 
