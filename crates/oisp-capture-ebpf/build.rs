@@ -48,8 +48,8 @@ fn embed_sslsniff() -> Result<(), String> {
     }
 
     // Look for sslsniff in common build locations
-    let manifest_dir = env::var("CARGO_MANIFEST_DIR")
-        .map_err(|e| format!("CARGO_MANIFEST_DIR not set: {}", e))?;
+    let manifest_dir =
+        env::var("CARGO_MANIFEST_DIR").map_err(|e| format!("CARGO_MANIFEST_DIR not set: {}", e))?;
     let manifest_path = PathBuf::from(&manifest_dir);
     let workspace_root = manifest_path
         .parent() // crates/

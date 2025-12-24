@@ -112,4 +112,3 @@ impl ActionPlugin for RedactionPlugin {
         event.is_ai_event()
     }
 }
-

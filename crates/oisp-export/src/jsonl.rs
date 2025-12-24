@@ -65,7 +65,10 @@ impl JsonlExporter {
                 Some(Mutex::new(BufWriter::new(file)))
             }
             Err(e) => {
-                warn!("Failed to create JSONL output file {:?}: {}", config.path, e);
+                warn!(
+                    "Failed to create JSONL output file {:?}: {}",
+                    config.path, e
+                );
                 None
             }
         };

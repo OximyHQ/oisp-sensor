@@ -25,7 +25,7 @@ const EMBEDDED_SSLSNIFF: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/sslsn
 const EMBEDDED_SSLSNIFF: &[u8] = &[];
 
 /// Configuration for sslsniff runner
-/// 
+///
 /// Compatible with the old EbpfCaptureConfig for easy migration
 #[derive(Debug, Clone, Default)]
 pub struct SslsniffConfig {
@@ -92,7 +92,10 @@ impl SslsniffCapture {
                 return Ok(path);
             }
             // Not an error - fall through to other methods
-            debug!("Configured path not found: {}, trying other locations", path_str);
+            debug!(
+                "Configured path not found: {}, trying other locations",
+                path_str
+            );
         }
 
         // Check if sslsniff is in PATH
@@ -107,11 +110,7 @@ impl SslsniffCapture {
         }
 
         // Check common locations
-        for path in &[
-            "/usr/local/bin/sslsniff",
-            "/usr/bin/sslsniff",
-            "./sslsniff",
-        ] {
+        for path in &["/usr/local/bin/sslsniff", "/usr/bin/sslsniff", "./sslsniff"] {
             let p = PathBuf::from(path);
             if p.exists() {
                 info!("Found sslsniff at: {}", path);
@@ -129,7 +128,7 @@ impl SslsniffCapture {
         }
 
         let extract_path = std::env::temp_dir().join("oisp-sslsniff");
-        
+
         // Check if already extracted and has correct size
         if extract_path.exists() {
             if let Ok(meta) = std::fs::metadata(&extract_path) {
@@ -142,7 +141,10 @@ impl SslsniffCapture {
         }
 
         // Extract the binary
-        info!("Extracting embedded sslsniff ({} bytes)...", EMBEDDED_SSLSNIFF.len());
+        info!(
+            "Extracting embedded sslsniff ({} bytes)...",
+            EMBEDDED_SSLSNIFF.len()
+        );
         std::fs::write(&extract_path, EMBEDDED_SSLSNIFF).map_err(|e| {
             PluginError::InitializationFailed(format!("Failed to extract sslsniff: {}", e))
         })?;
@@ -152,7 +154,9 @@ impl SslsniffCapture {
         {
             use std::os::unix::fs::PermissionsExt;
             let mut perms = std::fs::metadata(&extract_path)
-                .map_err(|e| PluginError::InitializationFailed(format!("Failed to get metadata: {}", e)))?
+                .map_err(|e| {
+                    PluginError::InitializationFailed(format!("Failed to get metadata: {}", e))
+                })?
                 .permissions();
             perms.set_mode(0o755);
             std::fs::set_permissions(&extract_path, perms).map_err(|e| {
@@ -210,7 +214,7 @@ impl SslsniffCapture {
     /// Parse a JSON line from sslsniff into a RawCaptureEvent
     fn parse_sslsniff_event(json_line: &str) -> Option<RawCaptureEvent> {
         use oisp_core::plugins::{RawEventKind, RawEventMetadata};
-        
+
         let value: serde_json::Value = serde_json::from_str(json_line).ok()?;
 
         let function = value.get("function")?.as_str()?;
@@ -225,7 +229,7 @@ impl SslsniffCapture {
         let tid = value.get("tid").and_then(|t| t.as_u64()).map(|t| t as u32);
         let comm = value.get("comm")?.as_str()?.to_string();
         let data_str = value.get("data").and_then(|d| d.as_str()).unwrap_or("");
-        
+
         // CRITICAL: sslsniff encodes binary data as JSON string with escape sequences.
         // When serde_json decodes e.g. \u008b, it becomes Unicode codepoint U+008B.
         // But .as_bytes() would UTF-8 encode it as [0xC2, 0x8B] (2 bytes!), corrupting the data.
@@ -312,8 +316,7 @@ impl CapturePlugin for SslsniffCapture {
         // Note: stderr goes to /dev/null to prevent buffer blocking
         // sslsniff outputs JSON events to stdout only
         let mut cmd = Command::new(&sslsniff_path);
-        cmd.stdout(Stdio::piped())
-            .stderr(Stdio::null());
+        cmd.stdout(Stdio::piped()).stderr(Stdio::null());
 
         // Add PID filter if specified
         if let Some(pid) = self.config.pid_filter {
@@ -362,7 +365,9 @@ impl CapturePlugin for SslsniffCapture {
                         match Self::parse_sslsniff_event(&line) {
                             Some(event) => {
                                 stats.events_captured.fetch_add(1, Ordering::Relaxed);
-                                stats.bytes_captured.fetch_add(event.data.len() as u64, Ordering::Relaxed);
+                                stats
+                                    .bytes_captured
+                                    .fetch_add(event.data.len() as u64, Ordering::Relaxed);
 
                                 // Send to pipeline (blocking)
                                 if tx.blocking_send(event).is_err() {
@@ -427,4 +432,3 @@ impl CapturePlugin for SslsniffCapture {
         }
     }
 }
-

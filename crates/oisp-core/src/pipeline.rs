@@ -1,6 +1,6 @@
 //! Event pipeline - orchestrates the flow from capture to export
 
-use crate::events::{OispEvent, EventEnvelope};
+use crate::events::{EventEnvelope, OispEvent};
 use crate::plugins::{
     ActionPlugin, CapturePlugin, DecodePlugin, EnrichPlugin, EventAction, ExportPlugin,
     PluginError, PluginResult, RawCaptureEvent,
@@ -183,9 +183,9 @@ impl Pipeline {
                 tokio::select! {
                     Some(raw_event) = raw_rx.recv() => {
                         // Debug log for raw event reception
-                        info!("Received raw event: id={}, kind={:?}, size={} bytes", 
+                        info!("Received raw event: id={}, kind={:?}, size={} bytes",
                             raw_event.id, raw_event.kind, raw_event.data.len());
-                        
+
                         // Process the raw event through the pipeline
                         if let Err(e) = Self::process_raw_event(
                             raw_event,
@@ -272,7 +272,7 @@ impl Pipeline {
             tid: raw.tid,
             ..Default::default()
         });
-        
+
         let raw_oisp_event = OispEvent::CaptureRaw(crate::events::CaptureRawEvent {
             envelope: raw_envelope,
             data: crate::events::CaptureRawData {
@@ -284,9 +284,9 @@ impl Pipeline {
                 comm: raw.metadata.comm.clone(),
             },
         });
-        
+
         let raw_arc = Arc::new(raw_oisp_event);
-        
+
         // Broadcast and export raw event
         let _ = event_broadcast.send(raw_arc.clone());
         for exporter in export_plugins {

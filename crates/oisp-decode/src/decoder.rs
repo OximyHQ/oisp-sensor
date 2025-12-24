@@ -85,18 +85,26 @@ impl ResponseReassembler {
     }
 
     fn decompress_if_needed(&mut self) {
-        info!("decompress_if_needed: is_gzipped={}, is_chunked={}, body_buffer_len={}", 
-            self.headers.is_gzipped, self.headers.is_chunked, self.body_buffer.len());
-        
+        info!(
+            "decompress_if_needed: is_gzipped={}, is_chunked={}, body_buffer_len={}",
+            self.headers.is_gzipped,
+            self.headers.is_chunked,
+            self.body_buffer.len()
+        );
+
         if self.headers.is_gzipped {
             use flate2::read::GzDecoder;
             use std::io::Read;
-            
+
             // For chunked encoding, we need to extract the actual data from the chunks first.
             // Our self.body_buffer contains the RAW chunked stream.
             let raw_data = if self.headers.is_chunked {
                 if let Some(decoded) = crate::http::decode_chunked_body(&self.body_buffer) {
-                    info!("Chunked decode succeeded: {} -> {} bytes", self.body_buffer.len(), decoded.len());
+                    info!(
+                        "Chunked decode succeeded: {} -> {} bytes",
+                        self.body_buffer.len(),
+                        decoded.len()
+                    );
                     decoded
                 } else {
                     info!("Chunked decode FAILED, using raw buffer");
@@ -106,14 +114,21 @@ impl ResponseReassembler {
                 self.body_buffer.clone()
             };
 
-            info!("Attempting gzip decompress of {} bytes, first 20: {:?}", 
-                raw_data.len(), &raw_data[..std::cmp::min(20, raw_data.len())]);
-            
+            info!(
+                "Attempting gzip decompress of {} bytes, first 20: {:?}",
+                raw_data.len(),
+                &raw_data[..std::cmp::min(20, raw_data.len())]
+            );
+
             let mut decoder = GzDecoder::new(&raw_data[..]);
             let mut decompressed = Vec::new();
             match decoder.read_to_end(&mut decompressed) {
                 Ok(_) => {
-                    info!("Gzip decompress succeeded: {} -> {} bytes", raw_data.len(), decompressed.len());
+                    info!(
+                        "Gzip decompress succeeded: {} -> {} bytes",
+                        raw_data.len(),
+                        decompressed.len()
+                    );
                     self.body_buffer = decompressed;
                 }
                 Err(e) => {
@@ -127,10 +142,14 @@ impl ResponseReassembler {
                 self.body_buffer = decoded;
             }
         }
-        
-        info!("After decompress: body_buffer_len={}, preview: {:?}", 
-            self.body_buffer.len(), 
-            String::from_utf8_lossy(&self.body_buffer[..std::cmp::min(100, self.body_buffer.len())]));
+
+        info!(
+            "After decompress: body_buffer_len={}, preview: {:?}",
+            self.body_buffer.len(),
+            String::from_utf8_lossy(
+                &self.body_buffer[..std::cmp::min(100, self.body_buffer.len())]
+            )
+        );
     }
 }
 
@@ -345,7 +364,10 @@ impl HttpDecoder {
         };
 
         if !reassembler.is_complete() {
-            debug!("HTTP request not yet complete, buffering (current size: {} bytes)", reassembler.buffer.len());
+            debug!(
+                "HTTP request not yet complete, buffering (current size: {} bytes)",
+                reassembler.buffer.len()
+            );
             return Ok(events);
         }
 
@@ -487,13 +509,19 @@ impl HttpDecoder {
 
         // 2. If we have a reassembler, check if it's complete
         if let Some(mut reassembler) = reassembler_opt {
-            info!("Response reassembler: body_buffer_len={}, is_complete={}", 
-                reassembler.body_buffer.len(), reassembler.is_complete());
-            
+            info!(
+                "Response reassembler: body_buffer_len={}, is_complete={}",
+                reassembler.body_buffer.len(),
+                reassembler.is_complete()
+            );
+
             if reassembler.is_complete() {
-                info!("Response COMPLETE for pid={}, buffer ends with: {:?}", 
-                    key.pid, &reassembler.body_buffer[reassembler.body_buffer.len().saturating_sub(10)..]);
-                
+                info!(
+                    "Response COMPLETE for pid={}, buffer ends with: {:?}",
+                    key.pid,
+                    &reassembler.body_buffer[reassembler.body_buffer.len().saturating_sub(10)..]
+                );
+
                 // Remove from partials
                 self.partial_responses.write().unwrap().remove(&key);
 
@@ -507,10 +535,13 @@ impl HttpDecoder {
                 };
 
                 if let Some(pending_req) = pending_opt {
-                    info!("Found pending request for response: request_id={}", pending_req.request_id);
+                    info!(
+                        "Found pending request for response: request_id={}",
+                        pending_req.request_id
+                    );
                     // Decompress body if needed
                     reassembler.decompress_if_needed();
-                    
+
                     // Update headers with full body
                     let mut full_resp = reassembler.headers;
                     full_resp.body = Some(reassembler.body_buffer);
@@ -524,7 +555,13 @@ impl HttpDecoder {
                             &mut events,
                         );
                     } else {
-                        self.handle_complete_response(&key, &pending_req, &full_resp, raw, &mut events);
+                        self.handle_complete_response(
+                            &key,
+                            &pending_req,
+                            &full_resp,
+                            raw,
+                            &mut events,
+                        );
                     }
                 }
             }
@@ -797,9 +834,12 @@ impl HttpDecoder {
         raw: &RawCaptureEvent,
         events: &mut Vec<OispEvent>,
     ) {
-        info!("handle_complete_response: status={}, body_len={:?}", 
-            http_resp.status_code, http_resp.body.as_ref().map(|b| b.len()));
-        
+        info!(
+            "handle_complete_response: status={}, body_len={:?}",
+            http_resp.status_code,
+            http_resp.body.as_ref().map(|b| b.len())
+        );
+
         let body = match &http_resp.body {
             Some(b) => b,
             None => {
@@ -812,11 +852,14 @@ impl HttpDecoder {
             Ok(j) => j,
             Err(e) => {
                 info!("handle_complete_response: JSON parse FAILED: {}", e);
-                info!("Body preview: {:?}", String::from_utf8_lossy(&body[..std::cmp::min(body.len(), 200)]));
+                info!(
+                    "Body preview: {:?}",
+                    String::from_utf8_lossy(&body[..std::cmp::min(body.len(), 200)])
+                );
                 return;
             }
         };
-        
+
         info!("handle_complete_response: JSON parsed successfully");
 
         // Detect provider from body or use the one from request

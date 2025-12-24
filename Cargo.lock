@@ -1484,6 +1484,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "chrono",
+ "flate2",
  "hex",
  "http",
  "httparse",

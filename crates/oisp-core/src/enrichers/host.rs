@@ -152,4 +152,3 @@ impl EnrichPlugin for HostEnricher {
         Ok(())
     }
 }
-
