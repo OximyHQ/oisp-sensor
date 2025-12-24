@@ -21,7 +21,7 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::sync::RwLock;
 use std::time::{Duration, Instant};
-use tracing::{debug, trace, warn};
+use tracing::{debug, info, trace, warn};
 
 /// Maximum time to keep a pending request before discarding
 const PENDING_REQUEST_TIMEOUT: Duration = Duration::from_secs(300); // 5 minutes
@@ -32,6 +32,10 @@ const MAX_PENDING_REQUESTS: usize = 10000;
 /// HTTP decoder plugin
 pub struct HttpDecoder {
     provider_registry: ProviderRegistry,
+    // Track partial requests being reassembled
+    partial_requests: RwLock<HashMap<CorrelationKey, RequestReassembler>>,
+    // Track partial responses being reassembled
+    partial_responses: RwLock<HashMap<CorrelationKey, ResponseReassembler>>,
     // Track pending requests for correlation
     pending_requests: RwLock<HashMap<CorrelationKey, PendingRequest>>,
     // Track streaming responses (OpenAI style)
@@ -40,6 +44,151 @@ pub struct HttpDecoder {
     anthropic_reassemblers: RwLock<HashMap<CorrelationKey, AnthropicStreamReassembler>>,
     // Last cleanup time
     last_cleanup: RwLock<Instant>,
+}
+
+#[derive(Clone)]
+struct ResponseReassembler {
+    headers: crate::http::ParsedHttpResponse,
+    body_buffer: Vec<u8>,
+    created_at: Instant,
+}
+
+impl ResponseReassembler {
+    fn new(headers: crate::http::ParsedHttpResponse) -> Self {
+        let body_initial = headers.body.clone().unwrap_or_default();
+        Self {
+            headers,
+            body_buffer: body_initial,
+            created_at: Instant::now(),
+        }
+    }
+
+    fn feed(&mut self, data: &[u8]) {
+        self.body_buffer.extend_from_slice(data);
+    }
+
+    fn is_complete(&self) -> bool {
+        if self.headers.is_chunked {
+            // Check for the terminal chunk: "0\r\n\r\n"
+            let len = self.body_buffer.len();
+            if len >= 5 {
+                &self.body_buffer[len - 5..] == b"0\r\n\r\n"
+            } else {
+                false
+            }
+        } else if let Some(content_len) = self.headers.content_length {
+            self.body_buffer.len() >= content_len
+        } else {
+            // No length info and not chunked - usually means end of stream
+            true
+        }
+    }
+
+    fn decompress_if_needed(&mut self) {
+        info!("decompress_if_needed: is_gzipped={}, is_chunked={}, body_buffer_len={}", 
+            self.headers.is_gzipped, self.headers.is_chunked, self.body_buffer.len());
+        
+        if self.headers.is_gzipped {
+            use flate2::read::GzDecoder;
+            use std::io::Read;
+            
+            // For chunked encoding, we need to extract the actual data from the chunks first.
+            // Our self.body_buffer contains the RAW chunked stream.
+            let raw_data = if self.headers.is_chunked {
+                if let Some(decoded) = crate::http::decode_chunked_body(&self.body_buffer) {
+                    info!("Chunked decode succeeded: {} -> {} bytes", self.body_buffer.len(), decoded.len());
+                    decoded
+                } else {
+                    info!("Chunked decode FAILED, using raw buffer");
+                    self.body_buffer.clone()
+                }
+            } else {
+                self.body_buffer.clone()
+            };
+
+            info!("Attempting gzip decompress of {} bytes, first 20: {:?}", 
+                raw_data.len(), &raw_data[..std::cmp::min(20, raw_data.len())]);
+            
+            let mut decoder = GzDecoder::new(&raw_data[..]);
+            let mut decompressed = Vec::new();
+            match decoder.read_to_end(&mut decompressed) {
+                Ok(_) => {
+                    info!("Gzip decompress succeeded: {} -> {} bytes", raw_data.len(), decompressed.len());
+                    self.body_buffer = decompressed;
+                }
+                Err(e) => {
+                    info!("Gzip decompress FAILED: {}", e);
+                    self.body_buffer = raw_data;
+                }
+            }
+        } else if self.headers.is_chunked {
+            // Not gzipped, but still chunked - need to decode chunks
+            if let Some(decoded) = crate::http::decode_chunked_body(&self.body_buffer) {
+                self.body_buffer = decoded;
+            }
+        }
+        
+        info!("After decompress: body_buffer_len={}, preview: {:?}", 
+            self.body_buffer.len(), 
+            String::from_utf8_lossy(&self.body_buffer[..std::cmp::min(100, self.body_buffer.len())]));
+    }
+}
+
+#[derive(Clone)]
+struct RequestReassembler {
+    buffer: Vec<u8>,
+    expected_body_len: Option<usize>,
+    header_len: Option<usize>,
+    created_at: Instant,
+}
+
+impl RequestReassembler {
+    fn new(data: &[u8]) -> Self {
+        let mut reassembler = Self {
+            buffer: data.to_vec(),
+            expected_body_len: None,
+            header_len: None,
+            created_at: Instant::now(),
+        };
+        reassembler.try_parse_headers();
+        reassembler
+    }
+
+    fn try_parse_headers(&mut self) {
+        let mut headers = [httparse::EMPTY_HEADER; 64];
+        let mut req = httparse::Request::new(&mut headers);
+        if let Ok(httparse::Status::Complete(header_len)) = req.parse(&self.buffer) {
+            self.header_len = Some(header_len);
+            for header in req.headers.iter() {
+                if header.name.to_lowercase() == "content-length" {
+                    if let Ok(val_str) = std::str::from_utf8(header.value) {
+                        if let Ok(len) = val_str.trim().parse::<usize>() {
+                            self.expected_body_len = Some(len);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn feed(&mut self, data: &[u8]) {
+        self.buffer.extend_from_slice(data);
+        if self.header_len.is_none() {
+            self.try_parse_headers();
+        }
+    }
+
+    fn is_complete(&self) -> bool {
+        match (self.header_len, self.expected_body_len) {
+            (Some(h_len), Some(b_len)) => self.buffer.len() >= h_len + b_len,
+            (Some(h_len), None) => {
+                // If no content-length, assume complete if headers end with \r\n\r\n
+                // (Though for POST this usually means no body)
+                self.buffer.len() >= h_len
+            }
+            _ => false,
+        }
+    }
 }
 
 /// Key for correlating requests and responses
@@ -88,6 +237,8 @@ impl HttpDecoder {
     pub fn new() -> Self {
         Self {
             provider_registry: ProviderRegistry::new(),
+            partial_requests: RwLock::new(HashMap::new()),
+            partial_responses: RwLock::new(HashMap::new()),
             pending_requests: RwLock::new(HashMap::new()),
             stream_reassemblers: RwLock::new(HashMap::new()),
             anthropic_reassemblers: RwLock::new(HashMap::new()),
@@ -110,6 +261,18 @@ impl HttpDecoder {
 
     fn cleanup_stale_requests(&self) {
         let now = Instant::now();
+
+        // Cleanup partial requests
+        {
+            let mut partial = self.partial_requests.write().unwrap();
+            partial.retain(|_, req| now.duration_since(req.created_at) < PENDING_REQUEST_TIMEOUT);
+        }
+
+        // Cleanup partial responses
+        {
+            let mut partial = self.partial_responses.write().unwrap();
+            partial.retain(|_, resp| now.duration_since(resp.created_at) < PENDING_REQUEST_TIMEOUT);
+        }
 
         // Cleanup pending requests
         {
@@ -150,16 +313,49 @@ impl HttpDecoder {
         self.maybe_cleanup();
         let mut events = Vec::new();
 
-        // Try to parse as HTTP request
-        if !is_http_request(&raw.data) {
-            trace!("SSL write is not HTTP request, skipping");
+        let key = CorrelationKey::from_event(raw);
+
+        // Check if we have an existing partial request for this connection
+        let is_new_request = is_http_request(&raw.data);
+        let reassembler_opt = {
+            let mut partial = self.partial_requests.write().unwrap();
+            if is_new_request {
+                // New request starting - replace any old one for this key
+                let reassembler = RequestReassembler::new(&raw.data);
+                partial.insert(key.clone(), reassembler);
+                partial.get(&key).cloned()
+            } else {
+                // Not a new request, see if it's a continuation of a partial one
+                if let Some(reassembler) = partial.get_mut(&key) {
+                    reassembler.feed(&raw.data);
+                    Some(reassembler.clone())
+                } else {
+                    None
+                }
+            }
+        };
+
+        let reassembler = match reassembler_opt {
+            Some(r) => r,
+            None => {
+                info!("SSL write is not HTTP request and no partial request found, skipping (data starts with: {:?})", 
+                    String::from_utf8_lossy(&raw.data[..std::cmp::min(raw.data.len(), 20)]));
+                return Ok(events);
+            }
+        };
+
+        if !reassembler.is_complete() {
+            debug!("HTTP request not yet complete, buffering (current size: {} bytes)", reassembler.buffer.len());
             return Ok(events);
         }
 
-        let http_req = match parse_request(&raw.data) {
+        // Request is complete! Remove from partials and proceed to decode
+        self.partial_requests.write().unwrap().remove(&key);
+
+        let http_req = match parse_request(&reassembler.buffer) {
             Some(req) => req,
             None => {
-                trace!("Failed to parse HTTP request");
+                info!("Failed to parse reassembled HTTP request");
                 return Ok(events);
             }
         };
@@ -169,7 +365,7 @@ impl HttpDecoder {
         let provider = match self.provider_registry.detect_from_domain(domain) {
             Some(p) => p,
             None => {
-                trace!("Domain {} is not a known AI provider", domain);
+                info!("Domain {} is not a known AI provider", domain);
                 return Ok(events);
             }
         };
@@ -218,7 +414,6 @@ impl HttpDecoder {
         let is_streaming = request_data.streaming.unwrap_or(false);
 
         // Store for response correlation
-        let key = CorrelationKey::from_event(raw);
         {
             let mut pending = self.pending_requests.write().unwrap();
 
@@ -270,7 +465,73 @@ impl HttpDecoder {
 
         let key = CorrelationKey::from_event(raw);
 
-        // Try to find a pending request (exact match first, then fallback)
+        // 1. Check for existing partial response
+        let is_new_response = is_http_response(&raw.data);
+        let reassembler_opt: Option<ResponseReassembler> = {
+            let mut partials = self.partial_responses.write().unwrap();
+            if is_new_response {
+                if let Some(http_resp) = parse_response(&raw.data) {
+                    let reassembler = ResponseReassembler::new(http_resp);
+                    partials.insert(key.clone(), reassembler);
+                    partials.get(&key).cloned()
+                } else {
+                    None
+                }
+            } else if let Some(reassembler) = partials.get_mut(&key) {
+                reassembler.feed(&raw.data);
+                Some(reassembler.clone())
+            } else {
+                None
+            }
+        };
+
+        // 2. If we have a reassembler, check if it's complete
+        if let Some(mut reassembler) = reassembler_opt {
+            info!("Response reassembler: body_buffer_len={}, is_complete={}", 
+                reassembler.body_buffer.len(), reassembler.is_complete());
+            
+            if reassembler.is_complete() {
+                info!("Response COMPLETE for pid={}, buffer ends with: {:?}", 
+                    key.pid, &reassembler.body_buffer[reassembler.body_buffer.len().saturating_sub(10)..]);
+                
+                // Remove from partials
+                self.partial_responses.write().unwrap().remove(&key);
+
+                // Find the matching pending request
+                let pending_opt = {
+                    let pending = self.pending_requests.read().unwrap();
+                    pending
+                        .get(&key)
+                        .cloned()
+                        .or_else(|| pending.get(&key.without_tid()).cloned())
+                };
+
+                if let Some(pending_req) = pending_opt {
+                    info!("Found pending request for response: request_id={}", pending_req.request_id);
+                    // Decompress body if needed
+                    reassembler.decompress_if_needed();
+                    
+                    // Update headers with full body
+                    let mut full_resp = reassembler.headers;
+                    full_resp.body = Some(reassembler.body_buffer);
+
+                    if full_resp.is_streaming || pending_req.is_streaming {
+                        self.handle_streaming_response(
+                            &key,
+                            &pending_req,
+                            &full_resp.body,
+                            raw,
+                            &mut events,
+                        );
+                    } else {
+                        self.handle_complete_response(&key, &pending_req, &full_resp, raw, &mut events);
+                    }
+                }
+            }
+            return Ok(events);
+        }
+
+        // 3. Fallback for unexpected data or AI-specific streaming
         let pending_opt = {
             let pending = self.pending_requests.read().unwrap();
             pending
@@ -279,36 +540,10 @@ impl HttpDecoder {
                 .or_else(|| pending.get(&key.without_tid()).cloned())
         };
 
-        let pending_req = match pending_opt {
-            Some(p) => p,
-            None => {
-                // No pending request - might be a response for a request we didn't capture
-                trace!("No pending request found for correlation key {:?}", key);
-                return Ok(events);
+        if let Some(pending_req) = pending_opt {
+            if pending_req.is_streaming {
+                self.handle_streaming_chunk(&key, &pending_req, &raw.data, raw, &mut events);
             }
-        };
-
-        // Check if this is HTTP response or streaming data
-        if is_http_response(&raw.data) {
-            if let Some(http_resp) = parse_response(&raw.data) {
-                if http_resp.is_streaming || pending_req.is_streaming {
-                    // Handle streaming response
-                    self.handle_streaming_response(
-                        &key,
-                        &pending_req,
-                        &http_resp.body,
-                        raw,
-                        &mut events,
-                    );
-                } else {
-                    // Non-streaming response - parse immediately
-                    self.handle_complete_response(&key, &pending_req, &http_resp, raw, &mut events);
-                }
-            }
-        } else if pending_req.is_streaming {
-            // Not HTTP response header, but we're expecting streaming data
-            // Feed the raw data directly to the reassembler
-            self.handle_streaming_chunk(&key, &pending_req, &raw.data, raw, &mut events);
         }
 
         Ok(events)
@@ -562,18 +797,27 @@ impl HttpDecoder {
         raw: &RawCaptureEvent,
         events: &mut Vec<OispEvent>,
     ) {
+        info!("handle_complete_response: status={}, body_len={:?}", 
+            http_resp.status_code, http_resp.body.as_ref().map(|b| b.len()));
+        
         let body = match &http_resp.body {
             Some(b) => b,
-            None => return,
+            None => {
+                info!("handle_complete_response: No body, returning");
+                return;
+            }
         };
 
         let json: serde_json::Value = match serde_json::from_slice(body) {
             Ok(j) => j,
             Err(e) => {
-                trace!("Failed to parse response body as JSON: {}", e);
+                info!("handle_complete_response: JSON parse FAILED: {}", e);
+                info!("Body preview: {:?}", String::from_utf8_lossy(&body[..std::cmp::min(body.len(), 200)]));
                 return;
             }
         };
+        
+        info!("handle_complete_response: JSON parsed successfully");
 
         // Detect provider from body or use the one from request
         let provider = detect_provider_from_body(&json).unwrap_or(pending_req.provider);
@@ -669,7 +913,7 @@ impl HttpDecoder {
 
     fn create_envelope(&self, raw: &RawCaptureEvent, event_type: &str) -> EventEnvelope {
         let mut envelope = EventEnvelope::new(event_type);
-        envelope.ts = chrono::DateTime::from_timestamp_nanos(raw.timestamp_ns as i64);
+        envelope.ts = chrono::Utc::now();
         envelope.ts_mono = Some(raw.timestamp_ns);
 
         envelope.process = Some(ProcessInfo {

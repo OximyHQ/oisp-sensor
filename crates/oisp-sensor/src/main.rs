@@ -7,12 +7,12 @@ use oisp_capture::{TestGenerator, TestGeneratorConfig};
 #[cfg(target_os = "linux")]
 use oisp_capture_ebpf::{EbpfCapture, EbpfCaptureConfig};
 use oisp_core::config::{ConfigLoader, SensorConfig};
+use oisp_core::enrichers::{HostEnricher, ProcessTreeEnricher};
 use oisp_core::pipeline::{Pipeline, PipelineConfig};
+use oisp_core::RedactionPlugin;
 use oisp_decode::{HttpDecoder, SystemDecoder};
-use oisp_enrich::{HostEnricher, ProcessTreeEnricher};
 use oisp_export::jsonl::{JsonlExporter, JsonlExporterConfig};
 use oisp_export::websocket::{WebSocketExporter, WebSocketExporterConfig};
-use oisp_redact::RedactionPlugin;
 use std::path::PathBuf;
 use tracing::{error, info, warn, Level};
 use tracing_subscriber::FmtSubscriber;
@@ -129,6 +129,13 @@ enum Commands {
     /// Show sensor status and capabilities
     Status,
 
+    /// Check system compatibility and requirements
+    Check,
+
+    /// Manage the sensor daemon
+    #[command(subcommand)]
+    Daemon(DaemonCommands),
+
     /// Self-test sensor capabilities
     Test,
 
@@ -161,6 +168,45 @@ enum Commands {
         /// Redaction mode (safe, full, minimal)
         #[arg(long, default_value = "full")]
         redaction: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum DaemonCommands {
+    /// Start the sensor as a background daemon
+    Start {
+        /// Output file for JSONL events
+        #[arg(short, long, default_value = "/var/log/oisp-sensor/events.jsonl")]
+        output: PathBuf,
+
+        /// Disable web UI
+        #[arg(long)]
+        no_web: bool,
+
+        /// Web UI port
+        #[arg(long, default_value = "7777")]
+        port: u16,
+
+        /// Redaction mode (safe, full, minimal)
+        #[arg(long, default_value = "safe")]
+        redaction: String,
+    },
+
+    /// Stop the running daemon
+    Stop,
+
+    /// Show daemon status
+    Status,
+
+    /// Show daemon logs
+    Logs {
+        /// Follow log output (like tail -f)
+        #[arg(short, long)]
+        follow: bool,
+
+        /// Number of lines to show
+        #[arg(short, long, default_value = "50")]
+        num: usize,
     },
 }
 
@@ -246,6 +292,8 @@ async fn main() -> anyhow::Result<()> {
             analysis_type,
         } => analyze_command(&input, &analysis_type).await,
         Commands::Status => status_command().await,
+        Commands::Check => check_command().await,
+        Commands::Daemon(daemon_cmd) => daemon_command(daemon_cmd).await,
         Commands::Test => test_command().await,
         Commands::Demo {
             output,
@@ -849,4 +897,660 @@ async fn test_command() -> anyhow::Result<()> {
     println!("\nAll tests passed!\n");
 
     Ok(())
+}
+
+// =============================================================================
+// Check Command - System Compatibility Validation
+// =============================================================================
+
+/// Common SSL library paths to check on Linux
+#[cfg(target_os = "linux")]
+const SSL_LIBRARY_PATHS: &[&str] = &[
+    // Ubuntu/Debian x86_64
+    "/usr/lib/x86_64-linux-gnu/libssl.so.3",
+    "/usr/lib/x86_64-linux-gnu/libssl.so.1.1",
+    "/usr/lib/x86_64-linux-gnu/libssl.so",
+    // Ubuntu/Debian aarch64
+    "/usr/lib/aarch64-linux-gnu/libssl.so.3",
+    "/usr/lib/aarch64-linux-gnu/libssl.so.1.1",
+    "/usr/lib/aarch64-linux-gnu/libssl.so",
+    // RHEL/CentOS/Fedora
+    "/usr/lib64/libssl.so.3",
+    "/usr/lib64/libssl.so.1.1",
+    "/usr/lib64/libssl.so",
+    // Alpine
+    "/usr/lib/libssl.so.3",
+    "/usr/lib/libssl.so.1.1",
+    // Arch
+    "/usr/lib/libssl.so",
+    // NVM Node.js common paths (statically linked, need binary_paths config)
+    // These are for documentation purposes
+];
+
+/// Common paths where NVM, pyenv, etc. install binaries with bundled SSL
+#[cfg(target_os = "linux")]
+const EDGE_CASE_PATHS: &[(&str, &str)] = &[
+    ("~/.nvm/versions/node/*/bin/node", "NVM Node.js (needs binary_paths config)"),
+    ("~/.pyenv/versions/*/bin/python*", "pyenv Python (may work with system SSL)"),
+    ("~/miniconda3/bin/python", "Miniconda (bundles own OpenSSL)"),
+    ("~/anaconda3/bin/python", "Anaconda (bundles own OpenSSL)"),
+];
+
+async fn check_command() -> anyhow::Result<()> {
+    println!();
+    println!("OISP Sensor System Check");
+    println!("========================");
+    println!();
+
+    #[allow(unused_assignments)]
+    let mut all_ok = true;
+    let mut warnings = Vec::new();
+
+    // Platform info
+    println!(
+        "Platform: {} {} ({})",
+        std::env::consts::OS,
+        std::env::consts::ARCH,
+        if cfg!(target_os = "linux") {
+            "supported"
+        } else {
+            "limited support"
+        }
+    );
+    println!();
+
+    // Linux-specific checks
+    #[cfg(target_os = "linux")]
+    {
+        // Check 1: Kernel version
+        print!("Kernel Version:    ");
+        match check_kernel_version() {
+            Ok((major, minor, patch, release)) => {
+                if major >= 5 {
+                    println!("{}.{}.{} [OK]", major, minor, patch);
+                } else if major == 4 && minor >= 18 {
+                    println!("{}.{}.{} [OK] (minimum supported)", major, minor, patch);
+                } else {
+                    println!("{}.{}.{} [FAIL] (requires >= 4.18)", major, minor, patch);
+                    all_ok = false;
+                }
+                let _ = release; // Used for debug if needed
+            }
+            Err(e) => {
+                println!("Unknown [WARN] ({})", e);
+                warnings.push("Could not determine kernel version".to_string());
+            }
+        }
+
+        // Check 2: BTF availability
+        print!("BTF Support:       ");
+        let btf_path = std::path::Path::new("/sys/kernel/btf/vmlinux");
+        if btf_path.exists() {
+            println!("/sys/kernel/btf/vmlinux [OK]");
+        } else {
+            println!("Not found [WARN]");
+            warnings.push("BTF not found - may need CONFIG_DEBUG_INFO_BTF=y or kernel headers".to_string());
+        }
+
+        // Check 3: eBPF filesystem
+        print!("eBPF Filesystem:   ");
+        let bpf_path = std::path::Path::new("/sys/fs/bpf");
+        if bpf_path.exists() {
+            println!("/sys/fs/bpf [OK]");
+        } else {
+            println!("Not found [FAIL]");
+            all_ok = false;
+        }
+
+        // Check 4: Running as root
+        print!("Running as Root:   ");
+        let uid = unsafe { libc::getuid() };
+        if uid == 0 {
+            println!("Yes [OK]");
+        } else {
+            println!("No (uid={}) [WARN]", uid);
+            warnings.push("Not running as root - SSL capture requires root or CAP_BPF+CAP_PERFMON".to_string());
+        }
+
+        // Check 5: SSL Libraries
+        println!();
+        println!("SSL Libraries:");
+        let mut found_ssl = false;
+        for path in SSL_LIBRARY_PATHS {
+            if std::path::Path::new(path).exists() {
+                println!("  {} [FOUND]", path);
+                found_ssl = true;
+            }
+        }
+        if !found_ssl {
+            println!("  No system SSL libraries found [WARN]");
+            warnings.push("No system OpenSSL found - SSL capture may not work".to_string());
+        }
+
+        // Check 6: Edge cases notice
+        println!();
+        println!("Edge Cases (require binary_paths config):");
+        for (pattern, desc) in EDGE_CASE_PATHS {
+            println!("  {} - {}", pattern, desc);
+        }
+    }
+
+    // Non-Linux platforms
+    #[cfg(not(target_os = "linux"))]
+    {
+        println!("Note: Full SSL capture is only available on Linux.");
+        println!("      This platform has limited functionality.");
+        all_ok = false;
+    }
+
+    // Check spec bundle
+    println!();
+    print!("Spec Bundle:       ");
+    match load_spec_bundle_info() {
+        Ok((version, providers, models)) => {
+            println!("v{} ({} providers, {} models) [OK]", version, providers, models);
+        }
+        Err(e) => {
+            println!("Error loading: {} [WARN]", e);
+            warnings.push("Spec bundle could not be loaded".to_string());
+        }
+    }
+
+    // Check config file
+    println!();
+    print!("Config File:       ");
+    let loader = ConfigLoader::new();
+    if let Some(path) = loader.find_config_file() {
+        println!("{} [FOUND]", path.display());
+    } else {
+        println!("Not found (using defaults) [OK]");
+    }
+
+    // Summary
+    println!();
+    println!("========================");
+    if all_ok && warnings.is_empty() {
+        println!("Result: READY");
+        println!();
+        println!("Run 'sudo oisp-sensor record' to start capturing.");
+    } else if all_ok {
+        println!("Result: READY (with warnings)");
+        println!();
+        println!("Warnings:");
+        for w in &warnings {
+            println!("  - {}", w);
+        }
+        println!();
+        println!("Run 'sudo oisp-sensor record' to start capturing.");
+    } else {
+        println!("Result: NOT READY");
+        println!();
+        println!("Issues:");
+        for w in &warnings {
+            println!("  - {}", w);
+        }
+        println!();
+        println!("Please resolve the above issues before running the sensor.");
+    }
+    println!();
+
+    Ok(())
+}
+
+/// Parse kernel version from /proc/sys/kernel/osrelease
+#[cfg(target_os = "linux")]
+fn check_kernel_version() -> anyhow::Result<(u32, u32, u32, String)> {
+    let release = std::fs::read_to_string("/proc/sys/kernel/osrelease")?;
+    let release = release.trim();
+    
+    // Parse version like "5.15.0-generic" or "6.1.0-18-amd64"
+    let version_part = release.split('-').next().unwrap_or(release);
+    let parts: Vec<&str> = version_part.split('.').collect();
+    
+    let major = parts.first().and_then(|s| s.parse().ok()).unwrap_or(0);
+    let minor = parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(0);
+    let patch = parts.get(2).and_then(|s| s.parse().ok()).unwrap_or(0);
+    
+    Ok((major, minor, patch, release.to_string()))
+}
+
+/// Load spec bundle info for display
+fn load_spec_bundle_info() -> anyhow::Result<(String, usize, usize)> {
+    use oisp_core::spec::OispSpecBundle;
+    
+    let bundle = OispSpecBundle::embedded();
+    let providers = bundle.providers.len();
+    let models = bundle.models.len();
+    
+    Ok((bundle.version, providers, models))
+}
+
+// =============================================================================
+// Daemon Command - Background Service Management
+// =============================================================================
+
+/// PID file location
+const PID_FILE: &str = "/var/run/oisp-sensor.pid";
+
+/// Default log directory
+const LOG_DIR: &str = "/var/log/oisp-sensor";
+
+async fn daemon_command(cmd: DaemonCommands) -> anyhow::Result<()> {
+    match cmd {
+        DaemonCommands::Start { output, no_web, port, redaction } => {
+            daemon_start(output, !no_web, port, redaction).await
+        }
+        DaemonCommands::Stop => daemon_stop().await,
+        DaemonCommands::Status => daemon_status().await,
+        DaemonCommands::Logs { follow, num } => daemon_logs(follow, num).await,
+    }
+}
+
+async fn daemon_start(
+    output: PathBuf,
+    web: bool,
+    port: u16,
+    redaction: String,
+) -> anyhow::Result<()> {
+    // Check if already running
+    if let Some(pid) = read_pid_file() {
+        if is_process_running(pid) {
+            println!("OISP Sensor daemon is already running (PID: {})", pid);
+            println!();
+            println!("Use 'oisp-sensor daemon stop' to stop it first.");
+            return Ok(());
+        } else {
+            // Stale PID file, remove it
+            let _ = std::fs::remove_file(PID_FILE);
+        }
+    }
+
+    // Check if running as root (required for eBPF)
+    #[cfg(target_os = "linux")]
+    {
+        let uid = unsafe { libc::getuid() };
+        if uid != 0 {
+            println!("Error: Daemon mode requires root privileges.");
+            println!();
+            println!("Run: sudo oisp-sensor daemon start");
+            return Ok(());
+        }
+    }
+
+    // Ensure log directory exists
+    std::fs::create_dir_all(LOG_DIR)?;
+    
+    // Ensure output directory exists
+    if let Some(parent) = output.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    println!("Starting OISP Sensor daemon...");
+    println!();
+
+    // Build command for the daemon process
+    let exe = std::env::current_exe()?;
+    let mut args = vec![
+        "record".to_string(),
+        "--output".to_string(),
+        output.to_string_lossy().to_string(),
+        "--redaction".to_string(),
+        redaction,
+    ];
+    
+    if !web {
+        args.push("--web".to_string());
+        args.push("false".to_string());
+    } else {
+        args.push("--port".to_string());
+        args.push(port.to_string());
+    }
+
+    // Fork and exec using systemd if available, otherwise direct fork
+    #[cfg(target_os = "linux")]
+    {
+        // Check if systemd is available and unit is installed
+        if std::path::Path::new("/run/systemd/system").exists() 
+            && std::path::Path::new("/etc/systemd/system/oisp-sensor.service").exists() 
+        {
+            println!("Using systemd to start daemon...");
+            let status = std::process::Command::new("systemctl")
+                .args(["start", "oisp-sensor"])
+                .status()?;
+            
+            if status.success() {
+                println!("Daemon started via systemd.");
+                println!();
+                println!("  Status:  oisp-sensor daemon status");
+                println!("  Logs:    oisp-sensor daemon logs --follow");
+                println!("  Stop:    sudo oisp-sensor daemon stop");
+            } else {
+                println!("Failed to start via systemd. Check: journalctl -u oisp-sensor");
+            }
+            return Ok(());
+        }
+
+        // Direct daemonization using fork
+        println!("Starting daemon directly (systemd not available)...");
+        
+        use std::os::unix::process::CommandExt;
+        
+        // Create a child process that will become the daemon
+        let child = std::process::Command::new(&exe)
+            .args(&args)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .process_group(0) // Create new process group
+            .spawn()?;
+        
+        let pid = child.id();
+        
+        // Write PID file
+        std::fs::write(PID_FILE, pid.to_string())?;
+        
+        println!("Daemon started (PID: {})", pid);
+        println!();
+        println!("  Output:  {}", output.display());
+        if web {
+            println!("  Web UI:  http://127.0.0.1:{}", port);
+        }
+        println!();
+        println!("  Status:  oisp-sensor daemon status");
+        println!("  Logs:    oisp-sensor daemon logs --follow");
+        println!("  Stop:    sudo oisp-sensor daemon stop");
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = (exe, args);
+        println!("Daemon mode is only supported on Linux.");
+        println!();
+        println!("On other platforms, run in the foreground:");
+        println!("  oisp-sensor record --output {}", output.display());
+    }
+
+    Ok(())
+}
+
+async fn daemon_stop() -> anyhow::Result<()> {
+    // Check if systemd is managing the daemon
+    #[cfg(target_os = "linux")]
+    {
+        if std::path::Path::new("/run/systemd/system").exists() 
+            && std::path::Path::new("/etc/systemd/system/oisp-sensor.service").exists() 
+        {
+            // Check if service is active
+            let output = std::process::Command::new("systemctl")
+                .args(["is-active", "oisp-sensor"])
+                .output()?;
+            
+            if output.status.success() {
+                println!("Stopping OISP Sensor daemon via systemd...");
+                let status = std::process::Command::new("systemctl")
+                    .args(["stop", "oisp-sensor"])
+                    .status()?;
+                
+                if status.success() {
+                    println!("Daemon stopped.");
+                } else {
+                    println!("Failed to stop daemon via systemd.");
+                }
+                return Ok(());
+            }
+        }
+    }
+
+    // Check PID file
+    if let Some(pid) = read_pid_file() {
+        if is_process_running(pid) {
+            println!("Stopping OISP Sensor daemon (PID: {})...", pid);
+            
+            #[cfg(target_os = "linux")]
+            {
+                // Send SIGTERM
+                unsafe {
+                    libc::kill(pid as i32, libc::SIGTERM);
+                }
+                
+                // Wait a bit for graceful shutdown
+                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                
+                // Check if still running
+                if is_process_running(pid) {
+                    println!("Process didn't stop, sending SIGKILL...");
+                    unsafe {
+                        libc::kill(pid as i32, libc::SIGKILL);
+                    }
+                }
+            }
+            
+            #[cfg(not(target_os = "linux"))]
+            {
+                println!("Note: Cannot send signals on this platform.");
+                println!("Please stop the process manually (PID: {})", pid);
+            }
+            
+            // Remove PID file
+            let _ = std::fs::remove_file(PID_FILE);
+            println!("Daemon stopped.");
+        } else {
+            println!("Daemon not running (stale PID file removed).");
+            let _ = std::fs::remove_file(PID_FILE);
+        }
+    } else {
+        println!("Daemon not running (no PID file found).");
+    }
+
+    Ok(())
+}
+
+async fn daemon_status() -> anyhow::Result<()> {
+    println!();
+    println!("OISP Sensor Daemon Status");
+    println!("=========================");
+    println!();
+
+    // Check systemd first
+    #[cfg(target_os = "linux")]
+    {
+        if std::path::Path::new("/run/systemd/system").exists() 
+            && std::path::Path::new("/etc/systemd/system/oisp-sensor.service").exists() 
+        {
+            let output = std::process::Command::new("systemctl")
+                .args(["is-active", "oisp-sensor"])
+                .output()?;
+            
+            if output.status.success() {
+                let status = String::from_utf8_lossy(&output.stdout);
+                println!("Status:       {} (systemd managed)", status.trim());
+                
+                // Get more details from systemctl
+                let show_output = std::process::Command::new("systemctl")
+                    .args(["show", "oisp-sensor", "--property=MainPID,ActiveEnterTimestamp"])
+                    .output()?;
+                
+                for line in String::from_utf8_lossy(&show_output.stdout).lines() {
+                    if line.starts_with("MainPID=") {
+                        println!("PID:          {}", line.trim_start_matches("MainPID="));
+                    } else if line.starts_with("ActiveEnterTimestamp=") {
+                        println!("Started:      {}", line.trim_start_matches("ActiveEnterTimestamp="));
+                    }
+                }
+                
+                println!();
+                println!("For detailed logs: journalctl -u oisp-sensor -f");
+                return Ok(());
+            }
+        }
+    }
+
+    // Check PID file
+    if let Some(pid) = read_pid_file() {
+        if is_process_running(pid) {
+            println!("Status:       Running");
+            println!("PID:          {}", pid);
+            
+            // Try to get process start time
+            #[cfg(target_os = "linux")]
+            {
+                if let Ok(stat) = std::fs::read_to_string(format!("/proc/{}/stat", pid)) {
+                    // Parse uptime from stat file
+                    if let Some(start_time) = parse_proc_start_time(&stat) {
+                        println!("Uptime:       {}", format_uptime(start_time));
+                    }
+                }
+            }
+            
+            // Check if log file exists and show event count
+            let log_path = PathBuf::from(LOG_DIR).join("events.jsonl");
+            if log_path.exists() {
+                if let Ok(metadata) = std::fs::metadata(&log_path) {
+                    println!("Output:       {} ({} bytes)", log_path.display(), metadata.len());
+                }
+            }
+        } else {
+            println!("Status:       Not running (stale PID file)");
+            let _ = std::fs::remove_file(PID_FILE);
+        }
+    } else {
+        println!("Status:       Not running");
+    }
+    
+    println!();
+
+    Ok(())
+}
+
+async fn daemon_logs(follow: bool, num: usize) -> anyhow::Result<()> {
+    // Check systemd first
+    #[cfg(target_os = "linux")]
+    {
+        if std::path::Path::new("/run/systemd/system").exists() 
+            && std::path::Path::new("/etc/systemd/system/oisp-sensor.service").exists() 
+        {
+            let num_str = num.to_string();
+            let mut args = vec!["-u", "oisp-sensor", "-n", &num_str];
+            if follow {
+                args.push("-f");
+            }
+            
+            let status = std::process::Command::new("journalctl")
+                .args(&args)
+                .status()?;
+            
+            if !status.success() {
+                println!("Failed to read logs from journalctl.");
+            }
+            return Ok(());
+        }
+    }
+
+    // Fall back to reading events file
+    let log_path = PathBuf::from(LOG_DIR).join("events.jsonl");
+    
+    if !log_path.exists() {
+        println!("No log file found at: {}", log_path.display());
+        return Ok(());
+    }
+
+    if follow {
+        // Tail -f style following
+        println!("Following {}... (Ctrl+C to stop)", log_path.display());
+        println!();
+        
+        use std::io::{BufRead, BufReader, Seek, SeekFrom};
+        
+        let file = std::fs::File::open(&log_path)?;
+        let mut reader = BufReader::new(file);
+        
+        // Seek to end
+        reader.seek(SeekFrom::End(0))?;
+        
+        loop {
+            let mut line = String::new();
+            match reader.read_line(&mut line) {
+                Ok(0) => {
+                    // No new data, wait a bit
+                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                }
+                Ok(_) => {
+                    print!("{}", line);
+                }
+                Err(e) => {
+                    error!("Error reading log: {}", e);
+                    break;
+                }
+            }
+        }
+    } else {
+        // Show last N lines
+        use std::io::{BufRead, BufReader};
+        
+        let file = std::fs::File::open(&log_path)?;
+        let reader = BufReader::new(file);
+        
+        let lines: Vec<String> = reader.lines().map_while(Result::ok).collect();
+        let start = lines.len().saturating_sub(num);
+        
+        for line in &lines[start..] {
+            println!("{}", line);
+        }
+    }
+
+    Ok(())
+}
+
+/// Read PID from PID file
+fn read_pid_file() -> Option<u32> {
+    std::fs::read_to_string(PID_FILE)
+        .ok()
+        .and_then(|s| s.trim().parse().ok())
+}
+
+/// Check if a process with given PID is running
+fn is_process_running(pid: u32) -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        // Check if /proc/{pid} exists (Linux) or use kill(0) signal
+        if std::path::Path::new(&format!("/proc/{}", pid)).exists() {
+            return true;
+        }
+        // Fallback: sending signal 0 checks if process exists
+        unsafe { libc::kill(pid as i32, 0) == 0 }
+    }
+    
+    #[cfg(target_os = "macos")]
+    {
+        // On macOS, check using /proc alternative
+        std::path::Path::new(&format!("/proc/{}", pid)).exists()
+            || std::process::Command::new("ps")
+                .args(["-p", &pid.to_string()])
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false)
+    }
+    
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    {
+        let _ = pid;
+        false
+    }
+}
+
+/// Parse process start time from /proc/{pid}/stat
+#[cfg(target_os = "linux")]
+fn parse_proc_start_time(stat: &str) -> Option<u64> {
+    // Field 22 is starttime (time the process started after system boot)
+    let parts: Vec<&str> = stat.split_whitespace().collect();
+    parts.get(21).and_then(|s| s.parse().ok())
+}
+
+/// Format uptime from jiffies
+#[cfg(target_os = "linux")]
+fn format_uptime(start_jiffies: u64) -> String {
+    // This is a simplified version - proper implementation would read /proc/uptime
+    // and calculate actual uptime from boot time
+    let _ = start_jiffies;
+    "unknown".to_string() // TODO: implement proper uptime calculation
 }

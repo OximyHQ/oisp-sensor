@@ -16,13 +16,45 @@ file = true
 network = true
 
 # Additional binary paths for SSL library detection
+#
+# IMPORTANT: If you use NVM, pyenv, conda, or other version managers,
+# you may need to add the SSL library paths for those installations.
+#
+# Common paths that may need to be added:
+#
+# NVM Node.js (statically linked OpenSSL - needs binary path):
+#   - ~/.nvm/versions/node/v20.10.0/bin/node
+#   - ~/.nvm/versions/node/v18.19.0/bin/node
+#
+# pyenv Python (usually works with system SSL, but check):
+#   - ~/.pyenv/versions/3.11.0/lib/libssl.so
+#
+# Miniconda/Anaconda (bundles own OpenSSL):
+#   - ~/miniconda3/lib/libssl.so.3
+#   - ~/anaconda3/lib/libssl.so.3
+#
+# Homebrew on Linux:
+#   - /home/linuxbrew/.linuxbrew/lib/libssl.so.3
+#
+# Example with NVM paths (uncomment and adjust version):
+# ssl_binary_paths = [
+#     "/home/myuser/.nvm/versions/node/v20.10.0/bin/node",
+#     "/home/myuser/miniconda3/lib/libssl.so.3"
+# ]
 ssl_binary_paths = []
 
 # Process name filter (capture only these processes, empty = all)
+# Examples: ["python", "node", "python3", "cursor"]
 process_filter = []
 
 # PID filter (capture only these PIDs, empty = all)
 pid_filter = []
+
+# Path to eBPF bytecode file (Linux only, auto-detected if not specified)
+# ebpf_path = "/usr/lib/oisp-sensor/ebpf.o"
+
+# Path to libssl.so for SSL interception (auto-detected if not specified)
+# libssl_path = "/usr/lib/x86_64-linux-gnu/libssl.so.3"
 
 # Redaction settings
 [redaction]

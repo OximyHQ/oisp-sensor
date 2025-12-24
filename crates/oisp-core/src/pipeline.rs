@@ -1,6 +1,6 @@
 //! Event pipeline - orchestrates the flow from capture to export
 
-use crate::events::OispEvent;
+use crate::events::{OispEvent, EventEnvelope};
 use crate::plugins::{
     ActionPlugin, CapturePlugin, DecodePlugin, EnrichPlugin, EventAction, ExportPlugin,
     PluginError, PluginResult, RawCaptureEvent,
@@ -182,6 +182,10 @@ impl Pipeline {
             loop {
                 tokio::select! {
                     Some(raw_event) = raw_rx.recv() => {
+                        // Debug log for raw event reception
+                        info!("Received raw event: id={}, kind={:?}, size={} bytes", 
+                            raw_event.id, raw_event.kind, raw_event.data.len());
+                        
                         // Process the raw event through the pipeline
                         if let Err(e) = Self::process_raw_event(
                             raw_event,
@@ -256,6 +260,41 @@ impl Pipeline {
         trace_builder: Option<&Arc<RwLock<TraceBuilder>>>,
         event_broadcast: &broadcast::Sender<Arc<OispEvent>>,
     ) -> PluginResult<()> {
+        // 0. CREATE RAW CAPTURE EVENT (for debugging/visibility)
+        let mut raw_envelope = EventEnvelope::new("capture.raw");
+        raw_envelope.ts = chrono::Utc::now();
+        raw_envelope.ts_mono = Some(raw.timestamp_ns);
+        raw_envelope.process = Some(crate::events::ProcessInfo {
+            pid: raw.pid,
+            ppid: raw.metadata.ppid,
+            exe: raw.metadata.exe.clone(),
+            name: raw.metadata.comm.clone(),
+            tid: raw.tid,
+            ..Default::default()
+        });
+        
+        let raw_oisp_event = OispEvent::CaptureRaw(crate::events::CaptureRawEvent {
+            envelope: raw_envelope,
+            data: crate::events::CaptureRawData {
+                kind: format!("{:?}", raw.kind),
+                data: String::from_utf8_lossy(&raw.data).to_string(),
+                len: raw.data.len(),
+                pid: raw.pid,
+                tid: raw.tid,
+                comm: raw.metadata.comm.clone(),
+            },
+        });
+        
+        let raw_arc = Arc::new(raw_oisp_event);
+        
+        // Broadcast and export raw event
+        let _ = event_broadcast.send(raw_arc.clone());
+        for exporter in export_plugins {
+            if let Err(e) = exporter.export(&raw_arc).await {
+                debug!("Exporter {} failed for raw event: {}", exporter.name(), e);
+            }
+        }
+
         // 1. DECODE: Find a decoder and decode the raw event
         let mut events = Vec::new();
         for decoder in decode_plugins {

@@ -197,7 +197,7 @@ pub struct Identity {
 }
 
 /// Process context
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ProcessInfo {
     /// Process ID
     pub pid: u32,
@@ -240,7 +240,7 @@ pub struct ProcessInfo {
 }
 
 /// Code signing information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CodeSignature {
     /// Whether the binary is signed
     pub signed: bool,

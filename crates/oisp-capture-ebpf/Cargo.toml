@@ -3,13 +3,10 @@ name = "oisp-capture-ebpf"
 version.workspace = true
 edition = "2021"
 license.workspace = true
-description = "Linux eBPF capture for OISP Sensor"
+description = "Linux eBPF capture for OISP Sensor using libbpf-based sslsniff"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-# eBPF loading and interaction via Aya (use git version for latest API)
-aya = { git = "https://github.com/aya-rs/aya" }
 libc = "0.2"
-nix = { version = "0.29", features = ["user", "process"] }
 
 [dependencies]
 oisp-core = { workspace = true }
@@ -25,6 +22,5 @@ ulid = { workspace = true }
 
 [features]
 default = []
-# Enable eBPF capture (requires pre-built eBPF bytecode)
-ebpf = []
-
+# Enable embedded sslsniff binary (set by build.rs when sslsniff is found)
+embedded_sslsniff = []

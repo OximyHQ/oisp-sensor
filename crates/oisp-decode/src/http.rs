@@ -32,6 +32,8 @@ pub struct ParsedHttpResponse {
     pub is_streaming: bool,
     /// Whether the response body uses chunked transfer encoding
     pub is_chunked: bool,
+    /// Whether the response body is gzipped
+    pub is_gzipped: bool,
 }
 
 /// Parse HTTP request from bytes
@@ -116,20 +118,19 @@ pub fn parse_response(data: &[u8]) -> Option<ParsedHttpResponse> {
                 .map(|v| v.to_lowercase().contains("chunked"))
                 .unwrap_or(false);
 
+            let is_gzipped = header_map
+                .get("content-encoding")
+                .map(|v| v.to_lowercase().contains("gzip"))
+                .unwrap_or(false);
+
             let content_length = header_map
                 .get("content-length")
                 .and_then(|v| v.parse().ok());
 
-            // Extract body - handle chunked vs content-length
+            // Extract body - keep raw body for reassembly
             let body = if header_len < data.len() {
                 let raw_body = &data[header_len..];
-                if is_chunked && !is_streaming {
-                    // For non-streaming chunked responses, decode the chunks
-                    decode_chunked_body(raw_body)
-                } else {
-                    // For streaming or non-chunked, keep raw body
-                    Some(raw_body.to_vec())
-                }
+                Some(raw_body.to_vec())
             } else {
                 None
             };
@@ -142,6 +143,7 @@ pub fn parse_response(data: &[u8]) -> Option<ParsedHttpResponse> {
                 content_length,
                 is_streaming,
                 is_chunked,
+                is_gzipped,
                 headers: header_map,
                 body,
             })
@@ -154,7 +156,7 @@ pub fn parse_response(data: &[u8]) -> Option<ParsedHttpResponse> {
 /// Decode chunked transfer encoding
 ///
 /// Format: <size in hex>\r\n<data>\r\n...<0>\r\n\r\n
-fn decode_chunked_body(data: &[u8]) -> Option<Vec<u8>> {
+pub fn decode_chunked_body(data: &[u8]) -> Option<Vec<u8>> {
     let mut result = Vec::new();
     let mut pos = 0;
 

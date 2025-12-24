@@ -4,9 +4,14 @@
 *.pdb
 
 # eBPF build artifacts
-/bpf/*.o
-/bpf/*.skel.h
-/bpf/vmlinux.h
+/bpf/.output/
+/bpf/sslsniff
+
+# Note: bpftool/ is a git submodule with libbpf as nested submodule
+# - bpftool: https://github.com/libbpf/bpftool @ 5b402ff
+# - libbpf (nested in bpftool/libbpf): pinned to 7a6e6b4
+# Clone with: git clone --recurse-submodules
+# Or init after clone: git submodule update --init --recursive
 
 # Frontend build
 /frontend/node_modules/

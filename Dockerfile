@@ -1,68 +1,75 @@
 # OISP Sensor Docker Image
 #
 # Multi-stage build for eBPF-enabled OISP sensor:
-# 1. Stage 1: Build eBPF bytecode (requires nightly Rust + bpf-linker)
+# 1. Stage 1: Build sslsniff (libbpf-based C binary)
 # 2. Stage 2: Build React frontend (Node.js)
-# 3. Stage 3: Build userspace binary (stable Rust)
+# 3. Stage 3: Build sensor binary with embedded sslsniff (Rust)
 # 4. Stage 4: Runtime image (minimal Debian)
+#
+# The result is a SINGLE binary with sslsniff embedded.
+#
+# Prerequisites:
+#   Clone with submodules: git clone --recurse-submodules <repo>
+#   Or init after clone: git submodule update --init --recursive
+#
+# Submodules (pinned to specific commits):
+#   - bpftool: https://github.com/libbpf/bpftool @ 5b402ff
+#   - libbpf:  https://github.com/libbpf/libbpf  @ 7a6e6b4
 #
 # Build:
 #   docker build -t oisp-sensor .
 #
 # Run (requires Linux host with kernel 5.8+):
 #   docker run --privileged --pid=host --network=host \
-#     -v /sys/kernel/debug:/sys/kernel/debug:ro \
+#     -v /sys/kernel/debug:/sys/kernel/debug:rw \
 #     -v /sys/fs/bpf:/sys/fs/bpf \
 #     oisp-sensor record
 #
 # For demo mode (works anywhere):
 #   docker run -p 7777:7777 oisp-sensor demo
 
-ARG RUST_VERSION=1.83
-ARG DEBIAN_VERSION=bookworm
-
 # =============================================================================
-# Stage 1: eBPF Builder - Build the eBPF bytecode
+# Stage 1: Build sslsniff (libbpf-based C binary)
 # =============================================================================
-# Use latest Rust for eBPF builder since bpf-linker requires newer rustc (1.86+)
-FROM rust:latest AS ebpf-builder
+FROM debian:bookworm-slim AS libbpf-builder
 
-# Install eBPF build dependencies
+# Install build dependencies for libbpf and sslsniff
 RUN apt-get update && apt-get install -y \
     build-essential \
     pkg-config \
     clang \
     llvm \
     libelf-dev \
-    linux-headers-generic \
-    curl \
-    git \
+    zlib1g-dev \
+    make \
     && rm -rf /var/lib/apt/lists/*
 
-# Install nightly toolchain (required for eBPF compilation)
-RUN rustup toolchain install nightly --component rust-src
+WORKDIR /build
 
-# Install bpf-linker (required for linking eBPF programs)
-# Use --locked to ensure reproducible builds
-RUN cargo install bpf-linker --locked
+# Copy bpftool submodule (includes libbpf as nested submodule)
+# - bpftool: https://github.com/libbpf/bpftool @ 5b402ff
+# - libbpf (nested): https://github.com/libbpf/libbpf @ 7a6e6b4
+COPY bpftool ./bpftool
 
-WORKDIR /build/ebpf
+# Copy our sslsniff source and vmlinux headers
+COPY bpf ./bpf
+COPY vmlinux ./vmlinux
 
-# Copy eBPF workspace files
-COPY ebpf/Cargo.toml ebpf/Cargo.lock ./
-COPY ebpf/rustfmt.toml ./
-COPY ebpf/oisp-ebpf-capture ./oisp-ebpf-capture
-COPY ebpf/oisp-ebpf-capture-common ./oisp-ebpf-capture-common
-COPY ebpf/oisp-ebpf-capture-ebpf ./oisp-ebpf-capture-ebpf
+# Build bpftool first (this also builds libbpf)
+RUN cd bpftool/src && make -j$(nproc)
 
-# Build eBPF programs (this produces the .o bytecode files)
-# The build.rs in oisp-ebpf-capture handles eBPF compilation via aya-build
-RUN cargo build --release --package oisp-ebpf-capture
-
-# The eBPF bytecode is embedded in the binary, but we also copy it for reference
-# The compiled eBPF object is at: target/bpfel-unknown-none/release/oisp-ebpf-capture-ebpf
-RUN mkdir -p /build/ebpf-bytecode && \
-    find target -name "*.o" -path "*/bpfel-*/*" -exec cp {} /build/ebpf-bytecode/ \; || true
+# Build sslsniff with paths pointing to bpftool's nested libbpf
+WORKDIR /build/bpf
+RUN LIBBPF_SRC=/build/bpftool/libbpf/src \
+    BPFTOOL_SRC=/build/bpftool/src \
+    VMLINUX_DIR=/build/vmlinux \
+    make clean && \
+    LIBBPF_SRC=/build/bpftool/libbpf/src \
+    BPFTOOL_SRC=/build/bpftool/src \
+    VMLINUX_DIR=/build/vmlinux \
+    make sslsniff && \
+    cp sslsniff /usr/local/bin/ && \
+    echo "sslsniff built: $(ls -la /usr/local/bin/sslsniff)"
 
 # =============================================================================
 # Stage 2: Frontend Builder - Build the React frontend
@@ -80,9 +87,8 @@ COPY frontend/ ./
 RUN npm run build
 
 # =============================================================================
-# Stage 3: Userspace Builder - Build the main sensor binary
+# Stage 3: Rust Builder - Build sensor with embedded sslsniff
 # =============================================================================
-# Use latest Rust since Aya from git requires edition 2024 (Rust 1.86+)
 FROM rust:latest AS userspace-builder
 
 # Install build dependencies
@@ -90,10 +96,11 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     pkg-config \
     libssl-dev \
-    libelf-dev \
-    clang \
-    llvm \
+    lld \
     && rm -rf /var/lib/apt/lists/*
+
+# Copy sslsniff from libbpf-builder (will be embedded via build.rs)
+COPY --from=libbpf-builder /usr/local/bin/sslsniff /usr/local/bin/sslsniff
 
 WORKDIR /build
 
@@ -104,8 +111,13 @@ COPY crates ./crates
 # Copy the built frontend assets from frontend-builder
 COPY --from=frontend-builder /build/frontend/out ./frontend/out
 
-# Build the sensor binary in release mode
-RUN cargo build --release --package oisp-sensor
+# Build the sensor binary with cache mounts and lld linker
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/build/target \
+    RUSTFLAGS="-C link-arg=-fuse-ld=lld" \
+    cargo build --release --package oisp-sensor && \
+    cp target/release/oisp-sensor /usr/local/bin/oisp-sensor && \
+    echo "Sensor built: $(ls -la /usr/local/bin/oisp-sensor)"
 
 # =============================================================================
 # Stage 4: Runtime - Minimal production image
@@ -117,22 +129,20 @@ FROM debian:trixie-slim AS runtime
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     libssl3 \
-    # For SSL interception (libssl.so)
+    libelf1 \
+    zlib1g \
+    # For SSL interception
     openssl \
-    # For debugging (optional, can be removed for smaller image)
+    # For debugging (optional)
     procps \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Create non-root user (sensor can be run with --user if not needing privileged mode)
+# Create non-root user
 RUN useradd -m -s /bin/bash -u 1000 oisp
 
-# Copy binaries from builder stages
-COPY --from=ebpf-builder /build/ebpf/target/release/oisp-ebpf-capture /usr/local/bin/
-COPY --from=userspace-builder /build/target/release/oisp-sensor /usr/local/bin/
-
-# Copy eBPF bytecode (optional, for debugging or alternative loading)
-COPY --from=ebpf-builder /build/ebpf-bytecode /usr/share/oisp/ebpf/
+# Copy the SINGLE binary (sslsniff is embedded!)
+COPY --from=userspace-builder /usr/local/bin/oisp-sensor /usr/local/bin/
 
 # Create directories for data and logs
 RUN mkdir -p /var/lib/oisp /var/log/oisp /etc/oisp && \
@@ -154,7 +164,7 @@ LABEL org.opencontainers.image.title="OISP Sensor" \
       org.opencontainers.image.source="https://github.com/oximyHQ/oisp-sensor" \
       org.opencontainers.image.licenses="Apache-2.0"
 
-# Health check - use demo mode check since record mode requires privileges
+# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:7777/api/health 2>/dev/null || exit 1
 

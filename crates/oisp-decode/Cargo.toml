@@ -24,3 +24,6 @@ ulid = { workspace = true }
 # JSONPath for spec-driven extraction
 jsonpath_lib = "0.3"
 
+# Compression support
+flate2 = "1.0"
+

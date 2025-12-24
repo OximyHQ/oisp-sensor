@@ -50,6 +50,9 @@ pub enum OispEvent {
     NetworkAccept(NetworkAcceptEvent),
     NetworkFlow(NetworkFlowEvent),
     NetworkDns(NetworkDnsEvent),
+
+    // Capture events (debugging/low-level)
+    CaptureRaw(CaptureRawEvent),
 }
 
 impl OispEvent {
@@ -73,6 +76,7 @@ impl OispEvent {
             OispEvent::NetworkAccept(_) => "network.accept",
             OispEvent::NetworkFlow(_) => "network.flow",
             OispEvent::NetworkDns(_) => "network.dns",
+            OispEvent::CaptureRaw(_) => "capture.raw",
         }
     }
 
@@ -109,6 +113,7 @@ impl OispEvent {
             OispEvent::NetworkAccept(e) => &e.envelope,
             OispEvent::NetworkFlow(e) => &e.envelope,
             OispEvent::NetworkDns(e) => &e.envelope,
+            OispEvent::CaptureRaw(e) => &e.envelope,
         }
     }
 }
@@ -122,6 +127,7 @@ pub enum EventCategory {
     Process,
     File,
     Network,
+    Capture,
 }
 
 impl EventCategory {
@@ -133,6 +139,7 @@ impl EventCategory {
             "process" => Some(EventCategory::Process),
             "file" => Some(EventCategory::File),
             "network" => Some(EventCategory::Network),
+            "capture" => Some(EventCategory::Capture),
             _ => None,
         }
     }
@@ -207,6 +214,7 @@ impl Serialize for OispEvent {
             OispEvent::NetworkAccept(e) => map.serialize_entry("data", &e.data)?,
             OispEvent::NetworkFlow(e) => map.serialize_entry("data", &e.data)?,
             OispEvent::NetworkDns(e) => map.serialize_entry("data", &e.data)?,
+            OispEvent::CaptureRaw(e) => map.serialize_entry("data", &e.data)?,
         }
 
         map.end()
@@ -381,12 +389,37 @@ impl<'de> Deserialize<'de> for OispEvent {
                     data: event_data,
                 }))
             }
+            "capture.raw" => {
+                let event_data: CaptureRawData =
+                    serde_json::from_value(data).map_err(D::Error::custom)?;
+                Ok(OispEvent::CaptureRaw(CaptureRawEvent {
+                    envelope,
+                    data: event_data,
+                }))
+            }
             _ => Err(D::Error::custom(format!(
                 "unknown event_type: {}",
                 event_type
             ))),
         }
     }
+}
+
+/// Raw capture event for debugging and low-level visibility
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CaptureRawEvent {
+    pub envelope: EventEnvelope,
+    pub data: CaptureRawData,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CaptureRawData {
+    pub kind: String,
+    pub data: String, // String representation of data
+    pub len: usize,
+    pub pid: u32,
+    pub tid: Option<u32>,
+    pub comm: Option<String>,
 }
 
 #[cfg(test)]

@@ -7,8 +7,13 @@
 //! - **Pipeline**: Event routing and orchestration
 //! - **Providers**: AI provider detection and metadata
 //! - **Config**: Configuration loading and management
+//! - **Enrichers**: Built-in enrichment plugins (host, process tree)
+//! - **Actions**: Built-in action plugins (redaction)
+//! - **Trace**: Event correlation and trace building
 
+pub mod actions;
 pub mod config;
+pub mod enrichers;
 pub mod events;
 pub mod metrics;
 pub mod pipeline;
@@ -19,12 +24,14 @@ pub mod spec;
 pub mod trace;
 
 // Re-export commonly used types
+pub use actions::RedactionPlugin;
 pub use config::{
     spawn_sighup_reload_handler, CaptureSettings, ConfigError, ConfigLoader, ConfigResult,
     CorrelationSettings, ExportSettings, JsonlExportConfig, KafkaExportConfig, OtlpExportConfig,
     OximyExportConfig, RedactionSettings, SensorConfig, SensorSettings, SharedConfig, WebSettings,
     WebSocketExportConfig, WebhookExportConfig,
 };
+pub use enrichers::{HostEnricher, ProcessTreeEnricher};
 pub use events::{
     Actor, Confidence, EventEnvelope, EventType, Host, OispEvent, ProcessInfo, Source,
 };
@@ -35,7 +42,7 @@ pub use plugins::{
 };
 pub use providers::{Provider, ProviderRegistry};
 pub use spec::{DynamicProviderRegistry, OispSpecBundle, SpecLoader};
-pub use trace::{AgentTrace, Span, SpanKind};
+pub use trace::{AgentTrace, CorrelationConfig, Span, SpanKind};
 
 /// OISP specification version this crate implements
 pub const OISP_VERSION: &str = "0.1";

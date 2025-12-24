@@ -8,10 +8,7 @@ members = [
     "crates/oisp-capture-macos",
     "crates/oisp-capture-windows",
     "crates/oisp-decode",
-    "crates/oisp-enrich",
-    "crates/oisp-redact",
     "crates/oisp-export",
-    "crates/oisp-correlate",
     "crates/oisp-tui",
     "crates/oisp-web",
 ]
@@ -97,10 +94,7 @@ oisp-capture-ebpf = { path = "crates/oisp-capture-ebpf" }
 oisp-capture-macos = { path = "crates/oisp-capture-macos" }
 oisp-capture-windows = { path = "crates/oisp-capture-windows" }
 oisp-decode = { path = "crates/oisp-decode" }
-oisp-enrich = { path = "crates/oisp-enrich" }
-oisp-redact = { path = "crates/oisp-redact" }
 oisp-export = { path = "crates/oisp-export" }
-oisp-correlate = { path = "crates/oisp-correlate" }
 oisp-tui = { path = "crates/oisp-tui" }
 oisp-web = { path = "crates/oisp-web" }
 

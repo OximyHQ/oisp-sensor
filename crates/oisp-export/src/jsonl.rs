@@ -10,7 +10,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 use std::sync::Mutex;
-use tracing::info;
+use tracing::{info, warn};
 
 /// JSONL exporter configuration
 #[derive(Debug, Clone)]
@@ -48,9 +48,31 @@ pub struct JsonlExporter {
 
 impl JsonlExporter {
     pub fn new(config: JsonlExporterConfig) -> Self {
+        // Eagerly create the file on construction
+        // This ensures the file exists even if init() is never called
+        let writer = if config.append {
+            OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&config.path)
+        } else {
+            File::create(&config.path)
+        };
+
+        let writer = match writer {
+            Ok(file) => {
+                info!("JSONL exporter writing to: {:?}", config.path);
+                Some(Mutex::new(BufWriter::new(file)))
+            }
+            Err(e) => {
+                warn!("Failed to create JSONL output file {:?}: {}", config.path, e);
+                None
+            }
+        };
+
         Self {
             config,
-            writer: None,
+            writer,
             events_written: std::sync::atomic::AtomicU64::new(0),
         }
     }

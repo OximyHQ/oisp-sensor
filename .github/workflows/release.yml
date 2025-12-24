@@ -150,3 +150,22 @@ jobs:
             artifacts/*.zip
             artifacts/checksums.txt
 
+  # Trigger cookbook validation for stable releases
+  trigger-cookbook-validation:
+    name: Trigger Cookbook Validation
+    needs: release
+    runs-on: ubuntu-latest
+    if: ${{ !contains(github.ref, 'alpha') && !contains(github.ref, 'beta') && !contains(github.ref, 'rc') }}
+    steps:
+      - name: Get version from tag
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Trigger oisp-cookbook validation
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.COOKBOOK_DISPATCH_TOKEN }}
+          repository: oximyHQ/oisp-cookbook
+          event-type: sensor-release
+          client-payload: '{"version": "${{ steps.version.outputs.version }}"}'
+
