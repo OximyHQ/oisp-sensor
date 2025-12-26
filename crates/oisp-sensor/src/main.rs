@@ -1044,7 +1044,7 @@ async fn check_command() -> anyhow::Result<()> {
         if uid == 0 {
             println!("Yes [OK]");
         } else {
-            println!("No (uid={}) [WARN]", uid);
+            println!("No [WARN]");
             warnings.push(
                 "Not running as root - SSL capture requires root or CAP_BPF+CAP_PERFMON"
                     .to_string(),
