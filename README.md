@@ -14,7 +14,7 @@
 [![Build](https://img.shields.io/github/actions/workflow/status/oximyHQ/oisp-sensor/ci.yml?branch=main)](https://github.com/oximyHQ/oisp-sensor/actions)
 [![Release](https://img.shields.io/github/v/release/oximyHQ/oisp-sensor)](https://github.com/oximyHQ/oisp-sensor/releases)
 
-[Quick Start](#quick-start) · [How It Works](#how-it-works) · [What It Captures](#what-it-captures) · [Installation](#installation) · [Documentation](#documentation)
+[Quick Start](#quick-start) · [Cookbooks](https://github.com/oximyhq/oisp-cookbooks) · [How It Works](#how-it-works) · [What It Captures](#what-it-captures) · [Installation](#installation) · [Documentation](#documentation)
 
 </div>
 
@@ -92,6 +92,18 @@ docker run --privileged --pid=host --network=host \
   -v /sys:/sys:ro -v /usr:/usr:ro -v /lib:/lib:ro \
   ghcr.io/oximyhq/oisp-sensor:latest
 ```
+
+---
+
+## Cookbooks
+
+Ready-to-use recipes and examples for common use cases:
+
+**[oisp-cookbooks](https://github.com/oximyhq/oisp-cookbooks)** - Get started immediately with:
+- Integration examples for popular AI tools
+- Export configurations for different backends
+- Deployment patterns for various environments
+- Real-world monitoring scenarios
 
 ---
 
@@ -565,7 +577,7 @@ This captures complete request/response content. Use responsibly.
 
 ## Event Schema
 
-All events conform to [OISP Spec](https://github.com/oximyHQ/oisp-spec), an open schema for AI observability.
+All events conform to [OISP Spec](https://github.com/oximyHQ/oisp-spec) (Open Inference Standard Protocol) - the Open Interoperability Specification for AI activity observability. A universal schema for capturing AI interactions across every environment—browser, desktop, CLI, server—with support for 2,200+ models from every major provider.
 
 ### Event Envelope
 

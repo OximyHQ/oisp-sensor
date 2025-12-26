@@ -120,8 +120,9 @@ impl ResponseReassembler {
                 &raw_data[..std::cmp::min(20, raw_data.len())]
             );
 
-            let mut decoder = GzDecoder::new(&raw_data[..]);
+            // Try gzip first, then fall back to raw deflate
             let mut decompressed = Vec::new();
+            let mut decoder = GzDecoder::new(&raw_data[..]);
             match decoder.read_to_end(&mut decompressed) {
                 Ok(_) => {
                     info!(
@@ -132,8 +133,41 @@ impl ResponseReassembler {
                     self.body_buffer = decompressed;
                 }
                 Err(e) => {
-                    info!("Gzip decompress FAILED: {}", e);
-                    self.body_buffer = raw_data;
+                    info!("Gzip decompress FAILED: {}, trying raw deflate", e);
+                    // Try raw deflate (some servers send deflate without gzip wrapper)
+                    use flate2::read::DeflateDecoder;
+                    let mut deflate_decompressed = Vec::new();
+                    let mut deflate_decoder = DeflateDecoder::new(&raw_data[..]);
+                    match deflate_decoder.read_to_end(&mut deflate_decompressed) {
+                        Ok(_) if !deflate_decompressed.is_empty() => {
+                            info!(
+                                "Deflate decompress succeeded: {} -> {} bytes",
+                                raw_data.len(),
+                                deflate_decompressed.len()
+                            );
+                            self.body_buffer = deflate_decompressed;
+                        }
+                        _ => {
+                            // Try with MultiGzDecoder for concatenated gzip streams
+                            use flate2::read::MultiGzDecoder;
+                            let mut multi_decompressed = Vec::new();
+                            let mut multi_decoder = MultiGzDecoder::new(&raw_data[..]);
+                            match multi_decoder.read_to_end(&mut multi_decompressed) {
+                                Ok(_) if !multi_decompressed.is_empty() => {
+                                    info!(
+                                        "MultiGz decompress succeeded: {} -> {} bytes",
+                                        raw_data.len(),
+                                        multi_decompressed.len()
+                                    );
+                                    self.body_buffer = multi_decompressed;
+                                }
+                                _ => {
+                                    info!("All decompression methods failed, using raw data");
+                                    self.body_buffer = raw_data;
+                                }
+                            }
+                        }
+                    }
                 }
             }
         } else if self.headers.is_chunked {

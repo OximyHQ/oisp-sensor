@@ -1,13 +1,13 @@
 ---
 title: OISP Specification
-description: Open Instrumentation Standard for AI Pipelines
+description: Open Interoperability Specification for AI activity observability
 ---
 
 OISP Sensor emits events conforming to the [OISP v0.1 specification](https://github.com/oximyHQ/oisp-spec).
 
 ## What is OISP?
 
-**O**pen **I**nstrumentation **S**tandard for AI **P**ipelines (OISP) is an open standard for representing AI system activity. It provides:
+**O**pen **I**nference **S**tandard **P**rotocol (OISP) is the Open Interoperability Specification for AI activity observability. A universal schema for capturing AI interactions across every environment—browser, desktop, CLI, server—with support for 2,200+ models from every major provider. It provides:
 
 - **Unified schema** for AI events across providers
 - **Interoperability** between observability tools

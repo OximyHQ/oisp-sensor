@@ -139,6 +139,32 @@ enum Commands {
     /// Self-test sensor capabilities
     Test,
 
+    /// Diagnose SSL capture for a specific process
+    Diagnose {
+        /// Process ID to diagnose
+        #[arg(short, long)]
+        pid: u32,
+
+        /// Show memory maps (loaded libraries)
+        #[arg(long)]
+        maps: bool,
+
+        /// Show network connections
+        #[arg(long)]
+        network: bool,
+    },
+
+    /// Show SSL library information on the system
+    SslInfo {
+        /// Show detailed symbol information
+        #[arg(long)]
+        detailed: bool,
+
+        /// Show which processes are using each library
+        #[arg(long)]
+        usage: bool,
+    },
+
     /// Run demo mode with generated test events (no eBPF required)
     Demo {
         /// Output file for JSONL events
@@ -295,6 +321,8 @@ async fn main() -> anyhow::Result<()> {
         Commands::Check => check_command().await,
         Commands::Daemon(daemon_cmd) => daemon_command(daemon_cmd).await,
         Commands::Test => test_command().await,
+        Commands::Diagnose { pid, maps, network } => diagnose_command(pid, maps, network).await,
+        Commands::SslInfo { detailed, usage } => ssl_info_command(detailed, usage).await,
         Commands::Demo {
             output,
             web,
@@ -1137,6 +1165,408 @@ fn load_spec_bundle_info() -> anyhow::Result<(String, usize, usize)> {
     let models = bundle.models.len();
 
     Ok((bundle.version, providers, models))
+}
+
+/// Diagnose SSL capture capability for a specific process
+async fn diagnose_command(pid: u32, show_maps: bool, show_network: bool) -> anyhow::Result<()> {
+    println!();
+    println!("OISP Sensor Process Diagnosis");
+    println!("==============================");
+    println!();
+    println!("Target PID: {}", pid);
+    println!();
+
+    #[cfg(target_os = "linux")]
+    {
+        use std::fs;
+        use std::path::Path;
+
+        let proc_path = format!("/proc/{}", pid);
+
+        // Check if process exists
+        if !Path::new(&proc_path).exists() {
+            println!("ERROR: Process {} does not exist", pid);
+            return Ok(());
+        }
+
+        // Basic process info
+        println!("Process Information:");
+        println!("--------------------");
+
+        // Executable path
+        if let Ok(exe) = fs::read_link(format!("{}/exe", proc_path)) {
+            println!("  Executable:  {}", exe.display());
+        }
+
+        // Process name
+        if let Ok(comm) = fs::read_to_string(format!("{}/comm", proc_path)) {
+            println!("  Name:        {}", comm.trim());
+        }
+
+        // Command line
+        if let Ok(cmdline) = fs::read_to_string(format!("{}/cmdline", proc_path)) {
+            let cmdline = cmdline.replace('\0', " ");
+            if cmdline.len() > 100 {
+                println!("  Command:     {}...", &cmdline[..100]);
+            } else {
+                println!("  Command:     {}", cmdline.trim());
+            }
+        }
+
+        // Parent PID
+        if let Ok(stat) = fs::read_to_string(format!("{}/stat", proc_path)) {
+            let parts: Vec<&str> = stat.split_whitespace().collect();
+            if let Some(ppid) = parts.get(3) {
+                println!("  Parent PID:  {}", ppid);
+            }
+        }
+
+        // Working directory
+        if let Ok(cwd) = fs::read_link(format!("{}/cwd", proc_path)) {
+            println!("  Working Dir: {}", cwd.display());
+        }
+
+        // SSL Library Detection
+        println!();
+        println!("SSL Libraries Loaded:");
+        println!("----------------------");
+
+        if let Ok(maps) = fs::read_to_string(format!("{}/maps", proc_path)) {
+            let mut ssl_libs = Vec::new();
+            let mut crypto_libs = Vec::new();
+
+            for line in maps.lines() {
+                if line.contains("libssl") {
+                    // Extract library path
+                    if let Some(path) = line.split_whitespace().last() {
+                        if path.starts_with('/') && !ssl_libs.contains(&path.to_string()) {
+                            ssl_libs.push(path.to_string());
+                        }
+                    }
+                }
+                if line.contains("libcrypto") {
+                    if let Some(path) = line.split_whitespace().last() {
+                        if path.starts_with('/') && !crypto_libs.contains(&path.to_string()) {
+                            crypto_libs.push(path.to_string());
+                        }
+                    }
+                }
+            }
+
+            if ssl_libs.is_empty() {
+                println!("  No libssl.so loaded [WARN]");
+                println!();
+                println!("  This process may:");
+                println!("    - Not use SSL/TLS");
+                println!("    - Use a statically linked SSL library");
+                println!("    - Use a non-OpenSSL TLS implementation (rustls, BoringSSL, etc.)");
+            } else {
+                for lib in &ssl_libs {
+                    println!("  {} [OK]", lib);
+                    // Try to get version
+                    if let Ok(output) = std::process::Command::new("strings")
+                        .args([lib, "-a"])
+                        .output()
+                    {
+                        let stdout = String::from_utf8_lossy(&output.stdout);
+                        for line in stdout.lines() {
+                            if line.starts_with("OpenSSL ") && line.len() < 50 {
+                                println!("    Version: {}", line);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if !crypto_libs.is_empty() {
+                println!();
+                println!("  Associated libcrypto:");
+                for lib in &crypto_libs {
+                    println!("    {}", lib);
+                }
+            }
+
+            // Full memory maps if requested
+            if show_maps {
+                println!();
+                println!("Full Memory Maps (libraries only):");
+                println!("-----------------------------------");
+                for line in maps.lines() {
+                    if line.contains(".so") && line.contains('/') {
+                        if let Some(path) = line.split_whitespace().last() {
+                            if path.starts_with('/') {
+                                println!("  {}", path);
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            println!("  Could not read memory maps (permission denied?)");
+        }
+
+        // Network connections if requested
+        if show_network {
+            println!();
+            println!("Network Connections:");
+            println!("--------------------");
+
+            // Count file descriptors that are sockets
+            let fd_path = format!("{}/fd", proc_path);
+            if let Ok(fds) = fs::read_dir(&fd_path) {
+                let mut tcp_count = 0;
+                let mut udp_count = 0;
+
+                for fd in fds.flatten() {
+                    if let Ok(link) = fs::read_link(fd.path()) {
+                        let link_str = link.to_string_lossy();
+                        if link_str.starts_with("socket:") {
+                            // Check /proc/net/tcp and /proc/net/udp
+                            tcp_count += 1; // Simplified - count all sockets
+                        }
+                    }
+                }
+
+                if tcp_count > 0 {
+                    println!("  Active sockets: {}", tcp_count);
+                } else {
+                    println!("  No active network connections");
+                }
+
+                let _ = udp_count; // Suppress warning
+            }
+        }
+
+        // Capture recommendation
+        println!();
+        println!("Capture Recommendation:");
+        println!("-----------------------");
+
+        if let Ok(maps) = fs::read_to_string(format!("{}/maps", proc_path)) {
+            let has_system_ssl = maps.lines().any(|l| {
+                l.contains("libssl.so")
+                    && (l.contains("/usr/lib")
+                        || l.contains("/lib/x86_64")
+                        || l.contains("/lib/aarch64"))
+            });
+
+            if has_system_ssl {
+                println!("  This process uses system OpenSSL.");
+                println!("  SSL capture should work with default configuration.");
+                println!();
+                println!("  Command: sudo oisp-sensor record --pid {}", pid);
+            } else if maps.lines().any(|l| l.contains("libssl")) {
+                println!("  This process uses a non-system OpenSSL.");
+                println!("  You may need to configure binary_paths in your config.");
+                println!();
+                println!("  Add to config.yaml:");
+                println!("    capture:");
+                println!("      ssl_binary_paths:");
+                println!("        - /path/to/custom/libssl.so");
+            } else {
+                println!("  This process does not appear to use OpenSSL.");
+                println!("  SSL capture may not work for this process.");
+                println!();
+                println!("  Possible reasons:");
+                println!("    - Process uses static SSL (NVM Node.js, some Python builds)");
+                println!("    - Process uses alternative TLS (rustls, BoringSSL, GnuTLS)");
+                println!("    - Process hasn't loaded SSL libraries yet");
+            }
+        }
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        println!("Process diagnosis is only available on Linux.");
+        let _ = (pid, show_maps, show_network);
+    }
+
+    println!();
+    Ok(())
+}
+
+/// Show SSL library information on the system
+async fn ssl_info_command(detailed: bool, show_usage: bool) -> anyhow::Result<()> {
+    println!();
+    println!("OISP Sensor SSL Library Information");
+    println!("====================================");
+    println!();
+
+    #[cfg(target_os = "linux")]
+    {
+        use std::collections::HashMap;
+        use std::fs;
+        use std::process::Command;
+
+        // Find all SSL libraries
+        println!("System SSL Libraries:");
+        println!("---------------------");
+
+        let mut found_libs: Vec<(String, Option<String>)> = Vec::new();
+
+        // Check known paths
+        for path in SSL_LIBRARY_PATHS {
+            if std::path::Path::new(path).exists() {
+                // Get version via strings
+                let version = Command::new("strings")
+                    .args([*path, "-a"])
+                    .output()
+                    .ok()
+                    .and_then(|output| {
+                        let stdout = String::from_utf8_lossy(&output.stdout);
+                        stdout
+                            .lines()
+                            .find(|line| line.starts_with("OpenSSL ") && line.len() < 60)
+                            .map(|s| s.to_string())
+                    });
+
+                found_libs.push((path.to_string(), version));
+            }
+        }
+
+        // Also check ldconfig
+        if let Ok(output) = Command::new("ldconfig").args(["-p"]).output() {
+            if output.status.success() {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                for line in stdout.lines() {
+                    if line.contains("libssl.so") {
+                        if let Some(path) = line.split("=>").nth(1) {
+                            let path = path.trim();
+                            if !path.is_empty() && !found_libs.iter().any(|(p, _)| p == path) {
+                                let version = Command::new("strings")
+                                    .args([path, "-a"])
+                                    .output()
+                                    .ok()
+                                    .and_then(|output| {
+                                        let stdout = String::from_utf8_lossy(&output.stdout);
+                                        stdout
+                                            .lines()
+                                            .find(|line| {
+                                                line.starts_with("OpenSSL ") && line.len() < 60
+                                            })
+                                            .map(|s| s.to_string())
+                                    });
+                                found_libs.push((path.to_string(), version));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if found_libs.is_empty() {
+            println!("  No SSL libraries found [WARN]");
+        } else {
+            for (path, version) in &found_libs {
+                println!("  {}", path);
+                if let Some(v) = version {
+                    println!("    Version: {}", v);
+                }
+
+                if detailed {
+                    // Show key symbols
+                    if let Ok(output) = Command::new("nm").args(["-D", path]).output() {
+                        if output.status.success() {
+                            let stdout = String::from_utf8_lossy(&output.stdout);
+                            let key_symbols = ["SSL_read", "SSL_write", "SSL_new", "SSL_free"];
+                            let mut found_syms = Vec::new();
+
+                            for line in stdout.lines() {
+                                for sym in &key_symbols {
+                                    if line.contains(sym) && line.contains(" T ") {
+                                        found_syms.push(*sym);
+                                    }
+                                }
+                            }
+
+                            if !found_syms.is_empty() {
+                                println!("    Key symbols: {}", found_syms.join(", "));
+                            }
+                        }
+                    }
+                }
+                println!();
+            }
+        }
+
+        // Show process usage
+        if show_usage {
+            println!();
+            println!("Processes Using SSL Libraries:");
+            println!("------------------------------");
+
+            let mut lib_users: HashMap<String, Vec<(u32, String)>> = HashMap::new();
+
+            // Scan /proc for processes using libssl
+            if let Ok(proc_entries) = fs::read_dir("/proc") {
+                for entry in proc_entries.flatten() {
+                    let name = entry.file_name();
+                    if let Ok(pid) = name.to_string_lossy().parse::<u32>() {
+                        let maps_path = format!("/proc/{}/maps", pid);
+                        if let Ok(maps) = fs::read_to_string(&maps_path) {
+                            for line in maps.lines() {
+                                if line.contains("libssl.so") {
+                                    if let Some(lib_path) = line.split_whitespace().last() {
+                                        if lib_path.starts_with('/') {
+                                            // Get process name
+                                            let comm_path = format!("/proc/{}/comm", pid);
+                                            let proc_name = fs::read_to_string(&comm_path)
+                                                .map(|s| s.trim().to_string())
+                                                .unwrap_or_else(|_| "unknown".to_string());
+
+                                            lib_users
+                                                .entry(lib_path.to_string())
+                                                .or_default()
+                                                .push((pid, proc_name));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if lib_users.is_empty() {
+                println!("  No processes currently using SSL libraries");
+            } else {
+                for (lib, users) in &lib_users {
+                    println!("  {}:", lib);
+                    // Dedupe by process name
+                    let mut seen: HashMap<String, Vec<u32>> = HashMap::new();
+                    for (pid, name) in users {
+                        seen.entry(name.clone()).or_default().push(*pid);
+                    }
+                    for (name, pids) in &seen {
+                        if pids.len() == 1 {
+                            println!("    {} (PID: {})", name, pids[0]);
+                        } else {
+                            println!("    {} ({} instances)", name, pids.len());
+                        }
+                    }
+                    println!();
+                }
+            }
+        }
+
+        // Edge cases reminder
+        println!();
+        println!("Edge Cases (may not use system SSL):");
+        println!("-------------------------------------");
+        for (pattern, desc) in EDGE_CASE_PATHS {
+            println!("  {} - {}", pattern, desc);
+        }
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        println!("SSL library information is only available on Linux.");
+        let _ = (detailed, show_usage);
+    }
+
+    println!();
+    Ok(())
 }
 
 // =============================================================================
