@@ -1403,7 +1403,7 @@ dependencies = [
 
 [[package]]
 name = "oisp-capture"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1418,7 +1418,7 @@ dependencies = [
 
 [[package]]
 name = "oisp-capture-ebpf"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1435,7 +1435,7 @@ dependencies = [
 
 [[package]]
 name = "oisp-capture-macos"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1450,7 +1450,7 @@ dependencies = [
 
 [[package]]
 name = "oisp-capture-windows"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1466,7 +1466,7 @@ dependencies = [
 
 [[package]]
 name = "oisp-core"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1488,7 +1488,7 @@ dependencies = [
 
 [[package]]
 name = "oisp-decode"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1510,7 +1510,7 @@ dependencies = [
 
 [[package]]
 name = "oisp-export"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1534,7 +1534,7 @@ dependencies = [
 
 [[package]]
 name = "oisp-sensor"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1559,7 +1559,7 @@ dependencies = [
 
 [[package]]
 name = "oisp-tui"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1575,7 +1575,7 @@ dependencies = [
 
 [[package]]
 name = "oisp-web"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "axum 0.8.8",
