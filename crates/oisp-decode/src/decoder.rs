@@ -723,21 +723,68 @@ impl HttpDecoder {
 
         // 1. Check for existing partial response
         let is_new_response = is_http_response(&raw.data);
+
+        info!(
+            "decode_ssl_read: pid={}, tid={:?}, fd={:?}, is_new_response={}, data_len={}, data_start={:?}",
+            key.pid,
+            key.tid,
+            key.fd,
+            is_new_response,
+            raw.data.len(),
+            String::from_utf8_lossy(&raw.data[..std::cmp::min(50, raw.data.len())])
+        );
+
         let reassembler_opt: Option<ResponseReassembler> = {
             let mut partials = self.partial_responses.write().unwrap();
+
+            // Log all current partial responses
+            info!(
+                "Current partial_responses count: {}, keys: {:?}",
+                partials.len(),
+                partials.keys().collect::<Vec<_>>()
+            );
+
             if is_new_response {
                 if let Some(http_resp) = parse_response(&raw.data) {
+                    info!("New HTTP response: status={}, is_chunked={}, is_gzipped={}, content_length={:?}",
+                        http_resp.status_code, http_resp.is_chunked, http_resp.is_gzipped, http_resp.content_length);
                     let reassembler = ResponseReassembler::new(http_resp);
                     partials.insert(key.clone(), reassembler);
                     partials.get(&key).cloned()
                 } else {
+                    info!("Failed to parse HTTP response");
                     None
                 }
             } else if let Some(reassembler) = partials.get_mut(&key) {
+                info!(
+                    "Feeding {} bytes to existing reassembler for key {:?}",
+                    raw.data.len(),
+                    key
+                );
                 reassembler.feed(&raw.data);
                 Some(reassembler.clone())
             } else {
-                None
+                // Try without fd as fallback
+                let key_no_fd = CorrelationKey {
+                    pid: key.pid,
+                    tid: key.tid,
+                    fd: None,
+                };
+                if let Some(reassembler) = partials.get_mut(&key_no_fd) {
+                    info!(
+                        "Feeding {} bytes to reassembler via key_no_fd {:?}",
+                        raw.data.len(),
+                        key_no_fd
+                    );
+                    reassembler.feed(&raw.data);
+                    Some(reassembler.clone())
+                } else {
+                    info!(
+                        "No matching reassembler found for key {:?} or key_no_fd {:?}",
+                        key, key_no_fd
+                    );
+                    None
+                }
             }
         };
 

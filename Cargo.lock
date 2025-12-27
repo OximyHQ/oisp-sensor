@@ -1489,7 +1489,6 @@ dependencies = [
  "http",
  "httparse",
  "jsonpath_lib",
- "miniz_oxide",
  "oisp-core",
  "serde",
  "serde_json",

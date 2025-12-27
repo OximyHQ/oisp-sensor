@@ -49,6 +49,8 @@ WORKDIR /build
 # Copy bpftool submodule (includes libbpf as nested submodule)
 # - bpftool: https://github.com/libbpf/bpftool @ 5b402ff
 # - libbpf (nested): https://github.com/libbpf/libbpf @ 7a6e6b4
+# Note: bpftool must be initialized as a git submodule before building
+# Run: git submodule update --init --recursive
 COPY bpftool ./bpftool
 
 # Copy our sslsniff source and vmlinux headers

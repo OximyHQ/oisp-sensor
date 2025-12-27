@@ -1,0 +1,29 @@
+# Build artifacts
+target/
+node_modules/
+dist/
+out/
+.next/
+*.tsbuildinfo
+
+# Data and results
+output/
+*.jsonl
+*.log
+*.sqlite
+*.db
+
+# Git (but NOT submodules - we need bpftool)
+# Note: .git/ excludes .git directories, but bpftool/.git is a file, not a directory
+.git/
+.cursor/
+.vscode/
+.idea/
+.DS_Store
+
+# Virtual environments
+venv/
+.venv/
+__pycache__/
+*.pyc
+

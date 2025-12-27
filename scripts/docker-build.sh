@@ -13,6 +13,21 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 cd "$PROJECT_ROOT"
 
+# Ensure git submodules are initialized
+if [ -f .gitmodules ]; then
+    echo "Initializing git submodules..."
+    git submodule update --init --recursive || {
+        echo "Warning: Failed to initialize submodules. Continuing anyway..."
+    }
+fi
+
+# Verify bpftool exists (required for build)
+if [ ! -d "bpftool" ] || [ ! -d "bpftool/src" ]; then
+    echo "Error: bpftool submodule is missing or not initialized."
+    echo "Please run: git submodule update --init --recursive"
+    exit 1
+fi
+
 # Default values
 IMAGE_NAME="oisp-sensor"
 IMAGE_TAG="latest"
