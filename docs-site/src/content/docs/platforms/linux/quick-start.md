@@ -3,7 +3,6 @@ title: Linux Quick Start
 description: Get started with OISP Sensor on Linux in 5 minutes
 ---
 
-# Linux Quick Start
 
 See AI activity on your Linux machine in 5 minutes.
 

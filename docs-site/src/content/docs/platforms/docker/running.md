@@ -3,7 +3,6 @@ title: Running with Docker
 description: Run OISP Sensor container
 ---
 
-# Running with Docker
 
 Run OISP Sensor as a Docker container.
 

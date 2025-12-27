@@ -3,7 +3,6 @@ title: Troubleshooting
 description: Common issues and solutions for OISP Sensor
 ---
 
-# Troubleshooting Guide
 
 This guide covers common issues and their solutions when using OISP Sensor.
 

@@ -3,7 +3,6 @@ title: macOS Installation
 description: Install OISP Sensor on macOS
 ---
 
-# macOS Installation
 
 Install OISP Sensor on macOS for metadata capture.
 

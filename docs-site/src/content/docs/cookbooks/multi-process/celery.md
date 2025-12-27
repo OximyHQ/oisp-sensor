@@ -3,7 +3,6 @@ title: Python Celery Workers
 description: Monitor AI tasks in distributed Celery workers
 ---
 
-# Python Celery Workers
 
 Monitor AI processing across distributed Celery workers.
 

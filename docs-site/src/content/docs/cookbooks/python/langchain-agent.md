@@ -3,7 +3,6 @@ title: Python + LangChain Agent
 description: Build AI agents with LangChain and monitor tool calls
 ---
 
-# Python + LangChain Agent
 
 Build an agent with tools using LangChain and monitor all interactions.
 

@@ -3,7 +3,6 @@ title: NVM Node.js
 description: Capture AI activity from NVM-managed Node.js installations
 ---
 
-# NVM Node.js
 
 Capture AI activity from Node.js installed via NVM (Node Version Manager).
 

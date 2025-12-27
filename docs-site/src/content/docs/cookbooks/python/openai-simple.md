@@ -3,7 +3,6 @@ title: Python + OpenAI Simple
 description: Basic chat completion with OpenAI and OISP Sensor
 ---
 
-# Python + OpenAI Simple
 
 The simplest example - capture events from OpenAI API calls.
 

@@ -3,7 +3,6 @@ title: Kubernetes DaemonSet
 description: Cluster-wide AI monitoring with OISP Sensor
 ---
 
-# Kubernetes DaemonSet
 
 Deploy OISP Sensor across your Kubernetes cluster.
 

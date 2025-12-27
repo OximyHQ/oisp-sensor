@@ -3,7 +3,6 @@ title: Running as a Service
 description: Configure and manage OISP Sensor as a systemd service on Linux
 ---
 
-# Running as a Service
 
 Run OISP Sensor as a systemd service for persistent, production monitoring.
 

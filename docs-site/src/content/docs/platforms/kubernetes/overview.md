@@ -3,7 +3,6 @@ title: Kubernetes Overview
 description: Deploy OISP Sensor on Kubernetes
 ---
 
-# Kubernetes Overview
 
 Deploy OISP Sensor on Kubernetes for cluster-wide AI activity monitoring.
 

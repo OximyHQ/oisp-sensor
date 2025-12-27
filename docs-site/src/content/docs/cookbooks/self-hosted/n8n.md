@@ -3,7 +3,6 @@ title: n8n Workflow Automation
 description: Monitor AI workflows in n8n with OISP Sensor
 ---
 
-# n8n Workflow Automation
 
 Monitor AI-powered n8n workflows.
 

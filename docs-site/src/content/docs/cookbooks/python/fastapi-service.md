@@ -3,7 +3,6 @@ title: Python + FastAPI Service
 description: Production API service with AI capabilities
 ---
 
-# Python + FastAPI Service
 
 Production-grade API service with AI endpoints and full observability.
 

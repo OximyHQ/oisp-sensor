@@ -3,7 +3,6 @@ title: Multi-Node Deployment
 description: Deploy OISP Sensor across multiple servers with centralized aggregation
 ---
 
-# Multi-Node Deployment
 
 Deploy OISP Sensor across multiple servers with centralized event aggregation and analysis.
 

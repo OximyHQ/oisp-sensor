@@ -3,7 +3,6 @@ title: pyenv Python
 description: Capture AI activity from pyenv-managed Python installations
 ---
 
-# pyenv Python
 
 Capture AI activity from Python installed via pyenv.
 

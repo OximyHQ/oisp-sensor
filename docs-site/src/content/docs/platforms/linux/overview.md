@@ -3,7 +3,6 @@ title: Linux Overview
 description: Complete overview of OISP Sensor on Linux with full eBPF capture
 ---
 
-# Linux Overview
 
 OISP Sensor on Linux is **production-ready** with full SSL/TLS capture capabilities using eBPF (extended Berkeley Packet Filter).
 

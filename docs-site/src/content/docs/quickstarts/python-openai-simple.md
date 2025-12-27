@@ -3,7 +3,6 @@ title: "Python + OpenAI (Simple Script)"
 description: "Capture AI activity from a simple Python script calling OpenAI"
 ---
 
-# Python + OpenAI (Simple Script)
 
 This quickstart shows you how to capture AI activity from a basic Python script that calls the OpenAI API.
 

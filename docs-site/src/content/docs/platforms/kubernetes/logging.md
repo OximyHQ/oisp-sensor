@@ -3,7 +3,6 @@ title: Centralized Logging
 description: Configure centralized log collection for Kubernetes deployments
 ---
 
-# Centralized Logging
 
 Aggregate events from all OISP Sensor pods across your cluster.
 

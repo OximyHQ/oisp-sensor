@@ -3,7 +3,6 @@ title: macOS Overview
 description: OISP Sensor on macOS - Preview status and capabilities
 ---
 
-# macOS Overview
 
 ⚠️ **Preview Status** - macOS support is in preview with metadata capture only.
 

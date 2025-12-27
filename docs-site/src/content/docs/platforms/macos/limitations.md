@@ -3,7 +3,6 @@ title: macOS Limitations
 description: Current limitations of OISP Sensor on macOS
 ---
 
-# macOS Limitations
 
 ## Current Limitations
 

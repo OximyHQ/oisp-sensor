@@ -3,7 +3,6 @@ title: Docker Overview
 description: Run OISP Sensor in Docker containers
 ---
 
-# Docker Overview
 
 Run OISP Sensor as a Docker container for portable deployment across any Linux distribution.
 

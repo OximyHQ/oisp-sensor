@@ -3,7 +3,6 @@ title: Distribution Support
 description: Supported Linux distributions, kernel requirements, and compatibility information
 ---
 
-# Distribution Support
 
 OISP Sensor supports all major Linux distributions with comprehensive testing on Ubuntu, Debian, RHEL-based systems, and Fedora.
 

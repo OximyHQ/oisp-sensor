@@ -3,7 +3,6 @@ title: CI/CD Integration
 description: Integrate OISP Sensor into your CI/CD pipelines for AI activity testing and validation
 ---
 
-# CI/CD Integration
 
 Integrate OISP Sensor into your CI/CD pipelines to capture, validate, and test AI activity during builds and deployments.
 

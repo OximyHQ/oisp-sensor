@@ -3,7 +3,6 @@ title: macOS Quick Start
 description: Get started with OISP Sensor on macOS
 ---
 
-# macOS Quick Start
 
 ## Start the Sensor
 

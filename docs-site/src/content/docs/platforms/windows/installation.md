@@ -3,7 +3,6 @@ title: Windows Installation
 description: Install OISP Sensor on Windows
 ---
 
-# Windows Installation
 
 Install OISP Sensor on Windows for metadata capture.
 

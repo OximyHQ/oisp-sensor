@@ -3,7 +3,6 @@ title: Windows Quick Start
 description: Get started with OISP Sensor on Windows
 ---
 
-# Windows Quick Start
 
 ## Start the Sensor
 

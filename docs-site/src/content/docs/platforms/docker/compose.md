@@ -3,7 +3,6 @@ title: Docker Compose
 description: Run OISP Sensor with Docker Compose
 ---
 
-# Docker Compose
 
 Run OISP Sensor alongside your application containers.
 

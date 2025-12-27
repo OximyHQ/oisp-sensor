@@ -3,7 +3,6 @@ title: Cookbooks Overview
 description: Ready-to-run examples for common OISP Sensor use cases
 ---
 
-# Cookbooks Overview
 
 Ready-to-run examples demonstrating OISP Sensor in real-world scenarios.
 

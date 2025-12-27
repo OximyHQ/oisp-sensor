@@ -3,7 +3,6 @@ title: Python + LiteLLM
 description: Use multiple AI providers with LiteLLM and OISP Sensor
 ---
 
-# Python + LiteLLM
 
 Use any AI provider (OpenAI, Anthropic, Azure, AWS, etc.) with unified API via LiteLLM.
 

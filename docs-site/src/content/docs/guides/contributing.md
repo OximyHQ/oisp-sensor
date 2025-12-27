@@ -3,7 +3,6 @@ title: Contributing
 description: Contribute to OISP Sensor development
 ---
 
-# Contributing to OISP Sensor
 
 Thank you for your interest in contributing to OISP Sensor! This guide will help you get started.
 

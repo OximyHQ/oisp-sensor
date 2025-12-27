@@ -3,7 +3,6 @@ title: DaemonSet Deployment
 description: Deploy OISP Sensor as a Kubernetes DaemonSet
 ---
 
-# DaemonSet Deployment
 
 Deploy OISP Sensor to monitor all nodes in your Kubernetes cluster.
 

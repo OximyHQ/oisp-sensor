@@ -3,7 +3,6 @@ title: Windows Overview
 description: OISP Sensor on Windows - Preview status and capabilities
 ---
 
-# Windows Overview
 
 ⚠️ **Preview Status** - Windows support is in preview with metadata capture only.
 

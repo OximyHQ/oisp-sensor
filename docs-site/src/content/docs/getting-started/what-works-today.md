@@ -3,7 +3,6 @@ title: "What Works Today"
 description: "Honest assessment of current OISP Sensor capabilities"
 ---
 
-# What Works Today
 
 > **Last Updated**: December 26, 2024
 >

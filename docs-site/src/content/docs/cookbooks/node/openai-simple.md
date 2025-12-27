@@ -3,7 +3,6 @@ title: Node.js + OpenAI Simple
 description: Basic chat completion with OpenAI in TypeScript
 ---
 
-# Node.js + OpenAI Simple
 
 Simple OpenAI chat completion in Node.js/TypeScript.
 

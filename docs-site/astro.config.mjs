@@ -45,7 +45,7 @@ export default defineConfig({
             { label: 'Introduction', slug: 'getting-started/introduction' },
             { label: 'Installation', slug: 'getting-started/installation' },
             { label: 'Quick Start', slug: 'getting-started/quick-start' },
-            { label: 'What It Captures', slug: 'getting-started/what-it-captures' },
+            { label: 'What Works Today', slug: 'getting-started/what-works-today' },
           ],
         },
         {
@@ -177,7 +177,6 @@ export default defineConfig({
           label: 'Reference',
           items: [
             { label: 'CLI Commands', slug: 'reference/cli' },
-            { label: 'Event Types', slug: 'reference/events' },
             { label: 'API Reference', slug: 'reference/api' },
             { label: 'OISP Spec', slug: 'reference/oisp-spec' },
           ],

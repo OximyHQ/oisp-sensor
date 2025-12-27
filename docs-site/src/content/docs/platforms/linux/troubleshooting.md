@@ -3,7 +3,6 @@ title: Troubleshooting
 description: Common issues and solutions for OISP Sensor on Linux
 ---
 
-# Troubleshooting
 
 Solve common issues with OISP Sensor on Linux.
 

@@ -3,7 +3,6 @@ title: "n8n Self-Hosted"
 description: "Capture AI activity from self-hosted n8n workflows"
 ---
 
-# n8n Self-Hosted
 
 This quickstart shows you how to capture AI activity from self-hosted n8n, including OpenAI, Anthropic, and other AI nodes.
 
