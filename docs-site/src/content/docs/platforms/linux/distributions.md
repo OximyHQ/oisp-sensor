@@ -1,0 +1,483 @@
+---
+title: Distribution Support
+description: Supported Linux distributions, kernel requirements, and compatibility information
+---
+
+# Distribution Support
+
+OISP Sensor supports all major Linux distributions with comprehensive testing on Ubuntu, Debian, RHEL-based systems, and Fedora.
+
+## Officially Supported Distributions
+
+### ✅ Fully Tested
+
+These distributions are tested in CI/CD and fully supported:
+
+| Distribution | Version | Package | Kernel | BTF | Status |
+|--------------|---------|---------|--------|-----|--------|
+| **Ubuntu** | 22.04 LTS | .deb | 5.15+ | ✅ | Production |
+| **Ubuntu** | 24.04 LTS | .deb | 6.8+ | ✅ | Production |
+| **Debian** | 12 (Bookworm) | .deb | 6.1+ | ✅ | Production |
+| **Rocky Linux** | 9 | .rpm | 5.14+ | ✅ | Production |
+| **AlmaLinux** | 9 | .rpm | 5.14+ | ✅ | Production |
+| **Fedora** | 39 | .rpm | 6.5+ | ✅ | Production |
+| **Fedora** | 40 | .rpm | 6.8+ | ✅ | Production |
+| **RHEL** | 9 | .rpm | 5.14+ | ✅ | Compatible |
+
+### Architectures
+
+| Architecture | Support | Notes |
+|--------------|---------|-------|
+| **x86_64** (AMD64) | ✅ Fully supported | Primary architecture, extensively tested |
+| **aarch64** (ARM64) | ✅ Fully supported | AWS Graviton, Raspberry Pi 4+, Apple Silicon (Docker) |
+
+---
+
+## Ubuntu
+
+### Ubuntu 24.04 LTS (Noble)
+
+**Recommended for new deployments**
+
+**Kernel:** 6.8.0+
+**OpenSSL:** 3.0.x
+**BTF:** Built-in
+
+**Installation:**
+
+```bash
+# Download .deb
+wget https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor_0.2.0_amd64.deb
+
+# Install
+sudo dpkg -i oisp-sensor_0.2.0_amd64.deb
+```
+
+**Advantages:**
+- Latest kernel (6.8.x) with full eBPF support
+- OpenSSL 3.0 (modern and maintained)
+- BTF enabled by default
+- 5 years of support (until 2029)
+
+### Ubuntu 22.04 LTS (Jammy)
+
+**Stable and widely deployed**
+
+**Kernel:** 5.15.0+
+**OpenSSL:** 3.0.x
+**BTF:** Built-in
+
+**Installation:**
+
+```bash
+wget https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor_0.2.0_amd64.deb
+sudo dpkg -i oisp-sensor_0.2.0_amd64.deb
+```
+
+**Advantages:**
+- Stable kernel (5.15.x)
+- OpenSSL 3.0
+- 5 years of support (until 2027)
+- Most widely deployed Ubuntu LTS
+
+### Ubuntu 20.04 LTS (Focal)
+
+**Older, but still supported**
+
+**Kernel:** 5.4.0+ (upgrade to 5.15+ recommended)
+**OpenSSL:** 1.1.1
+**BTF:** May require kernel upgrade
+
+**Notes:**
+- Kernel 5.4 has limited eBPF features
+- **Recommendation:** Upgrade to kernel 5.15+ for full support
+- Support ends April 2025
+
+**Upgrade kernel:**
+
+```bash
+sudo apt-get update
+sudo apt-get install --install-recommends linux-generic-hwe-20.04
+sudo reboot
+```
+
+---
+
+## Debian
+
+### Debian 12 (Bookworm)
+
+**Current stable release**
+
+**Kernel:** 6.1.0+
+**OpenSSL:** 3.0.x
+**BTF:** Built-in
+
+**Installation:**
+
+```bash
+wget https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor_0.2.0_amd64.deb
+sudo dpkg -i oisp-sensor_0.2.0_amd64.deb
+```
+
+**Advantages:**
+- Modern kernel (6.1.x)
+- OpenSSL 3.0
+- BTF enabled by default
+- Stable and well-tested
+
+### Debian 11 (Bullseye)
+
+**Older stable release**
+
+**Kernel:** 5.10.0+ (upgrade to 6.1+ recommended)
+**OpenSSL:** 1.1.1
+**BTF:** May require kernel upgrade
+
+**Notes:**
+- Kernel 5.10 works but missing some eBPF features
+- **Recommendation:** Upgrade to Debian 12 for full support
+
+---
+
+## RHEL-Based Distributions
+
+### Rocky Linux 9 / AlmaLinux 9
+
+**RHEL 9 rebuilds - recommended for enterprise**
+
+**Kernel:** 5.14.0+
+**OpenSSL:** 3.0.x
+**BTF:** Built-in
+
+**Installation:**
+
+```bash
+wget https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor-0.2.0-1.x86_64.rpm
+sudo dnf install ./oisp-sensor-0.2.0-1.x86_64.rpm
+```
+
+**Advantages:**
+- RHEL 9 kernel (5.14.x) with full eBPF support
+- OpenSSL 3.0
+- BTF enabled by default
+- 10 years of support
+- SELinux compatible
+
+**SELinux Notes:**
+
+If running with SELinux enforcing:
+
+```bash
+# Check SELinux status
+sestatus
+
+# If needed, create custom policy (advanced)
+# Or run in permissive mode for oisp-sensor:
+sudo semanage permissive -a oisp_sensor_t
+```
+
+### RHEL 9
+
+**Red Hat Enterprise Linux 9**
+
+**Kernel:** 5.14.0+
+**OpenSSL:** 3.0.x
+**BTF:** Built-in
+
+**Installation:**
+
+```bash
+wget https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor-0.2.0-1.x86_64.rpm
+sudo dnf install ./oisp-sensor-0.2.0-1.x86_64.rpm
+```
+
+**Notes:**
+- Identical to Rocky/Alma (same upstream sources)
+- Requires active RHEL subscription
+- Full support from Red Hat
+
+### Rocky Linux 8 / AlmaLinux 8 / RHEL 8
+
+**Older RHEL 8 series**
+
+**Kernel:** 4.18.0+
+**OpenSSL:** 1.1.1
+**BTF:** May not be enabled by default
+
+**Notes:**
+- Kernel 4.18 works but with limitations
+- May need to enable BTF manually
+- **Recommendation:** Upgrade to Rocky/Alma/RHEL 9 for full support
+
+**Enable BTF (if missing):**
+
+```bash
+sudo dnf install kernel-devel
+sudo grubby --update-kernel=ALL --args="CONFIG_DEBUG_INFO_BTF=y"
+sudo reboot
+```
+
+---
+
+## Fedora
+
+### Fedora 40
+
+**Latest stable Fedora**
+
+**Kernel:** 6.8.0+
+**OpenSSL:** 3.2.x
+**BTF:** Built-in
+
+**Installation:**
+
+```bash
+wget https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor-0.2.0-1.x86_64.rpm
+sudo dnf install ./oisp-sensor-0.2.0-1.x86_64.rpm
+```
+
+**Advantages:**
+- Bleeding-edge kernel (6.8.x)
+- Latest OpenSSL (3.2.x)
+- Full eBPF support
+- Great for testing new features
+
+### Fedora 39
+
+**Previous stable Fedora**
+
+**Kernel:** 6.5.0+
+**OpenSSL:** 3.1.x
+**BTF:** Built-in
+
+**Installation:**
+
+```bash
+wget https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor-0.2.0-1.x86_64.rpm
+sudo dnf install ./oisp-sensor-0.2.0-1.x86_64.rpm
+```
+
+**Notes:**
+- Fully supported
+- Support ends shortly after Fedora 41 release (usually 6 months)
+
+---
+
+## Other Distributions
+
+### CentOS Stream 9
+
+**Kernel:** 5.14.0+
+**OpenSSL:** 3.0.x
+**BTF:** Built-in
+
+**Installation:**
+
+```bash
+wget https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor-0.2.0-1.x86_64.rpm
+sudo dnf install ./oisp-sensor-0.2.0-1.x86_64.rpm
+```
+
+**Status:** Compatible (same as Rocky/Alma 9)
+
+### Arch Linux
+
+**Kernel:** Latest (rolling release)
+**OpenSSL:** Latest
+**BTF:** Built-in
+
+**Installation:**
+
+```bash
+# Use binary installation
+wget https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor-x86_64-unknown-linux-gnu.tar.gz
+tar -xzf oisp-sensor-x86_64-unknown-linux-gnu.tar.gz
+sudo mv oisp-sensor /usr/local/bin/
+sudo setcap cap_sys_admin,cap_bpf,cap_perfmon,cap_net_admin+ep /usr/local/bin/oisp-sensor
+```
+
+**Status:** Compatible (use binary installation)
+
+### openSUSE / SUSE Linux Enterprise
+
+**Kernel:** Varies by version
+**OpenSSL:** Varies
+**BTF:** Usually built-in
+
+**Installation:**
+
+```bash
+# Use binary installation
+wget https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor-x86_64-unknown-linux-gnu.tar.gz
+tar -xzf oisp-sensor-x86_64-unknown-linux-gnu.tar.gz
+sudo mv oisp-sensor /usr/local/bin/
+sudo setcap cap_sys_admin,cap_bpf,cap_perfmon,cap_net_admin+ep /usr/local/bin/oisp-sensor
+```
+
+**Status:** Compatible (use binary installation)
+
+---
+
+## Kernel Requirements
+
+### Minimum Kernel Versions
+
+| Kernel Version | eBPF Support | BTF Support | Recommendation |
+|----------------|--------------|-------------|----------------|
+| **5.8+** | Full | Built-in | ✅ Recommended |
+| **5.0 - 5.7** | Good | May need enabling | ⚠️ Works |
+| **4.18 - 4.x** | Limited | Usually missing | ⚠️ Upgrade recommended |
+| **< 4.18** | Minimal | No | ❌ Not supported |
+
+### Check Your Kernel
+
+```bash
+# Check kernel version
+uname -r
+
+# Check BTF support
+ls /sys/kernel/btf/vmlinux
+
+# Check eBPF filesystem
+ls /sys/fs/bpf
+```
+
+### Upgrade Kernel
+
+**Ubuntu/Debian:**
+
+```bash
+# Install latest kernel
+sudo apt-get update
+sudo apt-get upgrade linux-image-generic
+
+# Reboot
+sudo reboot
+```
+
+**RHEL/Rocky/Fedora:**
+
+```bash
+# Update all packages including kernel
+sudo dnf update
+
+# Reboot
+sudo reboot
+```
+
+---
+
+## OpenSSL Compatibility
+
+### Supported Versions
+
+| OpenSSL Version | Distributions | Status |
+|-----------------|---------------|--------|
+| **3.0.x** | Ubuntu 22.04+, Debian 12+, RHEL 9+, Fedora 39+ | ✅ Recommended |
+| **1.1.1** | Ubuntu 20.04, Debian 11, RHEL 8 | ✅ Supported |
+| **1.1.0** | Older distributions | ⚠️ Works (EOL) |
+| **1.0.x** | Very old distributions | ❌ Not recommended |
+
+### Check OpenSSL Version
+
+```bash
+# System OpenSSL version
+openssl version
+
+# Check library path
+ldconfig -p | grep libssl
+```
+
+### Multiple OpenSSL Versions
+
+OISP Sensor can detect and attach to multiple OpenSSL versions:
+
+```bash
+# List all SSL libraries
+sudo oisp-sensor ssl-info
+```
+
+**Example output:**
+
+```
+Found SSL libraries:
+  /usr/lib/x86_64-linux-gnu/libssl.so.3 (OpenSSL 3.0.2)
+  /usr/lib/x86_64-linux-gnu/libssl.so.1.1 (OpenSSL 1.1.1f)
+```
+
+---
+
+## Testing Compatibility
+
+### Run System Check
+
+```bash
+oisp-sensor check
+```
+
+**Expected output for compatible system:**
+
+```
+OISP Sensor System Check
+========================
+
+Platform: linux x86_64 (supported)
+Distribution: Ubuntu 24.04
+
+Kernel Version:    6.8.0 [OK]
+BTF Support:       /sys/kernel/btf/vmlinux [OK]
+eBPF Filesystem:   /sys/fs/bpf [OK]
+Permissions:       CAP_BPF+CAP_PERFMON set [OK]
+Systemd:           Available [OK]
+
+SSL Libraries:
+  /usr/lib/x86_64-linux-gnu/libssl.so.3 [FOUND]
+
+Result: READY
+```
+
+### Test SSL Capture
+
+```bash
+# Start sensor
+sudo oisp-sensor record --output /tmp/test.jsonl
+
+# In another terminal, make HTTPS request
+curl -s https://api.openai.com/v1/models > /dev/null
+
+# Check events
+cat /tmp/test.jsonl | jq -r '.event_type' | sort | uniq -c
+```
+
+---
+
+## Compatibility Matrix
+
+### Production Ready
+
+| Distribution | Kernel | BTF | SSL | Status |
+|--------------|--------|-----|-----|--------|
+| Ubuntu 24.04 LTS | 6.8+ | ✅ | 3.0 | ✅ Production |
+| Ubuntu 22.04 LTS | 5.15+ | ✅ | 3.0 | ✅ Production |
+| Debian 12 | 6.1+ | ✅ | 3.0 | ✅ Production |
+| Rocky/Alma 9 | 5.14+ | ✅ | 3.0 | ✅ Production |
+| RHEL 9 | 5.14+ | ✅ | 3.0 | ✅ Production |
+| Fedora 39/40 | 6.5+ | ✅ | 3.1+ | ✅ Production |
+
+### Compatible (Works)
+
+| Distribution | Kernel | BTF | SSL | Status |
+|--------------|--------|-----|-----|--------|
+| Ubuntu 20.04 LTS | 5.15+ | ⚠️ | 1.1 | ⚠️ Upgrade kernel |
+| Debian 11 | 5.10+ | ⚠️ | 1.1 | ⚠️ Upgrade to 12 |
+| Rocky/Alma 8 | 4.18+ | ⚠️ | 1.1 | ⚠️ Upgrade to 9 |
+| RHEL 8 | 4.18+ | ⚠️ | 1.1 | ⚠️ Upgrade to 9 |
+
+---
+
+## Next Steps
+
+- **[Installation](./installation)** - Install on your distribution
+- **[Quick Start](./quick-start)** - Get started in 5 minutes
+- **[Troubleshooting](./troubleshooting)** - Solve compatibility issues

@@ -91,7 +91,8 @@ enum Commands {
         #[arg(long)]
         ebpf_path: Option<PathBuf>,
 
-        /// Path to libssl.so for SSL interception (auto-detected if not specified)
+        /// Path to libssl.so OR binary with embedded SSL (e.g., node) for SSL interception
+        /// (auto-detected if not specified)
         #[arg(long)]
         libssl_path: Option<PathBuf>,
     },

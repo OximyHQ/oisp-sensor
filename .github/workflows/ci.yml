@@ -221,9 +221,6 @@ jobs:
           - name: Debian 12
             image: debian:12
             package: deb
-          - name: Rocky Linux 9
-            image: rockylinux:9
-            package: rpm
           - name: Fedora 40
             image: fedora:40
             package: rpm

@@ -1,0 +1,515 @@
+---
+title: Running as a Service
+description: Configure and manage OISP Sensor as a systemd service on Linux
+---
+
+# Running as a Service
+
+Run OISP Sensor as a systemd service for persistent, production monitoring.
+
+## Quick Setup
+
+If you installed via package manager (.deb or .rpm), the service is already configured:
+
+```bash
+# Enable service to start on boot
+sudo systemctl enable oisp-sensor
+
+# Start service now
+sudo systemctl start oisp-sensor
+
+# Check status
+sudo systemctl status oisp-sensor
+```
+
+**That's it!** The sensor is now running and will automatically start on system boot.
+
+---
+
+## Service Management
+
+### Basic Commands
+
+```bash
+# Start the service
+sudo systemctl start oisp-sensor
+
+# Stop the service
+sudo systemctl stop oisp-sensor
+
+# Restart the service
+sudo systemctl restart oisp-sensor
+
+# Reload configuration (SIGHUP, no restart)
+sudo systemctl reload oisp-sensor
+
+# Check service status
+sudo systemctl status oisp-sensor
+
+# Enable auto-start on boot
+sudo systemctl enable oisp-sensor
+
+# Disable auto-start
+sudo systemctl disable oisp-sensor
+
+# View logs
+sudo journalctl -u oisp-sensor -f
+
+# View last 100 lines of logs
+sudo journalctl -u oisp-sensor -n 100
+
+# View logs since boot
+sudo journalctl -u oisp-sensor -b
+```
+
+### Service Status
+
+```bash
+sudo systemctl status oisp-sensor
+```
+
+**Example output:**
+
+```
+● oisp-sensor.service - OISP Sensor - AI Activity Monitoring
+     Loaded: loaded (/lib/systemd/system/oisp-sensor.service; enabled; preset: enabled)
+     Active: active (running) since Thu 2024-12-26 14:30:15 UTC; 2h 15min ago
+   Main PID: 1234 (oisp-sensor)
+      Tasks: 12 (limit: 4654)
+     Memory: 156.2M
+        CPU: 1.2s
+     CGroup: /system.slice/oisp-sensor.service
+             └─1234 /usr/bin/oisp-sensor record --output /var/log/oisp/events.jsonl
+
+Dec 26 14:30:15 server-01 systemd[1]: Started oisp-sensor.service - OISP Sensor - AI Activity Monitoring.
+Dec 26 14:30:16 server-01 oisp-sensor[1234]: oisp-sensor v0.2.0 starting...
+Dec 26 14:30:16 server-01 oisp-sensor[1234]: Attached uprobe to /usr/lib/x86_64-linux-gnu/libssl.so.3
+Dec 26 14:30:16 server-01 oisp-sensor[1234]: Ready to capture events
+```
+
+**Status indicators:**
+- **Active: active (running)** - Service is running normally
+- **Active: inactive (dead)** - Service is stopped
+- **Active: failed** - Service crashed or failed to start
+- **Loaded: enabled** - Service will start on boot
+- **Loaded: disabled** - Service will NOT start on boot
+
+---
+
+## Default Service Configuration
+
+### Package Installation
+
+After package installation, the service is configured at:
+
+**Ubuntu/Debian:**
+```
+/lib/systemd/system/oisp-sensor.service
+```
+
+**RHEL/Rocky/Fedora:**
+```
+/usr/lib/systemd/system/oisp-sensor.service
+```
+
+**Default service file:**
+
+```ini
+[Unit]
+Description=OISP Sensor - AI Activity Monitoring
+Documentation=https://sensor.oisp.dev
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/oisp-sensor record --output /var/log/oisp/events.jsonl
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Run as oisp user (created during package install)
+User=oisp
+Group=oisp
+
+# Capabilities for eBPF
+AmbientCapabilities=CAP_SYS_ADMIN CAP_BPF CAP_PERFMON CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_SYS_ADMIN CAP_BPF CAP_PERFMON CAP_NET_ADMIN
+
+# Security hardening
+NoNewPrivileges=no
+ProtectSystem=strict
+ReadWritePaths=/var/log/oisp
+ProtectHome=read-only
+PrivateTmp=true
+
+# Resource limits
+LimitMEMLOCK=infinity
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+```
+
+---
+
+## Customizing the Service
+
+To customize the service configuration, use systemd drop-in files:
+
+```bash
+# Create override file
+sudo systemctl edit oisp-sensor
+```
+
+This opens an editor. Add your customizations:
+
+### Example: Change Output Location
+
+```ini
+[Service]
+ExecStart=
+ExecStart=/usr/bin/oisp-sensor record --output /custom/path/events.jsonl
+```
+
+### Example: Enable Web UI
+
+```ini
+[Service]
+ExecStart=
+ExecStart=/usr/bin/oisp-sensor record --web --output /var/log/oisp/events.jsonl
+```
+
+### Example: Export to OTLP
+
+```ini
+[Service]
+ExecStart=
+ExecStart=/usr/bin/oisp-sensor record --export otlp --otlp-endpoint http://collector:4317
+Environment="OTLP_API_KEY=your-api-key"
+```
+
+### Example: Filter by Process
+
+```ini
+[Service]
+ExecStart=
+ExecStart=/usr/bin/oisp-sensor record --comm python3,node --output /var/log/oisp/events.jsonl
+```
+
+### Example: Enable Debug Logging
+
+```ini
+[Service]
+Environment="RUST_LOG=debug"
+```
+
+### Example: Run as Root
+
+If you need to run as root (not recommended):
+
+```ini
+[Service]
+User=root
+Group=root
+```
+
+After editing, reload and restart:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart oisp-sensor
+```
+
+---
+
+## Configuration File
+
+Instead of command-line flags, use a configuration file:
+
+**Create `/etc/oisp/config.toml`:**
+
+```toml
+[sensor]
+name = "prod-server-01"
+
+[capture]
+ssl = true
+process = true
+file = true
+network = true
+
+# Filter by process
+process_filter = ["python3", "node", "cursor"]
+
+[redaction]
+mode = "safe"  # safe, full, or minimal
+
+[export.jsonl]
+enabled = true
+path = "/var/log/oisp/events.jsonl"
+append = true
+rotate = true
+max_size_mb = 100
+
+[export.otlp]
+enabled = false
+endpoint = "http://collector:4317"
+
+[web]
+enabled = false
+host = "127.0.0.1"
+port = 7777
+```
+
+**Update service to use config file:**
+
+```bash
+sudo systemctl edit oisp-sensor
+```
+
+Add:
+
+```ini
+[Service]
+ExecStart=
+ExecStart=/usr/bin/oisp-sensor record --config /etc/oisp/config.toml
+```
+
+Reload and restart:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart oisp-sensor
+```
+
+See [Configuration Guide](/configuration/config-file/) for all options.
+
+---
+
+## Monitoring the Service
+
+### View Logs in Real-Time
+
+```bash
+sudo journalctl -u oisp-sensor -f
+```
+
+**Example output:**
+
+```
+Dec 26 14:30:16 server-01 oisp-sensor[1234]: oisp-sensor v0.2.0 starting...
+Dec 26 14:30:16 server-01 oisp-sensor[1234]: Loading eBPF programs...
+Dec 26 14:30:16 server-01 oisp-sensor[1234]: Attached uprobe to /usr/lib/x86_64-linux-gnu/libssl.so.3: SSL_read
+Dec 26 14:30:16 server-01 oisp-sensor[1234]: Attached uprobe to /usr/lib/x86_64-linux-gnu/libssl.so.3: SSL_write
+Dec 26 14:30:16 server-01 oisp-sensor[1234]: Ready to capture events
+Dec 26 14:35:22 server-01 oisp-sensor[1234]: Captured ai.request: OpenAI gpt-4o-mini (python3)
+Dec 26 14:35:23 server-01 oisp-sensor[1234]: Captured ai.response: OpenAI gpt-4o-mini (python3)
+```
+
+### Check Resource Usage
+
+```bash
+# CPU and memory
+sudo systemctl status oisp-sensor
+
+# More detailed resource info
+sudo systemd-cgtop -n 1 | grep oisp-sensor
+```
+
+### Check Event Capture
+
+```bash
+# Count events in last 5 minutes
+sudo journalctl -u oisp-sensor --since "5 minutes ago" | grep -c "Captured"
+
+# View event types
+cat /var/log/oisp/events.jsonl | jq -r '.event_type' | sort | uniq -c
+```
+
+---
+
+## Auto-Restart Configuration
+
+The default service automatically restarts on failure:
+
+```ini
+Restart=on-failure
+RestartSec=10
+```
+
+**Restart policies:**
+- `no` - Never restart
+- `on-success` - Restart only on clean exit
+- `on-failure` - Restart on non-zero exit, signal, timeout (default)
+- `on-abnormal` - Restart on timeout or signal
+- `on-abort` - Restart on unclean signal
+- `always` - Always restart
+
+**To change restart behavior:**
+
+```bash
+sudo systemctl edit oisp-sensor
+```
+
+Add:
+
+```ini
+[Service]
+Restart=always
+RestartSec=30
+```
+
+---
+
+## Health Checks
+
+Set up automated health monitoring:
+
+### 1. Systemd Health Check
+
+Create a timer to periodically check the service:
+
+```bash
+# Create health check script
+sudo tee /usr/local/bin/oisp-health-check.sh > /dev/null <<'EOF'
+#!/bin/bash
+if ! systemctl is-active --quiet oisp-sensor; then
+  echo "OISP Sensor is not running!" | systemd-cat -t oisp-health -p err
+  systemctl restart oisp-sensor
+fi
+EOF
+
+sudo chmod +x /usr/local/bin/oisp-health-check.sh
+
+# Create systemd timer
+sudo tee /etc/systemd/system/oisp-health-check.timer > /dev/null <<'EOF'
+[Unit]
+Description=OISP Sensor Health Check Timer
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target
+EOF
+
+sudo tee /etc/systemd/system/oisp-health-check.service > /dev/null <<'EOF'
+[Unit]
+Description=OISP Sensor Health Check
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/oisp-health-check.sh
+EOF
+
+# Enable timer
+sudo systemctl daemon-reload
+sudo systemctl enable oisp-health-check.timer
+sudo systemctl start oisp-health-check.timer
+```
+
+### 2. Web UI Health Endpoint
+
+If running with `--web`:
+
+```bash
+curl http://localhost:7777/health
+# Returns: {"status":"ok"}
+```
+
+Use this in monitoring systems (Prometheus, Nagios, etc.).
+
+---
+
+## Log Rotation
+
+The sensor logs to journald by default, which auto-rotates. For JSONL file output, set up log rotation:
+
+**Create `/etc/logrotate.d/oisp-sensor`:**
+
+```
+/var/log/oisp/events.jsonl {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 oisp oisp
+    postrotate
+        /bin/systemctl reload oisp-sensor > /dev/null 2>&1 || true
+    endscript
+}
+```
+
+**Test rotation:**
+
+```bash
+sudo logrotate -f /etc/logrotate.d/oisp-sensor
+```
+
+See [Production Deployment](./production#log-rotation) for more details.
+
+---
+
+## Troubleshooting
+
+### Service Won't Start
+
+1. **Check logs:**
+   ```bash
+   sudo journalctl -u oisp-sensor -n 50
+   ```
+
+2. **Check permissions:**
+   ```bash
+   sudo ls -la /usr/bin/oisp-sensor
+   # Should have capabilities set
+   ```
+
+3. **Verify system requirements:**
+   ```bash
+   oisp-sensor check
+   ```
+
+4. **Try running manually:**
+   ```bash
+   sudo /usr/bin/oisp-sensor record --output /tmp/test.jsonl
+   ```
+
+### Service Crashes or Restarts
+
+1. **Check recent logs:**
+   ```bash
+   sudo journalctl -u oisp-sensor --since "1 hour ago"
+   ```
+
+2. **Check resource limits:**
+   ```bash
+   sudo systemctl show oisp-sensor | grep -E "Limit|Memory"
+   ```
+
+3. **Enable debug logging:**
+   ```bash
+   sudo systemctl edit oisp-sensor
+   ```
+   Add:
+   ```ini
+   [Service]
+   Environment="RUST_LOG=debug"
+   ```
+
+### High CPU or Memory Usage
+
+See [Production Deployment - Performance Tuning](./production#performance-tuning).
+
+---
+
+## Next Steps
+
+- **[Production Deployment](./production)** - Security, monitoring, performance tuning
+- **[Configuration](../../configuration/config-file/)** - Full configuration reference
+- **[Troubleshooting](./troubleshooting)** - Solve common issues

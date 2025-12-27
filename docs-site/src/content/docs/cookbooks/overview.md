@@ -1,0 +1,229 @@
+---
+title: Cookbooks Overview
+description: Ready-to-run examples for common OISP Sensor use cases
+---
+
+# Cookbooks Overview
+
+Ready-to-run examples demonstrating OISP Sensor in real-world scenarios.
+
+## What are Cookbooks?
+
+Cookbooks are **complete, runnable examples** that show:
+- How to integrate OISP Sensor with specific frameworks/tools
+- Expected event output
+- Common patterns and configurations
+- Best practices
+
+Each cookbook includes:
+- ✅ Complete source code
+- ✅ Docker Compose setup
+- ✅ Step-by-step instructions
+- ✅ Expected events with validation
+- ✅ CI-tested and working
+
+## Repository
+
+**All cookbooks live in:** [github.com/oximyhq/oisp-cookbook](https://github.com/oximyhq/oisp-cookbook)
+
+```bash
+git clone https://github.com/oximyhq/oisp-cookbook.git
+cd oisp-cookbook
+```
+
+## Quick Start
+
+```bash
+# Run any cookbook
+cd oisp-cookbook/<category>/<example>
+docker-compose up
+
+# View captured events
+cat output/events.jsonl | jq
+```
+
+## Categories
+
+### Python Examples
+
+| Cookbook | Description | Use Case |
+|----------|-------------|----------|
+| [OpenAI Simple](./python/openai-simple/) | Basic chat completion | Getting started |
+| [LiteLLM](./python/litellm/) | Multi-provider abstraction | Provider flexibility |
+| [LangChain Agent](./python/langchain-agent/) | Agent with tool calls | Agent workflows |
+| [FastAPI Service](./python/fastapi-service/) | API service with AI | Production APIs |
+
+### Node.js Examples
+
+| Cookbook | Description | Use Case |
+|----------|-------------|----------|
+| [OpenAI Simple](./node/openai-simple/) | TypeScript chat app | Node.js integration |
+
+### Self-Hosted
+
+| Cookbook | Description | Use Case |
+|----------|-------------|----------|
+| [n8n](./self-hosted/n8n/) | n8n workflow automation | No-code AI workflows |
+
+### Multi-Process
+
+| Cookbook | Description | Use Case |
+|----------|-------------|----------|
+| [Python Celery](./multi-process/celery/) | Distributed workers | Background job processing |
+
+### Kubernetes
+
+| Cookbook | Description | Use Case |
+|----------|-------------|----------|
+| [DaemonSet](./kubernetes/daemonset/) | Cluster-wide monitoring | K8s deployments |
+
+### Edge Cases
+
+| Cookbook | Description | Use Case |
+|----------|-------------|----------|
+| [NVM Node.js](./edge-cases/nvm-node/) | Static OpenSSL handling | NVM environments |
+| [pyenv Python](./edge-cases/pyenv-python/) | Static OpenSSL handling | pyenv environments |
+
+## Anatomy of a Cookbook
+
+Each cookbook follows this structure:
+
+```
+oisp-cookbook/<category>/<example>/
+├── README.md              # Step-by-step instructions
+├── docker-compose.yml     # Run everything with one command
+├── app.py / index.ts      # Application code
+├── requirements.txt       # Dependencies
+├── Dockerfile             # App container (if needed)
+├── expected-events.json   # Event validation rules
+├── test.sh                # CI test script
+└── Makefile               # Common tasks
+```
+
+## Running a Cookbook
+
+### With Docker Compose (Recommended)
+
+```bash
+cd oisp-cookbook/python/01-openai-simple
+
+# Start OISP Sensor + run app
+docker-compose up
+
+# Events are captured to output/events.jsonl
+```
+
+### Without Docker
+
+```bash
+cd oisp-cookbook/python/01-openai-simple
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Start sensor in one terminal
+sudo oisp-sensor record --output output/events.jsonl
+
+# Run app in another terminal
+python app.py
+
+# View events
+cat output/events.jsonl | jq
+```
+
+## Validating Events
+
+Each cookbook includes expected event validation:
+
+```bash
+# Run validation
+./validate.sh
+
+# Or manually
+python shared/scripts/validate.py \
+  --events output/events.jsonl \
+  --expected expected-events.json
+```
+
+**Example `expected-events.json`:**
+
+```json
+{
+  "event_types": [
+    "ai.request",
+    "ai.response"
+  ],
+  "providers": ["OpenAI"],
+  "models": ["gpt-4o-mini"],
+  "min_events": 2
+}
+```
+
+## CI Testing
+
+All cookbooks are tested in CI:
+
+- **Nightly builds** - Run all cookbooks every night
+- **On sensor release** - Validate compatibility with new versions
+- **Pull requests** - Test cookbook changes
+
+See [CI workflows](https://github.com/oximyhq/oisp-cookbook/tree/main/.github/workflows)
+
+## Contributing
+
+Want to add a cookbook?
+
+1. Fork [oisp-cookbook](https://github.com/oximyhq/oisp-cookbook)
+2. Create your cookbook following the structure
+3. Add `expected-events.json`
+4. Add `test.sh` for CI
+5. Submit a pull request
+
+See [CONTRIBUTING.md](https://github.com/oximyhq/oisp-cookbook/blob/main/CONTRIBUTING.md)
+
+## Common Patterns
+
+### Pattern 1: Development Monitoring
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+services:
+  app:
+    build: .
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+
+  sensor:
+    image: ghcr.io/oximyhq/oisp-sensor:latest
+    privileged: true
+    network_mode: host
+    pid: host
+    volumes:
+      - /sys:/sys:ro
+      - /usr:/usr:ro
+      - /lib:/lib:ro
+      - ./output:/var/log/oisp
+    command: record --output /var/log/oisp/events.jsonl
+```
+
+### Pattern 2: Production API
+
+See [FastAPI Service](./python/fastapi-service/) for production patterns:
+- Health checks
+- Structured logging
+- Error handling
+- Metrics export
+
+### Pattern 3: Agent Workflows
+
+See [LangChain Agent](./python/langchain-agent/) for:
+- Tool call tracing
+- Multi-turn conversations
+- Agentic patterns
+
+## Next Steps
+
+- **[Python OpenAI Simple](./python/openai-simple/)** - Start here
+- **[Browse all cookbooks](https://github.com/oximyhq/oisp-cookbook)** - See all examples
+- **[Platform guides](/platforms/linux/)** - Installation and setup

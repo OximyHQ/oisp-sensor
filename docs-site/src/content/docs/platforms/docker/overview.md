@@ -1,0 +1,49 @@
+---
+title: Docker Overview
+description: Run OISP Sensor in Docker containers
+---
+
+# Docker Overview
+
+Run OISP Sensor as a Docker container for portable deployment across any Linux distribution.
+
+## When to Use Docker
+
+**Use Docker when:**
+- Running on an unsupported Linux distribution
+- Need portable deployment
+- Want to avoid package installation
+- Testing or development
+- Running alongside application containers
+
+**Use native installation when:**
+- Running in production (better performance)
+- System-wide monitoring needed
+- Need auto-start on boot
+
+## Requirements
+
+- Linux host (Docker doesn't work for full capture on macOS/Windows)
+- Docker 20.10+
+- Privileged mode (for eBPF)
+- Host network mode (for SSL capture)
+
+## Capabilities
+
+✅ **Full SSL/TLS capture** (same as native Linux)
+✅ **All event types** supported
+✅ **All AI providers** detected
+
+## Container Image
+
+**Registry:** `ghcr.io/oximyhq/oisp-sensor`
+
+**Tags:**
+- `latest` - Latest stable release
+- `v0.2.0` - Specific version
+- `main` - Latest development build
+
+## Next Steps
+
+- [Running with Docker](./running) - Run the container
+- [Docker Compose](./compose) - Multi-container setup

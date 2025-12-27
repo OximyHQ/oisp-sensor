@@ -318,6 +318,15 @@ impl CapturePlugin for SslsniffCapture {
         let mut cmd = Command::new(&sslsniff_path);
         cmd.stdout(Stdio::piped()).stderr(Stdio::null());
 
+        // Add binary path for statically-linked SSL (e.g., Node.js with embedded OpenSSL)
+        // This allows sslsniff to attach uprobes to the binary itself instead of libssl.so
+        if let Some(binary_path) = self.config.ssl_binary_paths.first() {
+            if !binary_path.is_empty() && std::path::Path::new(binary_path).exists() {
+                info!("Attaching to binary with embedded SSL: {}", binary_path);
+                cmd.args(["--binary-path", binary_path]);
+            }
+        }
+
         // Add PID filter if specified
         if let Some(pid) = self.config.pid_filter {
             cmd.args(["-p", &pid.to_string()]);
