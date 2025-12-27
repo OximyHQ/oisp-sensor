@@ -245,9 +245,9 @@ impl ResponseReassembler {
 
     fn is_complete(&self) -> bool {
         if self.headers.is_chunked {
-            // For chunked encoding, we need to verify the entire chunked stream is valid,
-            // not just that it ends with "0\r\n\r\n"
-            Self::is_chunked_complete(&self.body_buffer)
+            // For chunked encoding, look for the final chunk marker "0\r\n\r\n"
+            // This is more lenient than full validation since SSL reads may fragment chunks
+            Self::has_final_chunk_marker(&self.body_buffer)
         } else if let Some(content_len) = self.headers.content_length {
             self.body_buffer.len() >= content_len
         } else {
@@ -256,58 +256,34 @@ impl ResponseReassembler {
         }
     }
 
-    /// Verify that chunked encoding is complete by parsing all chunks
-    fn is_chunked_complete(data: &[u8]) -> bool {
-        let mut pos = 0;
+    /// Check if buffer contains the final chunk marker (0\r\n\r\n)
+    /// This indicates the chunked response is complete even if intermediate chunks are fragmented
+    fn has_final_chunk_marker(data: &[u8]) -> bool {
+        // Look for "0\r\n\r\n" anywhere in the last 20 bytes
+        if data.len() < 5 {
+            return false;
+        }
 
-        while pos < data.len() {
-            // Find the chunk size line (ends with \r\n)
-            let size_end = match (pos..data.len().saturating_sub(1))
-                .find(|&i| data[i] == b'\r' && data[i + 1] == b'\n')
+        let search_start = data.len().saturating_sub(20);
+        let search_region = &data[search_start..];
+
+        // Pattern: 0\r\n\r\n
+        for i in 0..search_region.len().saturating_sub(4) {
+            if search_region[i] == b'0'
+                && search_region[i + 1] == b'\r'
+                && search_region[i + 2] == b'\n'
+                && search_region[i + 3] == b'\r'
+                && search_region[i + 4] == b'\n'
             {
-                Some(i) => i - pos,
-                None => return false, // No CRLF found
-            };
-
-            let size_line = &data[pos..pos + size_end];
-
-            // Parse chunk size (hex)
-            let size_str = match std::str::from_utf8(size_line) {
-                Ok(s) => s,
-                Err(_) => return false,
-            };
-            let size_hex = size_str.split(';').next().map(|s| s.trim()).unwrap_or("");
-            let chunk_size = match usize::from_str_radix(size_hex, 16) {
-                Ok(s) => s,
-                Err(_) => return false,
-            };
-
-            pos += size_end + 2; // Skip size line and CRLF
-
-            if chunk_size == 0 {
-                // Final chunk - check for trailing \r\n
-                if pos + 2 <= data.len() && &data[pos..pos + 2] == b"\r\n" {
-                    return true; // Complete!
-                }
-                return false; // Missing final CRLF
-            }
-
-            // Verify we have enough data for this chunk
-            if pos + chunk_size > data.len() {
-                return false; // Incomplete chunk
-            }
-
-            pos += chunk_size;
-
-            // Skip trailing CRLF after chunk data
-            if pos + 2 <= data.len() && &data[pos..pos + 2] == b"\r\n" {
-                pos += 2;
-            } else {
-                return false; // Missing CRLF after chunk
+                info!(
+                    "Found final chunk marker at offset {} from end",
+                    data.len() - (search_start + i)
+                );
+                return true;
             }
         }
 
-        false // Didn't find final chunk
+        false
     }
 
     fn decompress_if_needed(&mut self) {
