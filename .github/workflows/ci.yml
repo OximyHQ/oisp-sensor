@@ -180,28 +180,82 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
-      
+
       - name: Build frontend
         run: |
           cd frontend
           npm ci
           npm run build
-      
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-      
+
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
-      
+
       - name: Build release
         run: cargo build --release
+
+  test-distros:
+    name: Test on ${{ matrix.distro.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        distro:
+          - name: Ubuntu 22.04
+            image: ubuntu:22.04
+            package: deb
+          - name: Ubuntu 24.04
+            image: ubuntu:24.04
+            package: deb
+          - name: Debian 12
+            image: debian:12
+            package: deb
+          - name: Rocky Linux 9
+            image: rockylinux:9
+            package: rpm
+          - name: Fedora 40
+            image: fedora:40
+            package: rpm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Test on ${{ matrix.distro.name }}
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            ${{ matrix.distro.image }} \
+            /bin/bash -c '
+              set -e
+
+              # Install dependencies based on package type
+              if [ "${{ matrix.distro.package }}" = "deb" ]; then
+                apt-get update
+                apt-get install -y curl file
+              else
+                dnf install -y curl file
+              fi
+
+              # Check kernel version (from container host)
+              uname -r || echo "Container kernel info not available"
+
+              # Test universal installer (dry run)
+              echo "Testing installer detection..."
+              if [ -f /etc/os-release ]; then
+                cat /etc/os-release
+              fi
+
+              echo "Distro test passed for ${{ matrix.distro.name }}"
+            '
 

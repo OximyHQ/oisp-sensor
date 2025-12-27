@@ -67,21 +67,247 @@ impl ResponseReassembler {
         self.body_buffer.extend_from_slice(data);
     }
 
+    /// Try standard gzip decompression using flate2
+    fn try_gzip_decompress(data: &[u8]) -> Option<Vec<u8>> {
+        use flate2::bufread::GzDecoder;
+        use std::io::{BufReader, Read};
+
+        let reader = BufReader::new(data);
+        let mut decoder = GzDecoder::new(reader);
+        let mut decompressed = Vec::new();
+
+        match decoder.read_to_end(&mut decompressed) {
+            Ok(_) if !decompressed.is_empty() => Some(decompressed),
+            Ok(_) => {
+                info!("Gzip decompress returned empty");
+                None
+            }
+            Err(e) => {
+                info!("Gzip decompress failed: {}", e);
+                None
+            }
+        }
+    }
+
+    /// Try decompression by skipping the gzip wrapper and using raw deflate
+    /// Handles streaming gzip with sync-flush markers (00 00 00 ff ff or 00 00 ff ff)
+    fn try_miniz_decompress(data: &[u8]) -> Option<Vec<u8>> {
+        use flate2::Decompress;
+        use flate2::FlushDecompress;
+
+        // Skip gzip header (minimum 10 bytes)
+        if data.len() <= 10 || data[0] != 0x1f || data[1] != 0x8b {
+            return None;
+        }
+
+        let mut header_end = 10;
+        let flags = data[3];
+
+        // Check for extra field (FEXTRA)
+        if flags & 0x04 != 0 && header_end + 2 <= data.len() {
+            let xlen = u16::from_le_bytes([data[header_end], data[header_end + 1]]) as usize;
+            header_end += 2 + xlen;
+        }
+        // Check for filename (FNAME)
+        if flags & 0x08 != 0 {
+            while header_end < data.len() && data[header_end] != 0 {
+                header_end += 1;
+            }
+            header_end += 1;
+        }
+        // Check for comment (FCOMMENT)
+        if flags & 0x10 != 0 {
+            while header_end < data.len() && data[header_end] != 0 {
+                header_end += 1;
+            }
+            header_end += 1;
+        }
+        // Check for header CRC (FHCRC)
+        if flags & 0x02 != 0 {
+            header_end += 2;
+        }
+
+        if header_end >= data.len() {
+            return None;
+        }
+
+        // Check for sync-flush marker at the start of deflate data
+        // Streaming gzip often starts with an empty sync-flush: 00 00 00 ff ff or 00 00 ff ff
+        let mut deflate_start = header_end;
+
+        // Pattern 1: 00 00 00 ff ff (5 bytes - empty stored block with sync flush)
+        if data.len() >= deflate_start + 5
+            && data[deflate_start] == 0x00
+            && data[deflate_start + 1] == 0x00
+            && data[deflate_start + 2] == 0x00
+            && data[deflate_start + 3] == 0xff
+            && data[deflate_start + 4] == 0xff
+        {
+            info!("Found 5-byte sync-flush marker at start, skipping");
+            deflate_start += 5;
+        }
+        // Pattern 2: 00 00 ff ff (4 bytes)
+        else if data.len() >= deflate_start + 4
+            && data[deflate_start] == 0x00
+            && data[deflate_start + 1] == 0x00
+            && data[deflate_start + 2] == 0xff
+            && data[deflate_start + 3] == 0xff
+        {
+            info!("Found 4-byte sync-flush marker at start, skipping");
+            deflate_start += 4;
+        }
+
+        // The deflate data, excluding the 8-byte gzip trailer (if present)
+        let deflate_end = if data.len() >= deflate_start + 8 {
+            data.len() - 8
+        } else {
+            data.len()
+        };
+
+        if deflate_start >= deflate_end {
+            info!("No deflate data after skipping sync-flush markers");
+            return None;
+        }
+
+        let deflate_data = &data[deflate_start..deflate_end];
+
+        info!(
+            "Trying streaming deflate on {} bytes (deflate_start={}, deflate_end={}), first 10 bytes: {:?}",
+            deflate_data.len(),
+            deflate_start,
+            deflate_end,
+            &deflate_data[..std::cmp::min(10, deflate_data.len())]
+        );
+
+        // Use low-level Decompress API which can return partial results
+        let mut decompress = Decompress::new(false); // false = raw deflate (no zlib header)
+        let mut output = vec![0u8; 10 * 1024 * 1024]; // 10MB max
+        let mut total_out = 0;
+        let mut total_in = 0;
+
+        loop {
+            let before_in = decompress.total_in() as usize;
+            let before_out = decompress.total_out() as usize;
+
+            let input = &deflate_data[total_in..];
+            let out_slice = &mut output[total_out..];
+
+            if input.is_empty() || out_slice.is_empty() {
+                break;
+            }
+
+            match decompress.decompress(input, out_slice, FlushDecompress::Sync) {
+                Ok(status) => {
+                    let bytes_in = decompress.total_in() as usize - before_in;
+                    let bytes_out = decompress.total_out() as usize - before_out;
+                    total_in += bytes_in;
+                    total_out += bytes_out;
+
+                    match status {
+                        flate2::Status::Ok => {
+                            // Continue decompressing
+                            if bytes_in == 0 && bytes_out == 0 {
+                                break; // No progress
+                            }
+                        }
+                        flate2::Status::BufError => {
+                            // Need more output space or hit end of input
+                            break;
+                        }
+                        flate2::Status::StreamEnd => {
+                            // Done!
+                            break;
+                        }
+                    }
+                }
+                Err(e) => {
+                    info!(
+                        "Streaming deflate error after {} bytes out: {}",
+                        total_out, e
+                    );
+                    break;
+                }
+            }
+        }
+
+        if total_out > 0 {
+            output.truncate(total_out);
+            info!(
+                "Streaming deflate succeeded: {} in -> {} out",
+                total_in, total_out
+            );
+            Some(output)
+        } else {
+            info!("Streaming deflate produced no output");
+            None
+        }
+    }
+
     fn is_complete(&self) -> bool {
         if self.headers.is_chunked {
-            // Check for the terminal chunk: "0\r\n\r\n"
-            let len = self.body_buffer.len();
-            if len >= 5 {
-                &self.body_buffer[len - 5..] == b"0\r\n\r\n"
-            } else {
-                false
-            }
+            // For chunked encoding, we need to verify the entire chunked stream is valid,
+            // not just that it ends with "0\r\n\r\n"
+            Self::is_chunked_complete(&self.body_buffer)
         } else if let Some(content_len) = self.headers.content_length {
             self.body_buffer.len() >= content_len
         } else {
             // No length info and not chunked - usually means end of stream
             true
         }
+    }
+
+    /// Verify that chunked encoding is complete by parsing all chunks
+    fn is_chunked_complete(data: &[u8]) -> bool {
+        let mut pos = 0;
+
+        while pos < data.len() {
+            // Find the chunk size line (ends with \r\n)
+            let size_end = match (pos..data.len().saturating_sub(1))
+                .find(|&i| data[i] == b'\r' && data[i + 1] == b'\n')
+            {
+                Some(i) => i - pos,
+                None => return false, // No CRLF found
+            };
+
+            let size_line = &data[pos..pos + size_end];
+
+            // Parse chunk size (hex)
+            let size_str = match std::str::from_utf8(size_line) {
+                Ok(s) => s,
+                Err(_) => return false,
+            };
+            let size_hex = size_str.split(';').next().map(|s| s.trim()).unwrap_or("");
+            let chunk_size = match usize::from_str_radix(size_hex, 16) {
+                Ok(s) => s,
+                Err(_) => return false,
+            };
+
+            pos += size_end + 2; // Skip size line and CRLF
+
+            if chunk_size == 0 {
+                // Final chunk - check for trailing \r\n
+                if pos + 2 <= data.len() && &data[pos..pos + 2] == b"\r\n" {
+                    return true; // Complete!
+                }
+                return false; // Missing final CRLF
+            }
+
+            // Verify we have enough data for this chunk
+            if pos + chunk_size > data.len() {
+                return false; // Incomplete chunk
+            }
+
+            pos += chunk_size;
+
+            // Skip trailing CRLF after chunk data
+            if pos + 2 <= data.len() && &data[pos..pos + 2] == b"\r\n" {
+                pos += 2;
+            } else {
+                return false; // Missing CRLF after chunk
+            }
+        }
+
+        false // Didn't find final chunk
     }
 
     fn decompress_if_needed(&mut self) {
@@ -93,9 +319,6 @@ impl ResponseReassembler {
         );
 
         if self.headers.is_gzipped {
-            use flate2::read::GzDecoder;
-            use std::io::Read;
-
             // For chunked encoding, we need to extract the actual data from the chunks first.
             // Our self.body_buffer contains the RAW chunked stream.
             let raw_data = if self.headers.is_chunked {
@@ -115,61 +338,38 @@ impl ResponseReassembler {
             };
 
             info!(
-                "Attempting gzip decompress of {} bytes, first 20: {:?}",
+                "Attempting gzip decompress of {} bytes, first 20: {:?}, last 20: {:?}",
                 raw_data.len(),
-                &raw_data[..std::cmp::min(20, raw_data.len())]
+                &raw_data[..std::cmp::min(20, raw_data.len())],
+                &raw_data[raw_data.len().saturating_sub(20)..]
             );
 
-            // Try gzip first, then fall back to raw deflate
-            let mut decompressed = Vec::new();
-            let mut decoder = GzDecoder::new(&raw_data[..]);
-            match decoder.read_to_end(&mut decompressed) {
-                Ok(_) => {
+            // Try standard gzip decompression first
+            if let Some(decompressed) = Self::try_gzip_decompress(&raw_data) {
+                info!(
+                    "Gzip decompress succeeded: {} -> {} bytes",
+                    raw_data.len(),
+                    decompressed.len()
+                );
+                self.body_buffer = decompressed;
+                return;
+            }
+
+            // Try using miniz_oxide directly with lenient parsing for truncated/incomplete streams
+            if raw_data.len() > 10 && raw_data[0] == 0x1f && raw_data[1] == 0x8b {
+                if let Some(decompressed) = Self::try_miniz_decompress(&raw_data) {
                     info!(
-                        "Gzip decompress succeeded: {} -> {} bytes",
+                        "Miniz decompress succeeded: {} -> {} bytes",
                         raw_data.len(),
                         decompressed.len()
                     );
                     self.body_buffer = decompressed;
-                }
-                Err(e) => {
-                    info!("Gzip decompress FAILED: {}, trying raw deflate", e);
-                    // Try raw deflate (some servers send deflate without gzip wrapper)
-                    use flate2::read::DeflateDecoder;
-                    let mut deflate_decompressed = Vec::new();
-                    let mut deflate_decoder = DeflateDecoder::new(&raw_data[..]);
-                    match deflate_decoder.read_to_end(&mut deflate_decompressed) {
-                        Ok(_) if !deflate_decompressed.is_empty() => {
-                            info!(
-                                "Deflate decompress succeeded: {} -> {} bytes",
-                                raw_data.len(),
-                                deflate_decompressed.len()
-                            );
-                            self.body_buffer = deflate_decompressed;
-                        }
-                        _ => {
-                            // Try with MultiGzDecoder for concatenated gzip streams
-                            use flate2::read::MultiGzDecoder;
-                            let mut multi_decompressed = Vec::new();
-                            let mut multi_decoder = MultiGzDecoder::new(&raw_data[..]);
-                            match multi_decoder.read_to_end(&mut multi_decompressed) {
-                                Ok(_) if !multi_decompressed.is_empty() => {
-                                    info!(
-                                        "MultiGz decompress succeeded: {} -> {} bytes",
-                                        raw_data.len(),
-                                        multi_decompressed.len()
-                                    );
-                                    self.body_buffer = multi_decompressed;
-                                }
-                                _ => {
-                                    info!("All decompression methods failed, using raw data");
-                                    self.body_buffer = raw_data;
-                                }
-                            }
-                        }
-                    }
+                    return;
                 }
             }
+
+            info!("All decompression methods failed, using raw data");
+            self.body_buffer = raw_data;
         } else if self.headers.is_chunked {
             // Not gzipped, but still chunked - need to decode chunks
             if let Some(decoded) = crate::http::decode_chunked_body(&self.body_buffer) {

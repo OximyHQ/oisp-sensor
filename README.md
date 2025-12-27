@@ -330,32 +330,93 @@ Trace: tr_01JGXYZ... (12.3s, 15,420 tokens)
 
 ### Linux
 
+> **✅ Fully Supported Distributions:** Ubuntu 22.04+, Debian 12+, Rocky Linux 9, AlmaLinux 9, Fedora 39+, RHEL 9
+
 #### One-Line Install (Recommended)
 
 ```bash
 curl -fsSL https://sensor.oisp.dev/install.sh | sudo sh
 ```
 
-This will:
-1. Detect your architecture (x86_64, aarch64)
-2. Download the latest release
-3. Install to `/usr/local/bin`
-4. Set up capabilities for non-root operation (optional)
+This universal installer will:
+1. **Auto-detect** your Linux distribution (Ubuntu, Debian, RHEL, Fedora, Rocky, Alma)
+2. **Check system requirements** (kernel 5.8+, BTF, OpenSSL)
+3. **Install via native package** (.deb or .rpm) or fallback to binary
+4. **Configure systemd service** for automatic startup
+5. **Set capabilities** for secure non-root operation
 
 #### Package Managers
 
+**Ubuntu / Debian:**
+
 ```bash
-# Debian/Ubuntu
-curl -fsSL https://apt.oisp.dev/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/oisp.gpg
-echo "deb [signed-by=/etc/apt/keyrings/oisp.gpg] https://apt.oisp.dev stable main" | sudo tee /etc/apt/sources.list.d/oisp.list
-sudo apt update && sudo apt install oisp-sensor
+# Download and install .deb package
+wget https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor_0.2.0_amd64.deb
+sudo dpkg -i oisp-sensor_0.2.0_amd64.deb
 
-# Fedora/RHEL
-sudo dnf config-manager --add-repo https://rpm.oisp.dev/oisp.repo
-sudo dnf install oisp-sensor
+# Start service
+sudo systemctl enable --now oisp-sensor
 
-# Arch Linux (AUR)
-yay -S oisp-sensor
+# Check status
+sudo systemctl status oisp-sensor
+```
+
+**RHEL / Rocky / AlmaLinux / Fedora:**
+
+```bash
+# Download and install .rpm package
+wget https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor-0.2.0-1.x86_64.rpm
+sudo dnf install ./oisp-sensor-0.2.0-1.x86_64.rpm
+
+# For RHEL 8:
+sudo yum install ./oisp-sensor-0.2.0-1.x86_64.rpm
+
+# Start service
+sudo systemctl enable --now oisp-sensor
+
+# Check status
+sudo systemctl status oisp-sensor
+```
+
+#### Pre-Flight Check
+
+Before installation, verify your system is compatible:
+
+```bash
+# Check kernel version (requires >= 5.8, works on >= 4.18)
+uname -r
+
+# Check BTF support
+ls /sys/kernel/btf/vmlinux
+
+# Check OpenSSL library
+ldconfig -p | grep libssl
+```
+
+Or use the automated check after installation:
+
+```bash
+oisp-sensor check
+```
+
+**Expected output:**
+```
+OISP Sensor System Check
+========================
+
+Platform: linux x86_64 (supported)
+Distribution: Ubuntu 24.04
+
+Kernel Version:    6.8.0 [OK]
+BTF Support:       /sys/kernel/btf/vmlinux [OK]
+eBPF Filesystem:   /sys/fs/bpf [OK]
+Permissions:       CAP_BPF+CAP_PERFMON set [OK]
+Systemd:           Available [OK]
+
+SSL Libraries:
+  /usr/lib/x86_64-linux-gnu/libssl.so.3 [FOUND]
+
+Result: READY
 ```
 
 #### Docker

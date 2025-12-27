@@ -14,11 +14,16 @@ The fastest way to install OISP Sensor:
 curl -sSL https://sensor.oisp.dev/install.sh | sh
 ```
 
-This script:
-- Detects your OS and architecture
-- Downloads the appropriate pre-built binary
-- Installs to `/usr/local/bin`
-- On Linux: Sets eBPF capabilities and installs systemd service
+This universal installer:
+- **Auto-detects** your Linux distribution (Ubuntu, Debian, RHEL, Fedora, Rocky, Alma)
+- **Checks system requirements** (kernel 5.8+, BTF, OpenSSL)
+- **Installs via native package** (.deb or .rpm) or fallback to binary
+- **Configures systemd service** for automatic startup
+- **Sets capabilities** for secure non-root operation
+
+<Aside type="tip">
+**✅ Fully Supported:** Ubuntu 22.04+, Debian 12+, Rocky Linux 9, AlmaLinux 9, Fedora 39+, RHEL 9
+</Aside>
 
 ## Platform-Specific Instructions
 
@@ -58,7 +63,9 @@ sudo chmod +x /usr/local/bin/oisp-sensor
 sudo setcap cap_sys_admin,cap_bpf,cap_perfmon,cap_net_admin+ep /usr/local/bin/oisp-sensor
 ```
 
-### Package Installation (Debian/Ubuntu)
+### Package Installation
+
+**Ubuntu / Debian (.deb):**
 
 ```bash
 # Download .deb package
@@ -68,8 +75,51 @@ wget https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor
 sudo dpkg -i oisp-sensor_0.2.0_amd64.deb
 
 # Start service
-sudo systemctl enable oisp-sensor
-sudo systemctl start oisp-sensor
+sudo systemctl enable --now oisp-sensor
+```
+
+**RHEL / Rocky / AlmaLinux / Fedora (.rpm):**
+
+```bash
+# Download .rpm package
+wget https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor-0.2.0-1.x86_64.rpm
+
+# Install
+sudo dnf install ./oisp-sensor-0.2.0-1.x86_64.rpm
+
+# For RHEL 8:
+# sudo yum install ./oisp-sensor-0.2.0-1.x86_64.rpm
+
+# Start service
+sudo systemctl enable --now oisp-sensor
+```
+
+### Pre-Flight Check
+
+After installation, verify your system is ready:
+
+```bash
+oisp-sensor check
+```
+
+**Expected output:**
+```
+OISP Sensor System Check
+========================
+
+Platform: linux x86_64 (supported)
+Distribution: Ubuntu 24.04
+
+Kernel Version:    6.8.0 [OK]
+BTF Support:       /sys/kernel/btf/vmlinux [OK]
+eBPF Filesystem:   /sys/fs/bpf [OK]
+Permissions:       CAP_BPF+CAP_PERFMON set [OK]
+Systemd:           Available [OK]
+
+SSL Libraries:
+  /usr/lib/x86_64-linux-gnu/libssl.so.3 [FOUND]
+
+Result: READY
 ```
 
 ### Systemd Service

@@ -991,6 +991,15 @@ async fn check_command() -> anyhow::Result<()> {
             "limited support"
         }
     );
+
+    // Distribution info
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(distro_info) = detect_linux_distribution() {
+            println!("Distribution: {} {}", distro_info.0, distro_info.1);
+        }
+    }
+
     println!();
 
     // Linux-specific checks
@@ -1038,20 +1047,46 @@ async fn check_command() -> anyhow::Result<()> {
             all_ok = false;
         }
 
-        // Check 4: Running as root
-        print!("Running as Root:   ");
+        // Check 4: Running as root or capabilities
+        print!("Permissions:       ");
         let uid = unsafe { libc::getuid() };
         if uid == 0 {
-            println!("Yes [OK]");
+            println!("root [OK]");
         } else {
-            println!("No [WARN]");
-            warnings.push(
-                "Not running as root - SSL capture requires root or CAP_BPF+CAP_PERFMON"
-                    .to_string(),
-            );
+            // Check for capabilities
+            if let Ok(caps) = check_capabilities() {
+                if caps {
+                    println!("CAP_BPF+CAP_PERFMON set [OK]");
+                } else {
+                    println!("No capabilities [WARN]");
+                    warnings.push(
+                        "Not running as root and no capabilities set - run with sudo or set capabilities"
+                            .to_string(),
+                    );
+                }
+            } else {
+                println!("No [WARN]");
+                warnings.push(
+                    "Not running as root - SSL capture requires root or CAP_BPF+CAP_PERFMON"
+                        .to_string(),
+                );
+            }
         }
 
-        // Check 5: SSL Libraries
+        // Check 5: Systemd availability
+        print!("Systemd:           ");
+        if std::process::Command::new("systemctl")
+            .arg("--version")
+            .output()
+            .is_ok()
+        {
+            println!("Available [OK]");
+        } else {
+            println!("Not found [WARN]");
+            warnings.push("systemd not available - use manual process management".to_string());
+        }
+
+        // Check 6: SSL Libraries
         println!();
         println!("SSL Libraries:");
         let mut found_ssl = false;
@@ -1066,12 +1101,18 @@ async fn check_command() -> anyhow::Result<()> {
             warnings.push("No system OpenSSL found - SSL capture may not work".to_string());
         }
 
-        // Check 6: Edge cases notice
+        // Check 7: Edge cases notice
         println!();
         println!("Edge Cases (require binary_paths config):");
         for (pattern, desc) in EDGE_CASE_PATHS {
             println!("  {} - {}", pattern, desc);
         }
+
+        // Note about unsupported TLS
+        println!();
+        println!("Unsupported TLS Libraries:");
+        println!("  Go crypto/tls, rustls, BoringSSL, GnuTLS, NSS");
+        println!("  Run 'oisp-sensor ssl-info' for detailed TLS library information.");
     }
 
     // Non-Linux platforms
@@ -1154,6 +1195,44 @@ fn check_kernel_version() -> anyhow::Result<(u32, u32, u32, String)> {
     let patch = parts.get(2).and_then(|s| s.parse().ok()).unwrap_or(0);
 
     Ok((major, minor, patch, release.to_string()))
+}
+
+/// Detect Linux distribution from /etc/os-release
+#[cfg(target_os = "linux")]
+fn detect_linux_distribution() -> anyhow::Result<(String, String)> {
+    let os_release = std::fs::read_to_string("/etc/os-release")?;
+
+    let mut name = String::from("Unknown");
+    let mut version = String::from("");
+
+    for line in os_release.lines() {
+        if let Some(value) = line.strip_prefix("NAME=") {
+            name = value.trim_matches('"').to_string();
+        } else if let Some(value) = line.strip_prefix("VERSION_ID=") {
+            version = value.trim_matches('"').to_string();
+        }
+    }
+
+    Ok((name, version))
+}
+
+/// Check if binary has required capabilities set
+#[cfg(target_os = "linux")]
+fn check_capabilities() -> anyhow::Result<bool> {
+    // Get path to current executable
+    let exe_path = std::env::current_exe()?;
+
+    // Run getcap to check capabilities
+    let output = std::process::Command::new("getcap").arg(&exe_path).output();
+
+    match output {
+        Ok(output) => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            // Check for CAP_BPF or CAP_SYS_ADMIN (both allow eBPF operations)
+            Ok(stdout.contains("cap_bpf") || stdout.contains("cap_sys_admin"))
+        }
+        Err(_) => Ok(false),
+    }
 }
 
 /// Load spec bundle info for display
@@ -1316,7 +1395,7 @@ async fn diagnose_command(pid: u32, show_maps: bool, show_network: bool) -> anyh
             let fd_path = format!("{}/fd", proc_path);
             if let Ok(fds) = fs::read_dir(&fd_path) {
                 let mut tcp_count = 0;
-                let mut udp_count = 0;
+                let udp_count = 0;
 
                 for fd in fds.flatten() {
                     if let Ok(link) = fs::read_link(fd.path()) {
@@ -1549,6 +1628,51 @@ async fn ssl_info_command(detailed: bool, show_usage: bool) -> anyhow::Result<()
                 }
             }
         }
+
+        // Check for alternative TLS libraries (mostly unsupported)
+        println!();
+        println!("Alternative TLS Libraries:");
+        println!("--------------------------");
+
+        let alt_tls_libs: &[(&str, &str, &str)] = &[
+            (
+                "/usr/lib/x86_64-linux-gnu/libgnutls.so.30",
+                "GnuTLS",
+                "NOT SUPPORTED",
+            ),
+            ("/usr/lib/libgnutls.so", "GnuTLS", "NOT SUPPORTED"),
+            (
+                "/usr/lib/x86_64-linux-gnu/libnss3.so",
+                "NSS",
+                "NOT SUPPORTED",
+            ),
+            ("/usr/lib/libnss3.so", "NSS", "NOT SUPPORTED"),
+        ];
+
+        let mut found_alt = false;
+        for (path, name, status) in alt_tls_libs {
+            if std::path::Path::new(path).exists() {
+                found_alt = true;
+                println!("  {} at {} [{}]", name, path, status);
+            }
+        }
+
+        if !found_alt {
+            println!("  None detected");
+        }
+
+        // Unsupported TLS implementations info
+        println!();
+        println!("Known Unsupported TLS Implementations:");
+        println!("--------------------------------------");
+        println!("  • BoringSSL   - Used by: Chrome, gRPC, some Go apps");
+        println!("  • GnuTLS      - Used by: wget, some GNOME apps");
+        println!("  • NSS         - Used by: Firefox, Chromium");
+        println!("  • rustls      - Used by: Rust apps (reqwest, hyper with rustls)");
+        println!("  • Go crypto/tls - Used by: Go applications (kubectl, docker, etc.)");
+        println!();
+        println!("  NOTE: Applications using these TLS libraries will NOT be captured.");
+        println!("        Only OpenSSL-based applications are currently supported.");
 
         // Edge cases reminder
         println!();

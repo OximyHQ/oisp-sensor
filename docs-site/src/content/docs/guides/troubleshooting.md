@@ -1,0 +1,331 @@
+---
+title: Troubleshooting
+description: Common issues and solutions for OISP Sensor
+---
+
+# Troubleshooting Guide
+
+This guide covers common issues and their solutions when using OISP Sensor.
+
+## Quick Diagnosis
+
+Before diving into specific issues, run these commands:
+
+```bash
+# Check system compatibility
+sudo oisp-sensor check
+
+# View SSL library information
+oisp-sensor ssl-info
+
+# Diagnose a specific process
+oisp-sensor diagnose --pid <PID>
+```
+
+---
+
+## No Events Captured
+
+### Symptoms
+- Running `oisp-sensor record` but no events appear
+- Events file is empty or missing AI events
+
+### Possible Causes & Solutions
+
+#### 1. Not Running as Root
+
+**Problem:** eBPF requires elevated privileges.
+
+```bash
+# Check if running as root
+id
+# Should show uid=0(root)
+```
+
+**Solution:**
+```bash
+# Run with sudo
+sudo oisp-sensor record
+
+# Or set capabilities (one-time)
+sudo setcap cap_sys_admin,cap_bpf,cap_perfmon,cap_net_admin+ep /usr/local/bin/oisp-sensor
+```
+
+#### 2. Application Using Non-System OpenSSL
+
+**Problem:** NVM, pyenv, Conda, or other tools bundle their own OpenSSL.
+
+**Diagnosis:**
+```bash
+# Find what SSL library your process uses
+oisp-sensor diagnose --pid $(pgrep -f "python your_app.py")
+```
+
+**Solutions:**
+
+For **NVM Node.js**:
+```bash
+# NVM statically links OpenSSL - currently NOT supported
+# Use system Node.js instead:
+sudo apt install nodejs  # Debian/Ubuntu
+# Or use Docker with official Node image
+```
+
+For **pyenv/Conda Python**:
+```bash
+# Check if pyenv Python uses system OpenSSL:
+ldd $(pyenv which python) | grep ssl
+
+# If it shows a custom path, use system Python or Docker
+```
+
+#### 3. Application Uses Unsupported TLS Library
+
+**Problem:** Some applications use TLS libraries OISP doesn't support.
+
+**Unsupported libraries:**
+- **Go crypto/tls** - Used by: kubectl, docker, Go applications
+- **rustls** - Used by: Rust applications with rustls feature
+- **BoringSSL** - Used by: Chrome, gRPC, some apps
+- **GnuTLS** - Used by: wget, some GNOME apps
+- **NSS** - Used by: Firefox, Chromium
+
+**Diagnosis:**
+```bash
+oisp-sensor ssl-info --detailed
+```
+
+**Solution:** Currently no workaround. These require different capture approaches.
+
+#### 4. HTTP/2 or gRPC Traffic
+
+**Problem:** OISP currently only supports HTTP/1.1.
+
+**Solution:** HTTP/2 support is planned. For now, ensure your application uses HTTP/1.1 for AI API calls (most SDKs do by default).
+
+---
+
+## Sensor Fails to Start
+
+### "Failed to load eBPF program"
+
+**Possible causes:**
+1. Kernel too old (need >= 5.0)
+2. BTF not available
+3. Missing capabilities
+
+**Solutions:**
+```bash
+# Check kernel version
+uname -r
+# Must be >= 5.0
+
+# Check BTF
+ls -la /sys/kernel/btf/vmlinux
+# Should exist
+
+# Check capabilities (if not root)
+getcap /usr/local/bin/oisp-sensor
+```
+
+### "Permission denied" errors
+
+```bash
+# Ensure you're root or have capabilities
+sudo oisp-sensor check
+
+# Re-set capabilities if needed
+sudo setcap cap_sys_admin,cap_bpf,cap_perfmon,cap_net_admin+ep /usr/local/bin/oisp-sensor
+```
+
+### "sslsniff not found"
+
+**Problem:** The embedded sslsniff binary wasn't extracted properly.
+
+**Solution:**
+```bash
+# Try running with sudo (first run needs to extract)
+sudo oisp-sensor record
+
+# Or rebuild/reinstall the sensor
+```
+
+---
+
+## Docker Issues
+
+### No Events from Containers
+
+**Problem:** Sensor can't see container processes.
+
+**Solution:** Ensure proper Docker configuration:
+
+```yaml
+# docker-compose.yml
+services:
+  sensor:
+    image: ghcr.io/oximyhq/oisp-sensor:latest
+    privileged: true    # REQUIRED for eBPF
+    pid: "host"         # REQUIRED to see host/container processes
+    volumes:
+      - /sys/kernel/debug:/sys/kernel/debug:ro  # For eBPF
+      - /sys/fs/bpf:/sys/fs/bpf                 # For BPF filesystem
+```
+
+### "Operation not permitted" in Container
+
+**Problem:** Container lacks privileges for eBPF.
+
+**Solutions:**
+1. Use `privileged: true` (simplest)
+2. Or add specific capabilities:
+```yaml
+cap_add:
+  - SYS_ADMIN
+  - BPF
+  - PERFMON
+  - NET_ADMIN
+```
+
+---
+
+## Kubernetes Issues
+
+### DaemonSet Not Capturing Events
+
+**Check the pod status:**
+```bash
+kubectl get pods -n oisp-sensor
+kubectl logs -n oisp-sensor -l app=oisp-sensor
+```
+
+**Ensure security context is correct:**
+```yaml
+securityContext:
+  privileged: true
+  capabilities:
+    add: ["SYS_ADMIN", "BPF", "PERFMON", "NET_ADMIN"]
+```
+
+**Check host PID namespace:**
+```yaml
+spec:
+  hostPID: true  # REQUIRED
+```
+
+---
+
+## Partial Event Capture
+
+### Only Seeing Requests, No Responses
+
+**Possible causes:**
+1. Streaming responses (SSE) - these are handled differently
+2. Gzipped responses still being processed
+3. Connection closed before response completed
+
+**Solutions:**
+- Wait a few seconds after requests complete
+- Check for `ai.stream_chunk` events for streaming
+- Increase buffer sizes in config if needed
+
+### Missing Some API Calls
+
+**Check process filtering:**
+```bash
+# Are you filtering to specific processes?
+oisp-sensor record --process python
+# This only captures from processes named "python"
+
+# To capture everything:
+oisp-sensor record  # No filter
+```
+
+---
+
+## Performance Issues
+
+### High CPU Usage
+
+**Possible causes:**
+1. High volume of SSL traffic
+2. Debug logging enabled
+
+**Solutions:**
+```bash
+# Reduce logging
+RUST_LOG=warn oisp-sensor record
+
+# Filter to specific processes
+oisp-sensor record --process python,node
+```
+
+### Memory Growing Over Time
+
+**Solution:** Enable output rotation or use streaming export:
+```bash
+# Write to rotating files
+oisp-sensor record --output /var/log/oisp/events.jsonl --rotate-size 100MB
+
+# Or stream to external system (Kafka, etc.)
+```
+
+---
+
+## Common Error Messages
+
+### "No system SSL libraries found"
+
+```bash
+# Install OpenSSL development files
+sudo apt install libssl-dev  # Debian/Ubuntu
+sudo yum install openssl-devel  # RHEL/CentOS
+```
+
+### "BTF not found"
+
+```bash
+# Install kernel headers with BTF
+sudo apt install linux-headers-$(uname -r)
+
+# Or check if BTF is in an alternate location
+find /boot -name "vmlinux*" 2>/dev/null
+```
+
+### "Failed to attach uprobe"
+
+**Possible causes:**
+1. Library not loaded by target process
+2. Symbol not found in library
+3. Memory limit for BPF programs
+
+**Solutions:**
+```bash
+# Check if process has SSL loaded
+cat /proc/<PID>/maps | grep ssl
+
+# Increase memory limit
+ulimit -l unlimited
+```
+
+---
+
+## Getting Help
+
+If you're still stuck:
+
+1. **Run diagnostics:**
+   ```bash
+   sudo oisp-sensor check > diagnostics.txt
+   oisp-sensor ssl-info >> diagnostics.txt
+   ```
+
+2. **Capture debug logs:**
+   ```bash
+   RUST_LOG=debug sudo oisp-sensor record 2> debug.log
+   ```
+
+3. **Open an issue:** [GitHub Issues](https://github.com/oximyHQ/oisp-sensor/issues)
+   - Include diagnostics output
+   - Include relevant debug logs
+   - Describe your setup (OS, kernel, Docker/K8s version)

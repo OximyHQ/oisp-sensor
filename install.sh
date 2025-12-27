@@ -174,7 +174,7 @@ if [ "$OS" = "linux" ]; then
         SERVICE_FILE="/etc/systemd/system/oisp-sensor.service"
         sudo tee "$SERVICE_FILE" > /dev/null << 'EOF'
 [Unit]
-Description=OISP Sensor - AI Observability
+Description=OISP Sensor - Universal AI Observability
 Documentation=https://sensor.oisp.dev
 After=network.target
 
@@ -182,34 +182,55 @@ After=network.target
 Type=simple
 User=root
 Group=root
-ExecStart=/usr/local/bin/oisp-sensor record
 
-# Restart on failure
+# Main command - records AI activity with web UI on default port
+ExecStart=/usr/local/bin/oisp-sensor record --output /var/log/oisp-sensor/events.jsonl --port 7777
+
+# Reload configuration on SIGHUP
+ExecReload=/bin/kill -HUP $MAINPID
+
+# Restart on failure with backoff
 Restart=on-failure
 RestartSec=5
+RestartPreventExitStatus=SIGTERM
 
-# Security hardening
+# Stop timeout
+TimeoutStopSec=30
+
+# Create required directories before starting
+ExecStartPre=/bin/mkdir -p /var/log/oisp-sensor
+ExecStartPre=/bin/mkdir -p /var/lib/oisp-sensor
+
+# Security hardening (compatible with eBPF requirements)
 NoNewPrivileges=no
 ProtectSystem=strict
 ProtectHome=read-only
+ReadWritePaths=/var/log/oisp-sensor /var/lib/oisp-sensor
 PrivateTmp=true
 
-# Allow eBPF operations
+# Required capabilities for eBPF SSL capture
 AmbientCapabilities=CAP_SYS_ADMIN CAP_BPF CAP_PERFMON CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_SYS_ADMIN CAP_BPF CAP_PERFMON CAP_NET_ADMIN
 
-# Logging
+# Logging to systemd journal
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=oisp-sensor
 
+# Environment
 Environment=RUST_LOG=info
+Environment=RUST_BACKTRACE=1
+
+# Resource limits
+LimitMEMLOCK=infinity
+LimitNOFILE=65536
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
         # Update ExecStart with actual install path
-        sudo sed -i "s|ExecStart=.*|ExecStart=$INSTALL_DIR/oisp-sensor record|" "$SERVICE_FILE"
+        sudo sed -i "s|ExecStart=/usr/local/bin/oisp-sensor|ExecStart=$INSTALL_DIR/oisp-sensor|" "$SERVICE_FILE"
         
         sudo systemctl daemon-reload
         

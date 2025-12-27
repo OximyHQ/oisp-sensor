@@ -12,9 +12,9 @@ export default defineConfig({
         dark: './src/assets/logo-dark.svg',
         replacesTitle: false,
       },
-      social: [
-        { icon: 'github', label: 'GitHub', href: 'https://github.com/oximyHQ/oisp-sensor' },
-      ],
+      social: {
+        github: 'https://github.com/oximyHQ/oisp-sensor',
+      },
       editLink: {
         baseUrl: 'https://github.com/oximyHQ/oisp-sensor/edit/main/docs-site/',
       },

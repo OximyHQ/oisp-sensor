@@ -160,27 +160,80 @@ pub fn decode_chunked_body(data: &[u8]) -> Option<Vec<u8>> {
     let mut result = Vec::new();
     let mut pos = 0;
 
+    tracing::info!(
+        "decode_chunked_body: input len={}, first 50 bytes: {:?}",
+        data.len(),
+        String::from_utf8_lossy(&data[..std::cmp::min(50, data.len())])
+    );
+
     while pos < data.len() {
         // Find the chunk size line (ends with \r\n)
-        let size_end = find_crlf(&data[pos..])?;
+        let size_end = match find_crlf(&data[pos..]) {
+            Some(e) => e,
+            None => {
+                tracing::info!("decode_chunked_body: no CRLF found at pos={}", pos);
+                return None;
+            }
+        };
         let size_line = &data[pos..pos + size_end];
 
         // Parse chunk size (hex)
-        let size_str = std::str::from_utf8(size_line).ok()?;
+        let size_str = match std::str::from_utf8(size_line) {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::info!(
+                    "decode_chunked_body: size line not UTF-8 at pos={}: {:?}, error: {}",
+                    pos,
+                    size_line,
+                    e
+                );
+                return None;
+            }
+        };
         // Handle chunk extensions (size;extension=value)
-        let size_hex = size_str.split(';').next()?.trim();
-        let chunk_size = usize::from_str_radix(size_hex, 16).ok()?;
+        let size_hex = match size_str.split(';').next() {
+            Some(s) => s.trim(),
+            None => {
+                tracing::info!("decode_chunked_body: empty size string at pos={}", pos);
+                return None;
+            }
+        };
+        let chunk_size = match usize::from_str_radix(size_hex, 16) {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::info!(
+                    "decode_chunked_body: invalid hex '{}' at pos={}: {}",
+                    size_hex,
+                    pos,
+                    e
+                );
+                return None;
+            }
+        };
+
+        tracing::info!(
+            "decode_chunked_body: chunk at pos={}, size_hex='{}', size={}",
+            pos,
+            size_hex,
+            chunk_size
+        );
 
         pos += size_end + 2; // Skip size line and CRLF
 
         if chunk_size == 0 {
             // Final chunk
+            tracing::info!("decode_chunked_body: final chunk at pos={}", pos);
             break;
         }
 
         // Read chunk data
         if pos + chunk_size > data.len() {
             // Incomplete chunk - just return what we have so far
+            tracing::info!(
+                "decode_chunked_body: incomplete chunk, need {} bytes but only {} remaining",
+                chunk_size,
+                data.len() - pos
+            );
             result.extend_from_slice(&data[pos..]);
             break;
         }
@@ -193,6 +246,12 @@ pub fn decode_chunked_body(data: &[u8]) -> Option<Vec<u8>> {
             pos += 2;
         }
     }
+
+    tracing::info!(
+        "decode_chunked_body: result len={}, first 20 bytes: {:?}",
+        result.len(),
+        &result[..std::cmp::min(20, result.len())]
+    );
 
     if result.is_empty() {
         None

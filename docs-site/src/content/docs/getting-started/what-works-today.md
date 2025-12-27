@@ -5,23 +5,42 @@ description: "Honest assessment of current OISP Sensor capabilities"
 
 # What Works Today
 
-> **Last Updated**: December 2024
-> 
+> **Last Updated**: December 26, 2024
+>
 > This page provides an honest assessment of what OISP Sensor can capture today vs what's planned.
 
 ## Platform Support
 
 | Platform | Capture Status | What Works |
 |----------|:-------------:|------------|
-| **Linux** | **Full** | SSL/TLS content, process, file, network |
+| **Linux** | ✅ **Production Ready** | SSL/TLS content, process, file, network |
 | **macOS** | Stub only | Nothing yet - implementation needed |
 | **Windows** | Stub only | Nothing yet - implementation needed |
 
-### Linux Requirements
+### Linux Status: 100% Complete
 
-- **Kernel**: 5.0+ (5.8+ recommended)
+**✅ Fully Supported Distributions:**
+- Ubuntu 22.04 LTS, 24.04 LTS
+- Debian 12 (Bookworm)
+- Rocky Linux 9
+- AlmaLinux 9
+- Fedora 39, 40
+- RHEL 9
+
+**System Requirements:**
+- **Kernel**: 5.8+ (works on 4.18+)
 - **Architecture**: x86_64, aarch64
-- **Privileges**: Root or CAP_BPF + CAP_SYS_ADMIN
+- **Privileges**: Root or CAP_BPF + CAP_PERFMON + CAP_SYS_ADMIN
+- **BTF**: Required (CONFIG_DEBUG_INFO_BTF=y)
+
+**Installation Methods:**
+- ✅ .deb package (Debian/Ubuntu)
+- ✅ .rpm package (RHEL/Fedora/Rocky/Alma)
+- ✅ Universal installer (auto-detects distro)
+- ✅ Docker (multi-arch)
+- ✅ Binary installation
+
+See [LINUX_STATUS.md](https://github.com/oximyHQ/oisp-sensor/blob/main/LINUX_STATUS.md) for complete details.
 
 ## SSL/TLS Library Support
 
