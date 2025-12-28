@@ -1,0 +1,867 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0F534A12C181B2CD75F8EC79 /* RawCaptureEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFF25C8ADBF80AD625FB969E /* RawCaptureEvent.swift */; };
+		155A5F71C708802D4B31E45E /* MenuBarViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A46E15C36F04D1DCBF88A00 /* MenuBarViewModel.swift */; };
+		1FEF8360AD56C1212AB25E59 /* OISPCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E883E38435CE03AA5B3CC4A4 /* OISPCoreTests.swift */; };
+		222D34F59610B3C2B6596635 /* OISPCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D7564484D69746184EF6C5B0 /* OISPCore.framework */; };
+		2D00013112E43568052D5BCD /* CertificateAuthority.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77DCDB75BD46C70BBFD97133 /* CertificateAuthority.swift */; };
+		362656F167D71767445103F4 /* ProcessInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9518B5221B68DDB484B3B4E /* ProcessInfo.swift */; };
+		46D908698501EF35ECE697BD /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5714EF9322BD6E8D7F20D56 /* SettingsView.swift */; };
+		50FB6C916148F1F7064684FD /* TransparentProxyProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4923B110DE0F1AB6FCBE6A0C /* TransparentProxyProvider.swift */; };
+		53AE5BF1B6F6E6D6A17A0218 /* OISPNetworkExtensionBundle.systemextension in Embed System Extensions */ = {isa = PBXBuildFile; fileRef = 9D19B2E0D0B322117DDA23E6 /* OISPNetworkExtensionBundle.systemextension */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		66C8B6D6DCABC60288996ED5 /* TLSInterceptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BEAB423CAA22BB72456865D /* TLSInterceptor.swift */; };
+		6B206C75D83EA5C7AE0BC26A /* OISPCore.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = D7564484D69746184EF6C5B0 /* OISPCore.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		6FDB54E5F117D840EFB8450D /* OISPCore.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = D7564484D69746184EF6C5B0 /* OISPCore.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		8E4188B80925456F5EFE7FC2 /* OISPCore.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = D7564484D69746184EF6C5B0 /* OISPCore.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		936A5ABA5FA4BCB9B3B28015 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9505A7B509BBCA7CD3FC1A32 /* MenuBarView.swift */; };
+		A7E5CB74A561499592CBDBF9 /* ExtensionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5BFF67B02FE0C2613B4808B /* ExtensionManager.swift */; };
+		AB9349CAAD15E81FDBFA5884 /* AIEndpointFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 453A9D6F66EBA80EA14DA2C7 /* AIEndpointFilter.swift */; };
+		BFB42727897F6F7E0AEEE78F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAAC151CA5F783BD584B3828 /* AppDelegate.swift */; };
+		C228C8E0A4ECC4974E266E9B /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2201B40C25C5875FF4815450 /* main.swift */; };
+		D6EF5BF69F314F8DD9CF547A /* SetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9C1A945B8579276841BF652 /* SetupView.swift */; };
+		DA22624A5482B3291E31B928 /* OISPApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0289FB868ADE30D944085BB4 /* OISPApp.swift */; };
+		DA5A665F7828B98D41AA131B /* OISPCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D7564484D69746184EF6C5B0 /* OISPCore.framework */; };
+		E1A8ABCA330FF2F90CC89D1C /* OISPCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D7564484D69746184EF6C5B0 /* OISPCore.framework */; };
+		F968772CD0A094B23EAAB303 /* UnixSocketBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC212F96EBC5BF1FCC1F9563 /* UnixSocketBridge.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		069870FEE85E18D3D806FCBE /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6BB5A8D33918E48B745FDB12 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 0492D3CE3338773B4C349DFF;
+			remoteInfo = OISPNetworkExtensionBundle;
+		};
+		170DB32B17F9F0B8D7129404 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6BB5A8D33918E48B745FDB12 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 68CCB74B88B69470D7EE2A6E;
+			remoteInfo = OISPCore;
+		};
+		95EC7DF302DE5208CEDAF678 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6BB5A8D33918E48B745FDB12 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 68CCB74B88B69470D7EE2A6E;
+			remoteInfo = OISPCore;
+		};
+		C5D95B7FCB2B2236C97CCA5A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6BB5A8D33918E48B745FDB12 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6778E81EA0B56EBD51392E1C;
+			remoteInfo = OISP;
+		};
+		D3490DFB88DD0AC3A600349B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6BB5A8D33918E48B745FDB12 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 68CCB74B88B69470D7EE2A6E;
+			remoteInfo = OISPCore;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		34468655C3C01859C8028E2A /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				6B206C75D83EA5C7AE0BC26A /* OISPCore.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		54EA4C2C06F30B4D4CA12AA3 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				8E4188B80925456F5EFE7FC2 /* OISPCore.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		855123AB65D8AFD204FDCFAC /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				6FDB54E5F117D840EFB8450D /* OISPCore.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BBB4C2639FC7F7071E9F3DD9 /* Embed System Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(SYSTEM_EXTENSIONS_FOLDER_PATH)";
+			dstSubfolderSpec = 16;
+			files = (
+				53AE5BF1B6F6E6D6A17A0218 /* OISPNetworkExtensionBundle.systemextension in Embed System Extensions */,
+			);
+			name = "Embed System Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		0289FB868ADE30D944085BB4 /* OISPApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OISPApp.swift; sourceTree = "<group>"; };
+		064648F62C829BD98923DAB2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		105292AAEBCDC05F6C41CB2D /* NetworkExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NetworkExtension.entitlements; sourceTree = "<group>"; };
+		2201B40C25C5875FF4815450 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		2BEAB423CAA22BB72456865D /* TLSInterceptor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TLSInterceptor.swift; sourceTree = "<group>"; };
+		3B22CA931D9AA020519F9F5A /* OISP.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OISP.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		453A9D6F66EBA80EA14DA2C7 /* AIEndpointFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIEndpointFilter.swift; sourceTree = "<group>"; };
+		4923B110DE0F1AB6FCBE6A0C /* TransparentProxyProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransparentProxyProvider.swift; sourceTree = "<group>"; };
+		6389397115E768879BB4E569 /* OISPTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OISPTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		77DCDB75BD46C70BBFD97133 /* CertificateAuthority.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CertificateAuthority.swift; sourceTree = "<group>"; };
+		9505A7B509BBCA7CD3FC1A32 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
+		9A46E15C36F04D1DCBF88A00 /* MenuBarViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarViewModel.swift; sourceTree = "<group>"; };
+		9D19B2E0D0B322117DDA23E6 /* OISPNetworkExtensionBundle.systemextension */ = {isa = PBXFileReference; explicitFileType = "wrapper.system-extension"; includeInIndex = 0; path = OISPNetworkExtensionBundle.systemextension; sourceTree = BUILT_PRODUCTS_DIR; };
+		C5714EF9322BD6E8D7F20D56 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		C5BFF67B02FE0C2613B4808B /* ExtensionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionManager.swift; sourceTree = "<group>"; };
+		D7564484D69746184EF6C5B0 /* OISPCore.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = OISPCore.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		DAAC151CA5F783BD584B3828 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		DC212F96EBC5BF1FCC1F9563 /* UnixSocketBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnixSocketBridge.swift; sourceTree = "<group>"; };
+		E883E38435CE03AA5B3CC4A4 /* OISPCoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OISPCoreTests.swift; sourceTree = "<group>"; };
+		E9C1A945B8579276841BF652 /* SetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupView.swift; sourceTree = "<group>"; };
+		F9518B5221B68DDB484B3B4E /* ProcessInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessInfo.swift; sourceTree = "<group>"; };
+		FFF25C8ADBF80AD625FB969E /* RawCaptureEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RawCaptureEvent.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		04832B0FA6989F0EF882D33D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				222D34F59610B3C2B6596635 /* OISPCore.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7F451E9145B7F7C791F5D6E5 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DA5A665F7828B98D41AA131B /* OISPCore.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F21D269E95ECE2990BD909BD /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E1A8ABCA330FF2F90CC89D1C /* OISPCore.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		1553E73271A98F0EB4559180 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				F9518B5221B68DDB484B3B4E /* ProcessInfo.swift */,
+				FFF25C8ADBF80AD625FB969E /* RawCaptureEvent.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		1B6018D304D0F976126B49F2 /* OISPNetworkExtension */ = {
+			isa = PBXGroup;
+			children = (
+				064648F62C829BD98923DAB2 /* Info.plist */,
+				2201B40C25C5875FF4815450 /* main.swift */,
+				105292AAEBCDC05F6C41CB2D /* NetworkExtension.entitlements */,
+				2BEAB423CAA22BB72456865D /* TLSInterceptor.swift */,
+				4923B110DE0F1AB6FCBE6A0C /* TransparentProxyProvider.swift */,
+			);
+			path = OISPNetworkExtension;
+			sourceTree = "<group>";
+		};
+		30D8D5D444398A3036716980 /* IPC */ = {
+			isa = PBXGroup;
+			children = (
+				DC212F96EBC5BF1FCC1F9563 /* UnixSocketBridge.swift */,
+			);
+			path = IPC;
+			sourceTree = "<group>";
+		};
+		41AFEB513610C088C55D0C9F /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				453A9D6F66EBA80EA14DA2C7 /* AIEndpointFilter.swift */,
+				30D8D5D444398A3036716980 /* IPC */,
+				1553E73271A98F0EB4559180 /* Models */,
+				A6C2F4D91C78E047F63ED984 /* Networking */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		478F66D3BAA2023870C7610F = {
+			isa = PBXGroup;
+			children = (
+				8F7C0187A77CB33F7327CD62 /* OISPApp */,
+				543E578C1C347E687E8A5E26 /* OISPCore */,
+				1B6018D304D0F976126B49F2 /* OISPNetworkExtension */,
+				B12C78AB0778A369AAC04EA5 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		543E578C1C347E687E8A5E26 /* OISPCore */ = {
+			isa = PBXGroup;
+			children = (
+				41AFEB513610C088C55D0C9F /* Sources */,
+				CF5EA7208DDF9E0E7CF877AD /* Tests */,
+			);
+			path = OISPCore;
+			sourceTree = "<group>";
+		};
+		59F266B1461EF834207D635B /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				9A46E15C36F04D1DCBF88A00 /* MenuBarViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		6D55EF14F4F816CBABB77235 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				C5BFF67B02FE0C2613B4808B /* ExtensionManager.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		6EF11EE3023C8F584C052B55 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				F1C6A184A0E4567021B43F14 /* App */,
+				88CB311F855FE90DD82A6380 /* Models */,
+				6D55EF14F4F816CBABB77235 /* Services */,
+				59F266B1461EF834207D635B /* ViewModels */,
+				CB67ED4C664BBB95784B65A3 /* Views */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		88CB311F855FE90DD82A6380 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		8F7C0187A77CB33F7327CD62 /* OISPApp */ = {
+			isa = PBXGroup;
+			children = (
+				6EF11EE3023C8F584C052B55 /* Sources */,
+			);
+			path = OISPApp;
+			sourceTree = "<group>";
+		};
+		A6C2F4D91C78E047F63ED984 /* Networking */ = {
+			isa = PBXGroup;
+			children = (
+				77DCDB75BD46C70BBFD97133 /* CertificateAuthority.swift */,
+			);
+			path = Networking;
+			sourceTree = "<group>";
+		};
+		B12C78AB0778A369AAC04EA5 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				3B22CA931D9AA020519F9F5A /* OISP.app */,
+				D7564484D69746184EF6C5B0 /* OISPCore.framework */,
+				9D19B2E0D0B322117DDA23E6 /* OISPNetworkExtensionBundle.systemextension */,
+				6389397115E768879BB4E569 /* OISPTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		CB67ED4C664BBB95784B65A3 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				9505A7B509BBCA7CD3FC1A32 /* MenuBarView.swift */,
+				C5714EF9322BD6E8D7F20D56 /* SettingsView.swift */,
+				E9C1A945B8579276841BF652 /* SetupView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		CF5EA7208DDF9E0E7CF877AD /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				E883E38435CE03AA5B3CC4A4 /* OISPCoreTests.swift */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		F1C6A184A0E4567021B43F14 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				DAAC151CA5F783BD584B3828 /* AppDelegate.swift */,
+				0289FB868ADE30D944085BB4 /* OISPApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		0492D3CE3338773B4C349DFF /* OISPNetworkExtensionBundle */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7EE45D29F30A1F6717193159 /* Build configuration list for PBXNativeTarget "OISPNetworkExtensionBundle" */;
+			buildPhases = (
+				1EE6D728DB7228164906CEDC /* Sources */,
+				F21D269E95ECE2990BD909BD /* Frameworks */,
+				34468655C3C01859C8028E2A /* Embed Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				EA05DDEEE1997250193B8EB9 /* PBXTargetDependency */,
+			);
+			name = OISPNetworkExtensionBundle;
+			packageProductDependencies = (
+			);
+			productName = OISPNetworkExtensionBundle;
+			productReference = 9D19B2E0D0B322117DDA23E6 /* OISPNetworkExtensionBundle.systemextension */;
+			productType = "com.apple.product-type.system-extension";
+		};
+		0CF742B82836A48854087E32 /* OISPTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 79E130151B8F4A1BE5F47BE3 /* Build configuration list for PBXNativeTarget "OISPTests" */;
+			buildPhases = (
+				D56CB344B016625CA8498EF1 /* Sources */,
+				04832B0FA6989F0EF882D33D /* Frameworks */,
+				54EA4C2C06F30B4D4CA12AA3 /* Embed Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				1EC3FE46A49DD27E6557DAFB /* PBXTargetDependency */,
+				50647B664E8DD0A1217FD24A /* PBXTargetDependency */,
+			);
+			name = OISPTests;
+			packageProductDependencies = (
+			);
+			productName = OISPTests;
+			productReference = 6389397115E768879BB4E569 /* OISPTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		6778E81EA0B56EBD51392E1C /* OISP */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 687C4592BC0B12E68BA1CFAE /* Build configuration list for PBXNativeTarget "OISP" */;
+			buildPhases = (
+				BDCC95FA22F00633DFBD4941 /* Sources */,
+				7F451E9145B7F7C791F5D6E5 /* Frameworks */,
+				BBB4C2639FC7F7071E9F3DD9 /* Embed System Extensions */,
+				855123AB65D8AFD204FDCFAC /* Embed Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				3A6D10D63AB3B8CD6C26A567 /* PBXTargetDependency */,
+				1EFD8EF6D70F9D56C43ADFF7 /* PBXTargetDependency */,
+			);
+			name = OISP;
+			packageProductDependencies = (
+			);
+			productName = OISP;
+			productReference = 3B22CA931D9AA020519F9F5A /* OISP.app */;
+			productType = "com.apple.product-type.application";
+		};
+		68CCB74B88B69470D7EE2A6E /* OISPCore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2244216D65EB2ECA310B2999 /* Build configuration list for PBXNativeTarget "OISPCore" */;
+			buildPhases = (
+				AFBA9AB266C81F4670D6B514 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = OISPCore;
+			packageProductDependencies = (
+			);
+			productName = OISPCore;
+			productReference = D7564484D69746184EF6C5B0 /* OISPCore.framework */;
+			productType = "com.apple.product-type.framework";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		6BB5A8D33918E48B745FDB12 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					0492D3CE3338773B4C349DFF = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+					0CF742B82836A48854087E32 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+					6778E81EA0B56EBD51392E1C = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+					68CCB74B88B69470D7EE2A6E = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = DA899C0252C51B71F860FE3D /* Build configuration list for PBXProject "OISP" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 478F66D3BAA2023870C7610F;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				6778E81EA0B56EBD51392E1C /* OISP */,
+				68CCB74B88B69470D7EE2A6E /* OISPCore */,
+				0492D3CE3338773B4C349DFF /* OISPNetworkExtensionBundle */,
+				0CF742B82836A48854087E32 /* OISPTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		1EE6D728DB7228164906CEDC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				66C8B6D6DCABC60288996ED5 /* TLSInterceptor.swift in Sources */,
+				50FB6C916148F1F7064684FD /* TransparentProxyProvider.swift in Sources */,
+				C228C8E0A4ECC4974E266E9B /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AFBA9AB266C81F4670D6B514 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AB9349CAAD15E81FDBFA5884 /* AIEndpointFilter.swift in Sources */,
+				2D00013112E43568052D5BCD /* CertificateAuthority.swift in Sources */,
+				362656F167D71767445103F4 /* ProcessInfo.swift in Sources */,
+				0F534A12C181B2CD75F8EC79 /* RawCaptureEvent.swift in Sources */,
+				F968772CD0A094B23EAAB303 /* UnixSocketBridge.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BDCC95FA22F00633DFBD4941 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BFB42727897F6F7E0AEEE78F /* AppDelegate.swift in Sources */,
+				A7E5CB74A561499592CBDBF9 /* ExtensionManager.swift in Sources */,
+				936A5ABA5FA4BCB9B3B28015 /* MenuBarView.swift in Sources */,
+				155A5F71C708802D4B31E45E /* MenuBarViewModel.swift in Sources */,
+				DA22624A5482B3291E31B928 /* OISPApp.swift in Sources */,
+				46D908698501EF35ECE697BD /* SettingsView.swift in Sources */,
+				D6EF5BF69F314F8DD9CF547A /* SetupView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D56CB344B016625CA8498EF1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1FEF8360AD56C1212AB25E59 /* OISPCoreTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		1EC3FE46A49DD27E6557DAFB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 68CCB74B88B69470D7EE2A6E /* OISPCore */;
+			targetProxy = 170DB32B17F9F0B8D7129404 /* PBXContainerItemProxy */;
+		};
+		1EFD8EF6D70F9D56C43ADFF7 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 0492D3CE3338773B4C349DFF /* OISPNetworkExtensionBundle */;
+			targetProxy = 069870FEE85E18D3D806FCBE /* PBXContainerItemProxy */;
+		};
+		3A6D10D63AB3B8CD6C26A567 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 68CCB74B88B69470D7EE2A6E /* OISPCore */;
+			targetProxy = D3490DFB88DD0AC3A600349B /* PBXContainerItemProxy */;
+		};
+		50647B664E8DD0A1217FD24A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6778E81EA0B56EBD51392E1C /* OISP */;
+			targetProxy = C5D95B7FCB2B2236C97CCA5A /* PBXContainerItemProxy */;
+		};
+		EA05DDEEE1997250193B8EB9 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 68CCB74B88B69470D7EE2A6E /* OISPCore */;
+			targetProxy = 95EC7DF302DE5208CEDAF678 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		06B4E3B0133E977492A0F53A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				INFOPLIST_FILE = OISPCore/Info.plist;
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"@executable_path/../Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.oisp.core;
+				PRODUCT_MODULE_NAME = OISPCore;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Release;
+		};
+		1B397E92E0164E17001168A1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 1.0.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Release;
+		};
+		3166D076337B50C3403D6F8F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = OISPCore/Tests/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.oisp.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OISP.app/Contents/MacOS/OISP";
+			};
+			name = Release;
+		};
+		3848682648660178D4E35AB8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = OISPCore/Tests/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.oisp.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OISP.app/Contents/MacOS/OISP";
+			};
+			name = Debug;
+		};
+		3AF96DC7D399207B89E802BC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 1.0.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+		57AC9F8A9F05CBFFA89E46E0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				INFOPLIST_FILE = OISPCore/Info.plist;
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"@executable_path/../Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.oisp.core;
+				PRODUCT_MODULE_NAME = OISPCore;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Debug;
+		};
+		7C9BB9CC702E98201A36AAE3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = OISPApp/OISP.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_APP_SANDBOX = NO;
+				INFOPLIST_FILE = OISPApp/Info.plist;
+				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSSystemExtensionUsageDescription = "OISP needs to install a network extension to capture AI API traffic.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.oisp.app;
+				SDKROOT = macosx;
+				SKIP_INSTALL = NO;
+			};
+			name = Release;
+		};
+		9E21A43F3A0581E61BAF95ED /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = OISPNetworkExtension/NetworkExtension.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = OISPNetworkExtension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"@executable_path/../Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.oisp.networkextension;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SYSTEM_EXTENSION_PRODUCT_TYPE = "com.apple.system-extension.network-extension";
+			};
+			name = Debug;
+		};
+		C8BAC10E5D17D51187994A21 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = OISPNetworkExtension/NetworkExtension.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = OISPNetworkExtension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"@executable_path/../Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.oisp.networkextension;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SYSTEM_EXTENSION_PRODUCT_TYPE = "com.apple.system-extension.network-extension";
+			};
+			name = Release;
+		};
+		CD3C942FECEFF618E4834E1C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = OISPApp/OISP.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_APP_SANDBOX = NO;
+				INFOPLIST_FILE = OISPApp/Info.plist;
+				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSSystemExtensionUsageDescription = "OISP needs to install a network extension to capture AI API traffic.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.oisp.app;
+				SDKROOT = macosx;
+				SKIP_INSTALL = NO;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		2244216D65EB2ECA310B2999 /* Build configuration list for PBXNativeTarget "OISPCore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				57AC9F8A9F05CBFFA89E46E0 /* Debug */,
+				06B4E3B0133E977492A0F53A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		687C4592BC0B12E68BA1CFAE /* Build configuration list for PBXNativeTarget "OISP" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CD3C942FECEFF618E4834E1C /* Debug */,
+				7C9BB9CC702E98201A36AAE3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		79E130151B8F4A1BE5F47BE3 /* Build configuration list for PBXNativeTarget "OISPTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3848682648660178D4E35AB8 /* Debug */,
+				3166D076337B50C3403D6F8F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		7EE45D29F30A1F6717193159 /* Build configuration list for PBXNativeTarget "OISPNetworkExtensionBundle" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9E21A43F3A0581E61BAF95ED /* Debug */,
+				C8BAC10E5D17D51187994A21 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		DA899C0252C51B71F860FE3D /* Build configuration list for PBXProject "OISP" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3AF96DC7D399207B89E802BC /* Debug */,
+				1B397E92E0164E17001168A1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 6BB5A8D33918E48B745FDB12 /* Project object */;
+}

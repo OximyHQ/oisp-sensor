@@ -51,3 +51,5 @@ config.local.toml
 *.profraw
 *.profdata
 
+macos/.build/
+macos/DerivedData/

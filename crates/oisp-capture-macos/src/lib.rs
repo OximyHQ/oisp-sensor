@@ -3,24 +3,30 @@
 //! Uses Endpoint Security Framework for process/file events
 //! and Network Extension for network capture.
 //!
+//! The architecture on macOS is:
+//! 1. Swift Network Extension (System Extension) captures SSL traffic
+//! 2. Swift sends events over Unix domain socket to this Rust crate
+//! 3. This crate implements the CapturePlugin trait for oisp-sensor
+//!
 //! Note: Full capture requires a System Extension which must be:
 //! - Signed with an Apple Developer ID
 //! - Notarized by Apple
 //! - Approved by the user in System Preferences
+
+pub mod socket_server;
 
 use async_trait::async_trait;
 use oisp_core::plugins::{
     CapturePlugin, CaptureStats, Plugin, PluginConfig, PluginError, PluginInfo, PluginResult,
     RawCaptureEvent,
 };
+use socket_server::{SocketServer, DEFAULT_SOCKET_PATH};
 use std::any::Any;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::sync::mpsc;
-#[cfg(not(target_os = "macos"))]
-use tracing::info;
-#[cfg(target_os = "macos")]
-use tracing::{info, warn};
+use tokio::task::JoinHandle;
+use tracing::{error, info, warn};
 
 /// macOS capture configuration
 #[derive(Debug, Clone)]
@@ -36,6 +42,9 @@ pub struct MacOSCaptureConfig {
 
     /// Use System Extension for full capture (requires approval)
     pub use_system_extension: bool,
+
+    /// Unix socket path for receiving events from Swift extension
+    pub socket_path: String,
 }
 
 impl Default for MacOSCaptureConfig {
@@ -44,7 +53,8 @@ impl Default for MacOSCaptureConfig {
             process: true,
             file: true,
             network: true,
-            use_system_extension: false,
+            use_system_extension: true,
+            socket_path: DEFAULT_SOCKET_PATH.to_string(),
         }
     }
 }
@@ -54,6 +64,8 @@ pub struct MacOSCapture {
     config: MacOSCaptureConfig,
     running: Arc<AtomicBool>,
     stats: Arc<CaptureStatsInner>,
+    socket_server: Option<SocketServer>,
+    server_handle: Option<JoinHandle<()>>,
 }
 
 struct CaptureStatsInner {
@@ -78,19 +90,26 @@ impl MacOSCapture {
                 bytes_captured: AtomicU64::new(0),
                 errors: AtomicU64::new(0),
             }),
+            socket_server: None,
+            server_handle: None,
         }
     }
 
     /// Check if System Extension is installed and approved
     #[cfg(target_os = "macos")]
     pub fn is_system_extension_available(&self) -> bool {
-        // TODO: Check if the system extension is loaded
-        false
+        // Check if the extension's socket is responding or check via systemextensionctl
+        std::path::Path::new(&self.config.socket_path).exists()
     }
 
     #[cfg(not(target_os = "macos"))]
     pub fn is_system_extension_available(&self) -> bool {
         false
+    }
+
+    /// Get the socket path
+    pub fn socket_path(&self) -> &str {
+        &self.config.socket_path
     }
 }
 
@@ -129,11 +148,23 @@ impl Plugin for MacOSCapture {
         if let Some(network) = config.get::<bool>("network") {
             self.config.network = network;
         }
+        if let Some(socket_path) = config.get::<String>("socket_path") {
+            self.config.socket_path = socket_path;
+        }
+        if let Some(use_sysext) = config.get::<bool>("use_system_extension") {
+            self.config.use_system_extension = use_sysext;
+        }
         Ok(())
     }
 
     fn shutdown(&mut self) -> PluginResult<()> {
         self.running.store(false, Ordering::SeqCst);
+
+        // Stop the socket server
+        if let Some(server) = &self.socket_server {
+            server.stop();
+        }
+
         Ok(())
     }
 
@@ -148,9 +179,10 @@ impl Plugin for MacOSCapture {
 
 #[async_trait]
 impl CapturePlugin for MacOSCapture {
-    async fn start(&mut self, _tx: mpsc::Sender<RawCaptureEvent>) -> PluginResult<()> {
+    async fn start(&mut self, tx: mpsc::Sender<RawCaptureEvent>) -> PluginResult<()> {
         #[cfg(not(target_os = "macos"))]
         {
+            let _ = tx;
             return Err(PluginError::NotSupported);
         }
 
@@ -162,20 +194,63 @@ impl CapturePlugin for MacOSCapture {
 
             self.running.store(true, Ordering::SeqCst);
 
-            if self.config.use_system_extension {
-                if self.is_system_extension_available() {
-                    info!("Starting macOS capture with System Extension");
-                    // TODO: Initialize ESF and Network Extension
-                } else {
-                    warn!("System Extension not available, falling back to basic capture");
-                    // TODO: Use libproc, lsof, FSEvents for basic capture
+            if self.config.use_system_extension && self.config.network {
+                info!(
+                    "Starting macOS capture with Network Extension (socket: {})",
+                    self.config.socket_path
+                );
+
+                // Create and start the socket server
+                let server = SocketServer::new(&self.config.socket_path);
+                let stats = self.stats.clone();
+
+                // Create a wrapper channel that updates our stats
+                let (internal_tx, mut internal_rx) = mpsc::channel::<RawCaptureEvent>(1000);
+
+                // Forward events from internal channel to external channel, updating stats
+                let external_tx = tx.clone();
+                let running = self.running.clone();
+                tokio::spawn(async move {
+                    while running.load(Ordering::SeqCst) {
+                        match internal_rx.recv().await {
+                            Some(event) => {
+                                let bytes = event.data.len() as u64;
+                                stats.events_captured.fetch_add(1, Ordering::Relaxed);
+                                stats.bytes_captured.fetch_add(bytes, Ordering::Relaxed);
+
+                                if external_tx.send(event).await.is_err() {
+                                    stats.events_dropped.fetch_add(1, Ordering::Relaxed);
+                                    warn!("Failed to forward event - channel closed");
+                                    break;
+                                }
+                            }
+                            None => {
+                                info!("Internal event channel closed");
+                                break;
+                            }
+                        }
+                    }
+                });
+
+                // Start the socket server
+                match server.start(internal_tx).await {
+                    Ok(handle) => {
+                        self.socket_server = Some(server);
+                        self.server_handle = Some(handle);
+                        info!("Socket server started successfully");
+                    }
+                    Err(e) => {
+                        error!("Failed to start socket server: {}", e);
+                        self.stats.errors.fetch_add(1, Ordering::Relaxed);
+
+                        // Fall back to basic capture
+                        warn!("Falling back to basic capture (metadata only)");
+                        return self.start_basic_capture(tx).await;
+                    }
                 }
             } else {
                 info!("Starting macOS basic capture (metadata only)");
-                // TODO: Implement basic capture using:
-                // - libproc for process info
-                // - lsof for network connections
-                // - FSEvents for file changes
+                return self.start_basic_capture(tx).await;
             }
 
             Ok(())
@@ -185,6 +260,20 @@ impl CapturePlugin for MacOSCapture {
     async fn stop(&mut self) -> PluginResult<()> {
         info!("Stopping macOS capture...");
         self.running.store(false, Ordering::SeqCst);
+
+        // Stop the socket server
+        if let Some(server) = &self.socket_server {
+            server.stop();
+        }
+
+        // Wait for the server task to finish
+        if let Some(handle) = self.server_handle.take() {
+            let _ = handle.await;
+        }
+
+        self.socket_server = None;
+
+        info!("macOS capture stopped");
         Ok(())
     }
 
@@ -199,5 +288,74 @@ impl CapturePlugin for MacOSCapture {
             bytes_captured: self.stats.bytes_captured.load(Ordering::Relaxed),
             errors: self.stats.errors.load(Ordering::Relaxed),
         }
+    }
+}
+
+// macOS-specific implementation
+#[cfg(target_os = "macos")]
+impl MacOSCapture {
+    /// Start basic capture using libproc, lsof, FSEvents
+    /// This doesn't capture SSL content, only metadata
+    async fn start_basic_capture(
+        &mut self,
+        _tx: mpsc::Sender<RawCaptureEvent>,
+    ) -> PluginResult<()> {
+        warn!("Basic capture mode: Only process metadata will be captured");
+        warn!("For full SSL capture, install and enable the OISP System Extension");
+
+        // TODO: Implement basic capture using:
+        // - libproc for process info (already have this in Swift)
+        // - lsof for network connections
+        // - FSEvents for file changes
+
+        Ok(())
+    }
+}
+
+// Stub for non-macOS platforms
+#[cfg(not(target_os = "macos"))]
+impl MacOSCapture {
+    async fn start_basic_capture(
+        &mut self,
+        _tx: mpsc::Sender<RawCaptureEvent>,
+    ) -> PluginResult<()> {
+        Err(PluginError::NotSupported)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_plugin_info() {
+        let capture = MacOSCapture::new();
+        assert_eq!(capture.name(), "macos-capture");
+        assert!(!capture.version().is_empty());
+
+        #[cfg(target_os = "macos")]
+        assert!(capture.is_available());
+
+        #[cfg(not(target_os = "macos"))]
+        assert!(!capture.is_available());
+    }
+
+    #[test]
+    fn test_config() {
+        let config = MacOSCaptureConfig::default();
+        assert!(config.process);
+        assert!(config.network);
+        assert!(config.use_system_extension);
+        assert_eq!(config.socket_path, DEFAULT_SOCKET_PATH);
+    }
+
+    #[test]
+    fn test_custom_socket_path() {
+        let config = MacOSCaptureConfig {
+            socket_path: "/custom/path.sock".to_string(),
+            ..Default::default()
+        };
+        let capture = MacOSCapture::with_config(config);
+        assert_eq!(capture.socket_path(), "/custom/path.sock");
     }
 }
