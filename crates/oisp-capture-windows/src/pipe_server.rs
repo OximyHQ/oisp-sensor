@@ -9,9 +9,9 @@ use serde::Deserialize;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::sync::mpsc;
-#[cfg(target_os = "windows")]
-use tracing::info;
 use tracing::warn;
+#[cfg(target_os = "windows")]
+use tracing::{debug, error, info};
 
 /// Default named pipe path
 pub const DEFAULT_PIPE_PATH: &str = r"\\.\pipe\oisp-capture";
@@ -291,11 +291,8 @@ async fn run_pipe_server(
     use std::ffi::OsStr;
     use std::os::windows::ffi::OsStrExt;
     use windows::core::PCWSTR;
-    use windows::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE};
-    use windows::Win32::Storage::FileSystem::{
-        CreateFileW, ReadFile, FILE_FLAG_OVERLAPPED, FILE_SHARE_NONE, OPEN_EXISTING,
-        PIPE_ACCESS_DUPLEX,
-    };
+    use windows::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
+    use windows::Win32::Storage::FileSystem::PIPE_ACCESS_DUPLEX;
     use windows::Win32::System::Pipes::{
         ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, PIPE_READMODE_MESSAGE,
         PIPE_TYPE_MESSAGE, PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
