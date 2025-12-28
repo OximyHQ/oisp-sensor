@@ -6,6 +6,8 @@ use clap::{Parser, Subcommand};
 use oisp_capture::{TestGenerator, TestGeneratorConfig};
 #[cfg(target_os = "linux")]
 use oisp_capture_ebpf::{EbpfCapture, EbpfCaptureConfig};
+#[cfg(target_os = "macos")]
+use oisp_capture_macos::{MacOSCapture, MacOSCaptureConfig};
 use oisp_core::config::{ConfigLoader, SensorConfig};
 use oisp_core::enrichers::{HostEnricher, ProcessTreeEnricher};
 use oisp_core::pipeline::{Pipeline, PipelineConfig};
@@ -491,9 +493,28 @@ async fn record_command(config: RecordConfig) -> anyhow::Result<()> {
         }
     }
 
-    #[cfg(not(target_os = "linux"))]
+    // Add macOS capture via Network Extension
+    #[cfg(target_os = "macos")]
     {
-        info!("eBPF capture not available on this platform");
+        if config.ssl {
+            let macos_config = MacOSCaptureConfig {
+                process: config.process,
+                file: config.file,
+                network: config.network,
+                use_system_extension: true,
+                socket_path: "/tmp/oisp.sock".to_string(),
+            };
+
+            let macos_capture = MacOSCapture::with_config(macos_config);
+            pipeline.add_capture(Box::new(macos_capture));
+            info!("macOS capture plugin added (listening on /tmp/oisp.sock)");
+        }
+        let _ = (&config.ebpf_path, &config.libssl_path); // Suppress unused warnings
+    }
+
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    {
+        info!("Platform capture not available - use demo mode for testing");
         let _ = (&config.ebpf_path, &config.libssl_path); // Suppress unused warnings
     }
 

@@ -1,3 +1,8 @@
+---
+title: macOS Implementation Plan
+description: Complete implementation plan for OISP on macOS with Network Extension
+---
+
 # OISP macOS Implementation Plan
 
 ## Executive Summary

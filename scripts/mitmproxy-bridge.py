@@ -7,6 +7,8 @@ Usage:
   2. Run mitmproxy with this addon: mitmproxy -s scripts/mitmproxy-bridge.py
   3. Configure your terminal to use proxy: export HTTPS_PROXY=http://127.0.0.1:8080
   4. Make AI API calls - they'll be captured by OISP!
+
+AI domains are loaded from oisp-spec-bundle.json (same as the sensor).
 """
 
 import json
@@ -14,30 +16,59 @@ import socket
 import base64
 import time
 import os
+import re
+from pathlib import Path
 from mitmproxy import http, ctx
 
-# AI provider domains to capture
-AI_DOMAINS = {
-    "api.openai.com",
-    "api.anthropic.com",
-    "generativelanguage.googleapis.com",
-    "api.cohere.ai",
-    "api.cohere.com",
-    "api.mistral.ai",
-    "api.groq.com",
-    "api.together.xyz",
-    "api.together.ai",
-    "api.fireworks.ai",
-    "api.perplexity.ai",
-    "openrouter.ai",
-    "api.openrouter.ai",
-    "api.replicate.com",
-    "api-inference.huggingface.co",
-    "api.deepseek.com",
-    "api.x.ai",
-}
-
 SOCKET_PATH = "/tmp/oisp.sock"
+
+# Load AI domains from spec bundle (same source as sensor)
+def load_ai_domains():
+    """Load AI domains from oisp-spec-bundle.json"""
+    domains = set()
+    patterns = []
+
+    # Find spec bundle (check multiple locations)
+    possible_paths = [
+        Path(__file__).parent.parent / "crates" / "oisp-core" / "data" / "oisp-spec-bundle.json",
+        Path.home() / ".cache" / "oisp" / "spec-bundle.json",
+        Path("/usr/share/oisp/spec-bundle.json"),
+    ]
+
+    bundle_path = None
+    for path in possible_paths:
+        if path.exists():
+            bundle_path = path
+            break
+
+    if not bundle_path:
+        ctx.log.warn("oisp-spec-bundle.json not found, using fallback domains")
+        return {
+            "api.openai.com", "api.anthropic.com", "generativelanguage.googleapis.com",
+            "api.cohere.ai", "api.mistral.ai", "api.groq.com", "api.together.xyz",
+        }, []
+
+    try:
+        with open(bundle_path) as f:
+            bundle = json.load(f)
+
+        # Get exact domains from domain_index
+        domains = set(bundle.get("domain_index", {}).keys())
+
+        # Get patterns for wildcard matching
+        for pattern in bundle.get("domain_patterns", []):
+            try:
+                patterns.append(re.compile(pattern["regex"], re.IGNORECASE))
+            except re.error:
+                pass
+
+        ctx.log.info(f"Loaded {len(domains)} domains and {len(patterns)} patterns from {bundle_path}")
+    except Exception as e:
+        ctx.log.error(f"Failed to load spec bundle: {e}")
+
+    return domains, patterns
+
+AI_DOMAINS, AI_PATTERNS = load_ai_domains()
 
 
 class OISPBridge:
@@ -96,10 +127,18 @@ class OISPBridge:
             ctx.log.error(f"Failed to send event: {e}")
 
     def is_ai_domain(self, host: str) -> bool:
-        """Check if host is an AI provider"""
-        for domain in AI_DOMAINS:
-            if host == domain or host.endswith("." + domain):
+        """Check if host is an AI provider (uses spec bundle)"""
+        host_lower = host.lower()
+
+        # Exact match
+        if host_lower in AI_DOMAINS:
+            return True
+
+        # Pattern match (for wildcards like *.openai.azure.com)
+        for pattern in AI_PATTERNS:
+            if pattern.match(host_lower):
                 return True
+
         return False
 
 

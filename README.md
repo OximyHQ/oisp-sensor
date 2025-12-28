@@ -65,19 +65,25 @@ sudo oisp-sensor --web
 
 ### macOS (Preview)
 
-Metadata capture (process, network, file events):
+Full SSL/TLS capture via System Extension:
 
 ```bash
-# Install via Homebrew
-brew install oximy/tap/oisp-sensor
+# Build from source (requires Apple Developer ID)
+cd macos && xcodegen generate && xcodebuild -scheme OISP build
 
-# Run
-sudo oisp-sensor
+# Run the sensor (listens for events from Network Extension)
+./target/release/oisp-sensor record --output ~/oisp-events.jsonl
+
+# Or with web dashboard
+./target/release/oisp-sensor record --web --output ~/oisp-events.jsonl
 ```
 
 **→ [macOS Guide](https://sensor.oisp.dev/platforms/macos/)**
 
-**Note:** Full SSL capture coming soon with System Extension
+**Requirements:**
+- macOS 13+ (Ventura)
+- Apple Developer Program ($99/year) for System Extension signing
+- User must approve Network Extension in System Settings
 
 ---
 

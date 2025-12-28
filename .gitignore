@@ -51,5 +51,8 @@ config.local.toml
 *.profraw
 *.profdata
 
+# macOS build artifacts
 macos/.build/
+macos/build/
 macos/DerivedData/
+macos/OISP.xcodeproj/

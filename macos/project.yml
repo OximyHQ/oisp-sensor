@@ -30,6 +30,9 @@ targets:
     sources:
       - path: OISPApp/Sources
         type: group
+    resources:
+      - path: OISPApp/Resources
+        type: folder
     dependencies:
       - target: OISPCore
         embed: true
@@ -78,6 +81,8 @@ targets:
         LD_RUNPATH_SEARCH_PATHS:
           - "@executable_path/../Frameworks"
           - "@loader_path/Frameworks"
+        OTHER_LDFLAGS:
+          - "-lbsm"
     postCompileScripts: []
 
   # Network Extension System Extension Bundle

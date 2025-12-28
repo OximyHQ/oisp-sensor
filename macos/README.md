@@ -177,6 +177,51 @@ sudo systemextensionsctl uninstall com.oisp.networkextension
 log stream --predicate 'subsystem == "com.oisp"' --level debug
 ```
 
+## Contributing
+
+### The Apple Developer Requirement
+
+macOS System Extensions (like the OISP Network Extension) **require code signing** with an Apple Developer ID ($99/year). This creates a challenge for open source contributions.
+
+### What Contributors Can Do
+
+**Without Apple Developer ID:**
+- ✅ Modify and test Rust code (`cargo build && cargo test`)
+- ✅ Modify Swift code and verify compilation (`xcodebuild -target OISPCore`)
+- ✅ Write unit tests for OISPCore framework
+- ✅ Update documentation
+- ✅ Submit PRs for review
+
+**Requires Apple Developer ID:**
+- ❌ Test the full Network Extension end-to-end
+- ❌ Build signed DMG releases
+- ❌ Run notarization
+
+### Development Workflow
+
+```bash
+# 1. Build and test Rust code (works for everyone)
+cargo build --release
+cargo test
+
+# 2. Build Swift framework (works for everyone)
+cd macos
+xcodegen generate
+xcodebuild -target OISPCore -configuration Debug build \
+    CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO
+
+# 3. Full app testing (requires Developer ID)
+# Only maintainers can test the Network Extension
+```
+
+### CI/CD
+
+Our CI builds:
+- Rust crates on Linux, macOS, Windows
+- Swift OISPCore framework (unsigned) on macOS
+
+Signed releases are built manually by maintainers and published to GitHub Releases.
+
 ## Privacy
 
 OISP is designed with privacy in mind:

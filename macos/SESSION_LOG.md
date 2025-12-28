@@ -127,12 +127,67 @@ oisp-sensor/macos/
 
 ---
 
+### 2025-12-28 - Session 2
+
+#### Tasks Completed
+- [x] **Spec Bundle Centralization** - Eliminated endpoint duplication
+  - Initially created code generation approach
+  - **Pivoted to runtime loading** (user requirement: NO scripts, NO manual updates)
+  - Created `OISPCore/Sources/SpecBundle/OISPSpecBundle.swift` for runtime JSON loading
+  - Mirrors Rust SpecLoader behavior exactly
+- [x] **Added missing providers to spec bundle**
+  - OpenRouter (api.openrouter.ai, openrouter.ai)
+  - xAI/Grok (api.x.ai)
+  - Together AI alternate domain (api.together.ai)
+- [x] **Fixed CI/CD failures**
+  - Fixed unused imports on non-macOS platforms
+  - Fixed dead code warnings
+  - Made socket_server conditional on macOS
+  - Added frontmatter to IMPLEMENTATION_PLAN.md
+- [x] **Integrated macOS capture into pipeline**
+  - Added `MacOSCapture` plugin to `main.rs` record command
+  - macOS sensor now listens on `/tmp/oisp.sock` for events
+- [x] **Runtime Spec Bundle Loading**
+  - Created `SpecBundleLoader` singleton for loading/caching bundle
+  - Created `DynamicProviderRegistry` for runtime provider detection
+  - Embedded spec bundle in `OISPApp/Resources/oisp-spec-bundle.json`
+  - Auto-refreshes from network every hour (same as Linux)
+  - Fixed libbsm linking issue in `ProcessInfo.swift`
+
+#### Architecture Decision
+**Single Source of Truth: oisp-spec-bundle.json (Runtime Loaded)**
+
+```
+crates/oisp-core/data/oisp-spec-bundle.json (CANONICAL)
+    ↓
+    ├── Rust: SpecLoader (runtime)
+    │   └── Loads: embedded → cached → network refresh
+    │   └── Used by: oisp-decode, oisp-sensor
+    │
+    └── Swift: SpecBundleLoader (runtime)
+        └── Loads: cached → embedded → network refresh
+        └── Used by: AIEndpointFilter, DynamicProviderRegistry
+```
+
+**Key Benefits:**
+1. NO code generation required
+2. NO manual updates when providers change
+3. Both platforms automatically stay in sync
+4. Network updates pull latest spec without app updates
+5. Cached locally at `~/Library/Caches/com.oisp/spec-bundle.json`
+
+---
+
 ## Checkpoints
 
 - [x] Package.swift created and builds
 - [x] TLS MITM implementation complete (needs runtime testing)
 - [x] Xcode project created with all targets
 - [x] Rust crate receiving events from Swift
+- [x] Spec bundle centralization (no more hardcoded endpoints)
+- [x] macOS capture integrated into sensor pipeline
+- [x] Runtime spec bundle loading (same behavior as Linux)
+- [x] OISPCore framework compiles successfully
 - [ ] End-to-end test passing (requires code signing)
 - [ ] DMG created and notarized (requires Apple Developer ID)
 - [x] Documentation complete

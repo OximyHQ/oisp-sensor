@@ -61,6 +61,19 @@ echo "Cleaning build directory..."
 rm -rf "$BUILD_DIR"
 mkdir -p "$ARCHIVE_DIR" "$EXPORT_DIR"
 
+# Copy oisp-spec-bundle.json to app resources
+echo "Copying spec bundle to app resources..."
+SPEC_BUNDLE_SRC="$PROJECT_DIR/../crates/oisp-core/data/oisp-spec-bundle.json"
+SPEC_BUNDLE_DST="$PROJECT_DIR/OISPApp/Resources/oisp-spec-bundle.json"
+if [ -f "$SPEC_BUNDLE_SRC" ]; then
+    mkdir -p "$(dirname "$SPEC_BUNDLE_DST")"
+    cp "$SPEC_BUNDLE_SRC" "$SPEC_BUNDLE_DST"
+    echo "Spec bundle copied to app resources."
+else
+    echo "ERROR: Spec bundle not found at $SPEC_BUNDLE_SRC"
+    exit 1
+fi
+
 # Regenerate Xcode project from project.yml if xcodegen is available
 if command -v xcodegen &> /dev/null; then
     echo "Regenerating Xcode project..."

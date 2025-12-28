@@ -20,6 +20,7 @@
 		6B206C75D83EA5C7AE0BC26A /* OISPCore.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = D7564484D69746184EF6C5B0 /* OISPCore.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		6FDB54E5F117D840EFB8450D /* OISPCore.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = D7564484D69746184EF6C5B0 /* OISPCore.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		8E4188B80925456F5EFE7FC2 /* OISPCore.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = D7564484D69746184EF6C5B0 /* OISPCore.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		8E93C10E00DE57F851ECB4DA /* OISPSpecBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0903CD5D7D3BE06D9E3232E7 /* OISPSpecBundle.swift */; };
 		936A5ABA5FA4BCB9B3B28015 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9505A7B509BBCA7CD3FC1A32 /* MenuBarView.swift */; };
 		A7E5CB74A561499592CBDBF9 /* ExtensionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5BFF67B02FE0C2613B4808B /* ExtensionManager.swift */; };
 		AB9349CAAD15E81FDBFA5884 /* AIEndpointFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 453A9D6F66EBA80EA14DA2C7 /* AIEndpointFilter.swift */; };
@@ -120,6 +121,7 @@
 /* Begin PBXFileReference section */
 		0289FB868ADE30D944085BB4 /* OISPApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OISPApp.swift; sourceTree = "<group>"; };
 		064648F62C829BD98923DAB2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		0903CD5D7D3BE06D9E3232E7 /* OISPSpecBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OISPSpecBundle.swift; sourceTree = "<group>"; };
 		105292AAEBCDC05F6C41CB2D /* NetworkExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NetworkExtension.entitlements; sourceTree = "<group>"; };
 		2201B40C25C5875FF4815450 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		2BEAB423CAA22BB72456865D /* TLSInterceptor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TLSInterceptor.swift; sourceTree = "<group>"; };
@@ -179,6 +181,14 @@
 			path = Models;
 			sourceTree = "<group>";
 		};
+		17E6A6F037CD37B6044F7AC9 /* SpecBundle */ = {
+			isa = PBXGroup;
+			children = (
+				0903CD5D7D3BE06D9E3232E7 /* OISPSpecBundle.swift */,
+			);
+			path = SpecBundle;
+			sourceTree = "<group>";
+		};
 		1B6018D304D0F976126B49F2 /* OISPNetworkExtension */ = {
 			isa = PBXGroup;
 			children = (
@@ -206,6 +216,7 @@
 				30D8D5D444398A3036716980 /* IPC */,
 				1553E73271A98F0EB4559180 /* Models */,
 				A6C2F4D91C78E047F63ED984 /* Networking */,
+				17E6A6F037CD37B6044F7AC9 /* SpecBundle */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -467,6 +478,7 @@
 			files = (
 				AB9349CAAD15E81FDBFA5884 /* AIEndpointFilter.swift in Sources */,
 				2D00013112E43568052D5BCD /* CertificateAuthority.swift in Sources */,
+				8E93C10E00DE57F851ECB4DA /* OISPSpecBundle.swift in Sources */,
 				362656F167D71767445103F4 /* ProcessInfo.swift in Sources */,
 				0F534A12C181B2CD75F8EC79 /* RawCaptureEvent.swift in Sources */,
 				F968772CD0A094B23EAAB303 /* UnixSocketBridge.swift in Sources */,
@@ -541,6 +553,9 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"@executable_path/../Frameworks",
 					"@loader_path/Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"-lbsm",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.oisp.core;
 				PRODUCT_MODULE_NAME = OISPCore;
@@ -732,6 +747,9 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"@executable_path/../Frameworks",
 					"@loader_path/Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"-lbsm",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.oisp.core;
 				PRODUCT_MODULE_NAME = OISPCore;

@@ -13,6 +13,7 @@
 //! - Notarized by Apple
 //! - Approved by the user in System Preferences
 
+#[cfg(target_os = "macos")]
 pub mod socket_server;
 
 use async_trait::async_trait;
@@ -20,13 +21,19 @@ use oisp_core::plugins::{
     CapturePlugin, CaptureStats, Plugin, PluginConfig, PluginError, PluginInfo, PluginResult,
     RawCaptureEvent,
 };
+#[cfg(target_os = "macos")]
 use socket_server::{SocketServer, DEFAULT_SOCKET_PATH};
+#[cfg(not(target_os = "macos"))]
+const DEFAULT_SOCKET_PATH: &str = "/tmp/oisp.sock";
 use std::any::Any;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::sync::mpsc;
+#[cfg(target_os = "macos")]
 use tokio::task::JoinHandle;
-use tracing::{error, info, warn};
+use tracing::info;
+#[cfg(target_os = "macos")]
+use tracing::{error, warn};
 
 /// macOS capture configuration
 #[derive(Debug, Clone)]
@@ -64,7 +71,9 @@ pub struct MacOSCapture {
     config: MacOSCaptureConfig,
     running: Arc<AtomicBool>,
     stats: Arc<CaptureStatsInner>,
+    #[cfg(target_os = "macos")]
     socket_server: Option<SocketServer>,
+    #[cfg(target_os = "macos")]
     server_handle: Option<JoinHandle<()>>,
 }
 
@@ -90,7 +99,9 @@ impl MacOSCapture {
                 bytes_captured: AtomicU64::new(0),
                 errors: AtomicU64::new(0),
             }),
+            #[cfg(target_os = "macos")]
             socket_server: None,
+            #[cfg(target_os = "macos")]
             server_handle: None,
         }
     }
@@ -161,6 +172,7 @@ impl Plugin for MacOSCapture {
         self.running.store(false, Ordering::SeqCst);
 
         // Stop the socket server
+        #[cfg(target_os = "macos")]
         if let Some(server) = &self.socket_server {
             server.stop();
         }
@@ -261,17 +273,20 @@ impl CapturePlugin for MacOSCapture {
         info!("Stopping macOS capture...");
         self.running.store(false, Ordering::SeqCst);
 
-        // Stop the socket server
-        if let Some(server) = &self.socket_server {
-            server.stop();
-        }
+        #[cfg(target_os = "macos")]
+        {
+            // Stop the socket server
+            if let Some(server) = &self.socket_server {
+                server.stop();
+            }
 
-        // Wait for the server task to finish
-        if let Some(handle) = self.server_handle.take() {
-            let _ = handle.await;
-        }
+            // Wait for the server task to finish
+            if let Some(handle) = self.server_handle.take() {
+                let _ = handle.await;
+            }
 
-        self.socket_server = None;
+            self.socket_server = None;
+        }
 
         info!("macOS capture stopped");
         Ok(())
@@ -315,6 +330,7 @@ impl MacOSCapture {
 // Stub for non-macOS platforms
 #[cfg(not(target_os = "macos"))]
 impl MacOSCapture {
+    #[allow(dead_code)]
     async fn start_basic_capture(
         &mut self,
         _tx: mpsc::Sender<RawCaptureEvent>,

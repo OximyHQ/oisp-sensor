@@ -6,6 +6,7 @@
 import Foundation
 #if os(macOS)
 import Darwin
+import Darwin.bsm.libbsm
 #endif
 
 /// Information about a process making network requests
