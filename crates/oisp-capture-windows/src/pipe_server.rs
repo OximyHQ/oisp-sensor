@@ -281,8 +281,25 @@ impl PipeServer {
 }
 
 /// Windows implementation of the pipe server
+/// Runs entirely in a blocking task since Windows HANDLE is not Send
 #[cfg(target_os = "windows")]
 async fn run_pipe_server(
+    pipe_path: String,
+    tx: mpsc::Sender<RawCaptureEvent>,
+    stats: Arc<PipeServerStats>,
+    running: Arc<AtomicBool>,
+) {
+    // Run the entire pipe server in a blocking task since HANDLE is not Send
+    tokio::task::spawn_blocking(move || {
+        run_pipe_server_blocking(pipe_path, tx, stats, running);
+    })
+    .await
+    .ok();
+}
+
+/// Blocking implementation of the pipe server
+#[cfg(target_os = "windows")]
+fn run_pipe_server_blocking(
     pipe_path: String,
     tx: mpsc::Sender<RawCaptureEvent>,
     stats: Arc<PipeServerStats>,
@@ -321,7 +338,7 @@ async fn run_pipe_server(
 
         if pipe_handle == INVALID_HANDLE_VALUE {
             error!("Failed to create named pipe");
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            std::thread::sleep(std::time::Duration::from_secs(1));
             continue;
         }
 
@@ -334,8 +351,8 @@ async fn run_pipe_server(
                 != windows::Win32::Foundation::ERROR_PIPE_CONNECTED
         {
             warn!("ConnectNamedPipe failed, retrying...");
-            unsafe { CloseHandle(pipe_handle) };
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+            let _ = unsafe { CloseHandle(pipe_handle) };
+            std::thread::sleep(std::time::Duration::from_millis(100));
             continue;
         }
 
@@ -343,12 +360,12 @@ async fn run_pipe_server(
         info!("Redirector connected!");
 
         // Handle the connection
-        handle_pipe_connection(pipe_handle, tx.clone(), stats.clone(), running.clone()).await;
+        handle_pipe_connection_sync(pipe_handle, tx.clone(), stats.clone(), running.clone());
 
         // Cleanup
         unsafe {
-            DisconnectNamedPipe(pipe_handle);
-            CloseHandle(pipe_handle);
+            let _ = DisconnectNamedPipe(pipe_handle);
+            let _ = CloseHandle(pipe_handle);
         }
 
         if running.load(Ordering::SeqCst) {
@@ -359,9 +376,9 @@ async fn run_pipe_server(
     info!("Named Pipe server stopped");
 }
 
-/// Handle a single pipe connection
+/// Handle a single pipe connection (synchronous version for spawn_blocking)
 #[cfg(target_os = "windows")]
-async fn handle_pipe_connection(
+fn handle_pipe_connection_sync(
     pipe_handle: windows::Win32::Foundation::HANDLE,
     tx: mpsc::Sender<RawCaptureEvent>,
     stats: Arc<PipeServerStats>,
@@ -409,7 +426,7 @@ async fn handle_pipe_connection(
                         if let Some(raw_event) = event.into_raw_event() {
                             stats.events_received.fetch_add(1, Ordering::Relaxed);
 
-                            if let Err(e) = tx.send(raw_event).await {
+                            if let Err(e) = tx.blocking_send(raw_event) {
                                 warn!("Failed to send event: {}", e);
                             }
                         }
