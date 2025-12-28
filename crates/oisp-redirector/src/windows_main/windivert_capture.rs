@@ -193,7 +193,8 @@ impl WinDivertCapture {
     /// Re-inject a packet
     pub fn send_packet(&self, packet: &PacketInfo) -> Result<()> {
         // Reconstruct the address from packet info
-        let mut address = WinDivertAddress::<NetworkLayer>::default();
+        // SAFETY: WinDivertAddress::new() is safe to call, it just creates a zeroed struct
+        let mut address = unsafe { WinDivertAddress::<NetworkLayer>::new() };
         address.set_outbound(packet.outbound);
         address.set_interface_index(packet.interface_index);
         address.set_subinterface_index(packet.subinterface_index);

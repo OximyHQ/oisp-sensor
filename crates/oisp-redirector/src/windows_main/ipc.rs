@@ -159,14 +159,6 @@ impl IpcClient {
     /// Connect to the named pipe
     #[cfg(target_os = "windows")]
     pub async fn connect(pipe_path: &str) -> Result<Self> {
-        use std::ffi::OsStr;
-        use std::os::windows::ffi::OsStrExt;
-        use windows::core::PCWSTR;
-        use windows::Win32::Foundation::{GENERIC_WRITE, INVALID_HANDLE_VALUE};
-        use windows::Win32::Storage::FileSystem::{
-            CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_NONE, OPEN_EXISTING,
-        };
-
         debug!("Connecting to named pipe: {}", pipe_path);
 
         // Validate pipe path format

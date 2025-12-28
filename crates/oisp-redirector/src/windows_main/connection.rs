@@ -361,7 +361,7 @@ impl ConnectionTracker {
                 0,
             );
 
-            if result != NO_ERROR {
+            if result != NO_ERROR.0 {
                 return None;
             }
 

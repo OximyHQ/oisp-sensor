@@ -7,6 +7,7 @@ use anyhow::{Context, Result};
 use regex::Regex;
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use tracing::{debug, info, warn};
 
 /// Embedded spec bundle (compiled into binary)
