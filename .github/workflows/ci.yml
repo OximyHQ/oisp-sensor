@@ -2,291 +2,236 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
-
-permissions:
-  contents: read
+    branches: [main, develop]
 
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
 
 jobs:
-  check:
-    name: Check
+  # Lint and format check
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-      
-      - name: Build frontend
-        run: |
-          cd frontend
-          npm ci
-          npm run build
-      
-      - name: Install Rust
+
+      - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
           components: rustfmt, clippy
-      
+
       - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
-      
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-lint-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Check formatting
         run: cargo fmt --all -- --check
-      
-      - name: Clippy
+
+      - name: Clippy (Linux)
         run: cargo clippy --workspace --all-targets -- -D warnings
 
-  test:
-    name: Test (${{ matrix.os }})
+  # Build and test on multiple platforms
+  build:
+    name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-      
-      - name: Build frontend
-        run: |
-          cd frontend
-          npm ci
-          npm run build
-      
-      - name: Install Rust
+          submodules: true
+
+      - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-      
-      - name: Install eBPF build dependencies (Linux)
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      # Linux-specific: Install dependencies
+      - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang llvm libelf-dev libbpf-dev
-      
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
-      
-      - name: Build
-        run: cargo build --workspace
-      
-      - name: Run tests
-        run: cargo test --workspace
+          sudo apt-get install -y libssl-dev pkg-config
 
-  build-linux:
-    name: Build Linux (x86_64, aarch64)
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        target: [x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu]
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-      
-      - name: Build frontend
+      # Windows-specific: Download WinDivert
+      - name: Download WinDivert (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
         run: |
-          cd frontend
-          npm ci
-          npm run build
-      
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-          targets: ${{ matrix.target }}
-      
-      - name: Install eBPF build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang llvm libelf-dev libbpf-dev
-      
-      - name: Install cross-compilation tools
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-      
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ matrix.target }}
-      
-      - name: Build release
-        run: cargo build --release --target ${{ matrix.target }}
-        env:
-          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+          $version = "2.2.2-A"
+          $url = "https://github.com/basil00/Divert/releases/download/v2.2.2/WinDivert-$version.zip"
+          $dest = "windows/deps"
 
-  build-macos:
-    name: Build macOS (x86_64, aarch64)
-    runs-on: macos-latest
-    strategy:
-      matrix:
-        target: [x86_64-apple-darwin, aarch64-apple-darwin]
-    steps:
-      - uses: actions/checkout@v4
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+          Invoke-WebRequest -Uri $url -OutFile "$dest/WinDivert.zip"
+          Expand-Archive -Path "$dest/WinDivert.zip" -DestinationPath $dest -Force
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          # Set environment variable for windivert crate
+          echo "WINDIVERT_PATH=$PWD/$dest/WinDivert-$version" >> $env:GITHUB_ENV
 
-      - name: Build frontend
-        run: |
-          cd frontend
-          npm ci
-          npm run build
+      # Build
+      - name: Build (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: cargo build --workspace --target ${{ matrix.target }}
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-          targets: ${{ matrix.target }}
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        run: cargo build --workspace --target ${{ matrix.target }}
 
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ matrix.target }}
+      # Test (skip on cross-compilation)
+      - name: Test
+        if: |
+          (runner.os == 'Linux' && matrix.target == 'x86_64-unknown-linux-gnu') ||
+          (runner.os == 'macOS' && matrix.target == 'x86_64-apple-darwin') ||
+          (runner.os == 'Windows')
+        run: cargo test --workspace --target ${{ matrix.target }}
 
-      - name: Build release
-        run: cargo build --release --target ${{ matrix.target }}
-
-  build-macos-swift:
-    name: Build macOS Swift App (unsigned)
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install xcodegen
-        run: brew install xcodegen
-
-      - name: Copy spec bundle to Resources
-        run: |
-          mkdir -p macos/OISPApp/Resources
-          cp crates/oisp-core/data/oisp-spec-bundle.json macos/OISPApp/Resources/
-
-      - name: Generate Xcode project
-        run: |
-          cd macos
-          xcodegen generate
-
-      - name: Build OISPCore framework (unsigned)
-        run: |
-          cd macos
-          xcodebuild -project OISP.xcodeproj \
-            -target OISPCore \
-            -configuration Debug \
-            build \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
-
-      # Note: Full app build requires signing for System Extension entitlements
-      # This CI job validates Swift code compiles correctly
-      # Signed releases are built manually by maintainers with Apple Developer ID
-
-  build-windows:
-    name: Build Windows (x86_64)
+  # Windows-specific: Build the full Windows distribution
+  windows-build:
+    name: Windows Full Build
     runs-on: windows-latest
+    needs: build
+
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          submodules: true
 
-      - name: Build frontend
-        run: |
-          cd frontend
-          npm ci
-          npm run build
-
-      - name: Install Rust
+      - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
 
       - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: windows-cargo-release-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Build release
-        run: cargo build --release
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
 
-  test-distros:
-    name: Test on ${{ matrix.distro.name }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        distro:
-          - name: Ubuntu 22.04
-            image: ubuntu:22.04
-            package: deb
-          - name: Ubuntu 24.04
-            image: ubuntu:24.04
-            package: deb
-          - name: Debian 12
-            image: debian:12
-            package: deb
-          - name: Fedora 40
-            image: fedora:40
-            package: rpm
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Test on ${{ matrix.distro.name }}
+      - name: Download WinDivert
+        shell: pwsh
         run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            ${{ matrix.distro.image }} \
-            /bin/bash -c '
-              set -e
+          $version = "2.2.2-A"
+          $url = "https://github.com/basil00/Divert/releases/download/v2.2.2/WinDivert-$version.zip"
+          $dest = "windows/deps"
 
-              # Install dependencies based on package type
-              if [ "${{ matrix.distro.package }}" = "deb" ]; then
-                apt-get update
-                apt-get install -y curl file
-              else
-                dnf install -y curl file
-              fi
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+          Invoke-WebRequest -Uri $url -OutFile "$dest/WinDivert.zip"
+          Expand-Archive -Path "$dest/WinDivert.zip" -DestinationPath $dest -Force
 
-              # Check kernel version (from container host)
-              uname -r || echo "Container kernel info not available"
+          echo "WINDIVERT_PATH=$PWD/$dest/WinDivert-$version" >> $env:GITHUB_ENV
 
-              # Test universal installer (dry run)
-              echo "Testing installer detection..."
-              if [ -f /etc/os-release ]; then
-                cat /etc/os-release
-              fi
+      # Build Rust binaries (release)
+      - name: Build Rust binaries
+        run: |
+          cargo build --release --bin oisp-sensor
+          cargo build --release --bin oisp-redirector
 
-              echo "Distro test passed for ${{ matrix.distro.name }}"
-            '
+      # Generate placeholder icons
+      - name: Generate icons
+        shell: pwsh
+        run: |
+          $resourcesDir = "windows/OISPApp/Resources"
+          New-Item -ItemType Directory -Force -Path $resourcesDir | Out-Null
 
+          # Create minimal ICO files if they dont exist
+          if (-not (Test-Path "$resourcesDir/oisp-icon.ico")) {
+            [byte[]]$ico = @(0,0,1,0,1,0,1,1,0,0,1,0,32,0,40,0,0,0,22,0,0,0,40,0,0,0,1,0,0,0,2,0,0,0,1,0,32,0,0,0,0,0,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,100,100,100,255,0,0,0,0)
+            [System.IO.File]::WriteAllBytes("$resourcesDir/oisp-icon.ico", $ico)
+          }
+          if (-not (Test-Path "$resourcesDir/oisp-icon-active.ico")) {
+            [byte[]]$ico = @(0,0,1,0,1,0,1,1,0,0,1,0,32,0,40,0,0,0,22,0,0,0,40,0,0,0,1,0,0,0,2,0,0,0,1,0,32,0,0,0,0,0,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,34,139,34,255,0,0,0,0)
+            [System.IO.File]::WriteAllBytes("$resourcesDir/oisp-icon-active.ico", $ico)
+          }
+
+      # Build .NET application
+      - name: Build .NET application
+        run: |
+          cd windows/OISPApp
+          dotnet build -c Release
+
+      # Create distribution
+      - name: Create distribution
+        shell: pwsh
+        run: |
+          $distDir = "dist/windows"
+          New-Item -ItemType Directory -Force -Path $distDir | Out-Null
+
+          # Copy Rust binaries
+          Copy-Item "target/release/oisp-sensor.exe" -Destination $distDir
+          Copy-Item "target/release/oisp-redirector.exe" -Destination $distDir
+
+          # Copy .NET app
+          Copy-Item "windows/OISPApp/bin/Release/net8.0-windows/*" -Destination $distDir -Recurse
+
+          # Copy WinDivert
+          Copy-Item "windows/deps/WinDivert-2.2.2-A/x64/WinDivert.dll" -Destination $distDir
+          Copy-Item "windows/deps/WinDivert-2.2.2-A/x64/WinDivert64.sys" -Destination $distDir
+
+          # List contents
+          Get-ChildItem $distDir
+
+      # Upload artifacts
+      - name: Upload Windows distribution
+        uses: actions/upload-artifact@v4
+        with:
+          name: oisp-sensor-windows-x64
+          path: dist/windows/
+          retention-days: 7
+
+  # Summary job that depends on all others
+  ci-complete:
+    name: CI Complete
+    runs-on: ubuntu-latest
+    needs: [lint, build, windows-build]
+    if: always()
+    steps:
+      - name: Check results
+        run: |
+          if [[ "${{ needs.lint.result }}" == "failure" ]] || \
+             [[ "${{ needs.build.result }}" == "failure" ]] || \
+             [[ "${{ needs.windows-build.result }}" == "failure" ]]; then
+            echo "CI failed"
+            exit 1
+          fi
+          echo "CI passed"

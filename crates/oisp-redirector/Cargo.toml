@@ -1,0 +1,77 @@
+[package]
+name = "oisp-redirector"
+version = "0.1.0"
+edition = "2021"
+description = "Windows packet redirector for OISP Sensor using WinDivert"
+license = "MIT"
+authors = ["OISP Team"]
+
+# This is a Windows-only binary
+[[bin]]
+name = "oisp-redirector"
+path = "src/main.rs"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.42", features = ["macros", "net", "rt-multi-thread", "sync", "io-util", "time"] }
+anyhow = { version = "1.0", features = ["backtrace"] }
+thiserror = "1.0"
+
+# Logging
+log = "0.4"
+env_logger = "0.11"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Serialization (for IPC messages)
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Base64 encoding for data transfer
+base64 = "0.22"
+
+# Signal handling
+ctrlc = "3.4"
+
+# Connection state cache
+lru = "0.12"
+
+# TLS/SSL for MITM proxy
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+tokio-rustls = "0.26"
+rustls-pemfile = "2.2"
+webpki-roots = "0.26"
+
+# Certificate generation for MITM
+rcgen = { version = "0.13", features = ["x509-parser"] }
+
+# Time for certificate validity
+time = "0.3"
+
+# Regex for AI endpoint pattern matching
+regex = "1.11"
+
+[target.'cfg(windows)'.dependencies]
+# WinDivert bindings - same version as mitmproxy_rs
+windivert = "0.6.0"
+
+# Packet parsing - same as mitmproxy_rs
+internet-packet = { version = "0.2.2", features = ["checksums"] }
+
+# Windows APIs
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_System_Threading",
+    "Win32_System_Pipes",
+    "Win32_System_ProcessStatus",
+    "Win32_Security",
+    "Win32_NetworkManagement_IpHelper",
+    "Win32_Networking_WinSock",
+]}
+
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1"
+
+[package.metadata.winres]
+ProductName = "OISP Redirector"
+FileDescription = "Transparently redirect AI API traffic to OISP Sensor"

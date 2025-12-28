@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <ApplicationIcon>Resources\oisp-icon.ico</ApplicationIcon>
+    <StartupObject>OISPApp.App</StartupObject>
+    <AssemblyName>OISPApp</AssemblyName>
+    <RootNamespace>OISPApp</RootNamespace>
+    <Version>0.1.0</Version>
+    <Authors>OISP Team</Authors>
+    <Product>OISP Sensor</Product>
+    <Description>OISP Sensor System Tray Application for Windows</Description>
+    <Copyright>Copyright (c) 2024 OISP</Copyright>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- System Tray support via Hardcodet NotifyIcon -->
+    <PackageReference Include="Hardcodet.NotifyIcon.Wpf" Version="1.1.0" />
+    <!-- Settings storage -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Resources\oisp-icon.ico" />
+    <Resource Include="Resources\oisp-icon-active.ico" />
+  </ItemGroup>
+
+</Project>

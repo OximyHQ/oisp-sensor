@@ -1,6 +1,6 @@
 ---
 title: Installation
-description: Install OISP Sensor on Linux, macOS, or via Docker
+description: Install OISP Sensor on Linux, macOS, Windows, or via Docker
 ---
 
 import { Tabs, TabItem } from '@astrojs/starlight/components';
@@ -143,31 +143,104 @@ sudo journalctl -u oisp-sensor -f
 </TabItem>
 <TabItem label="macOS">
 
-<Aside type="caution">
-macOS support is currently in preview. Full eBPF-style capture requires a system extension.
+### Prerequisites
+
+- macOS 13.0 (Ventura) or later
+- Apple Silicon (M1/M2/M3/M4) or Intel Mac
+- Apple Developer Program ($99/year) for System Extension signing
+- Admin access for extension approval
+
+### Build from Source
+
+macOS requires building from source with a Developer ID certificate:
+
+```bash
+# Build the sensor
+cargo build --release
+
+# Build the macOS app
+cd macos
+xcodegen generate
+xcodebuild -project OISP.xcodeproj -scheme OISP build
+```
+
+### Run the Sensor
+
+```bash
+# Start sensor with JSONL export
+./target/release/oisp-sensor record --output ~/oisp-events.jsonl --web
+```
+
+Then launch the menu bar app and approve the Network Extension when prompted.
+
+### How It Works
+
+OISP on macOS uses a Network Extension with a TLS MITM proxy:
+
+1. **Network Extension** intercepts HTTPS connections to AI provider domains
+2. **TLS MITM** decrypts traffic using a locally-generated CA certificate
+3. **Events sent** to the Rust sensor via Unix domain socket
+
+<Aside type="note">
+System Extension signing requires an Apple Developer Program membership ($99/year). The extension must be approved by the user in System Settings.
 </Aside>
 
-### Install via Script
+</TabItem>
+<TabItem label="Windows">
 
-```bash
-curl -sSL https://sensor.oisp.dev/install.sh | sh
+### Prerequisites
+
+- Windows 10/11 (64-bit)
+- Administrator privileges for packet capture
+- ~50 MB disk space
+
+### Option 1: Installer (Recommended)
+
+1. Download `oisp-sensor-setup.exe` from the [Releases](https://github.com/oximyHQ/oisp-sensor/releases)
+2. Run the installer (requires Administrator)
+3. Launch OISP from the Start Menu
+4. Right-click tray icon → "Install CA Certificate"
+5. Right-click tray icon → "Start Capture"
+
+### Option 2: Portable ZIP
+
+```powershell
+# Download
+Invoke-WebRequest -Uri https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor-x86_64-pc-windows-msvc.zip -OutFile oisp-sensor.zip
+
+# Extract
+Expand-Archive oisp-sensor.zip -DestinationPath C:\OISP
+
+# Run the tray app
+C:\OISP\OISPApp.exe
 ```
 
-### Install via Homebrew (coming soon)
+### Option 3: winget (Coming Soon)
 
-```bash
-brew tap oximyHQ/oisp
-brew install oisp-sensor
+```powershell
+winget install OISP.Sensor
 ```
 
-### Current Limitations
+### CA Certificate Installation
 
-On macOS, OISP Sensor can:
-- Run the demo mode with synthetic events
-- Display process information
-- Export to all supported sinks
+For HTTPS interception, the OISP CA certificate must be trusted:
 
-Full SSL/TLS capture requires Apple Endpoint Security Framework and Network Extension entitlements (coming in a future release).
+1. Right-click the OISP tray icon → "Install CA Certificate"
+2. Accept the UAC prompt
+3. The CA is now in your Trusted Root store
+
+Verify: Open `certmgr.msc` → Trusted Root Certification Authorities → Look for "OISP Sensor CA"
+
+### Verify Installation
+
+```powershell
+# Check version
+C:\OISP\oisp-sensor.exe --version
+```
+
+<Aside type="note">
+OISP on Windows uses WinDivert for packet capture and a TLS MITM proxy for HTTPS interception. The `oisp-redirector.exe` component requires Administrator privileges.
+</Aside>
 
 </TabItem>
 <TabItem label="Docker">

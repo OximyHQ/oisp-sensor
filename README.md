@@ -89,19 +89,27 @@ cd macos && xcodegen generate && xcodebuild -scheme OISP build
 
 ### Windows (Preview)
 
-Metadata capture (process, network, file events):
+Full SSL/TLS capture via WinDivert + TLS MITM:
 
 ```powershell
-# Install via winget
-winget install Oximy.OISPSensor
+# Download from releases and extract, then:
+# 1. Install CA certificate (one-time)
+.\OISPApp.exe  # Right-click tray → Install CA Certificate
 
-# Run
-oisp-sensor.exe
+# 2. Start capture (requires Admin)
+.\OISPApp.exe  # Right-click tray → Start Capture
+
+# Or via command line:
+.\oisp-sensor.exe record --output events.jsonl  # Terminal 1
+.\oisp-redirector.exe --tls-mitm               # Terminal 2 (Admin)
 ```
 
-**→ [Windows Guide](https://sensor.oisp.dev/platforms/windows/)**
+**→ [Windows Guide](./windows/README.md)**
 
-**Note:** Full SSL capture coming soon with ETW service
+**Requirements:**
+- Windows 10/11 (64-bit)
+- Administrator privileges for packet capture
+- CA certificate must be trusted for HTTPS interception
 
 ---
 
@@ -136,8 +144,8 @@ kubectl apply -f https://sensor.oisp.dev/manifests/daemonset.yaml
 | Platform | Status | SSL Capture | Docs |
 |----------|--------|-------------|------|
 | **Linux** (Ubuntu, Debian, RHEL, Rocky, Fedora) | ✅ Production | Full (eBPF) | [Guide](https://sensor.oisp.dev/platforms/linux/) |
-| **macOS** | ⚠️ Preview | Metadata only | [Guide](https://sensor.oisp.dev/platforms/macos/) |
-| **Windows** | ⚠️ Preview | Metadata only | [Guide](https://sensor.oisp.dev/platforms/windows/) |
+| **macOS** | ⚠️ Preview | Full (Network Extension) | [Guide](https://sensor.oisp.dev/platforms/macos/) |
+| **Windows** | ⚠️ Preview | Full (WinDivert + TLS MITM) | [Guide](https://sensor.oisp.dev/platforms/windows/) |
 | **Docker** (Linux) | ✅ Production | Full (eBPF) | [Guide](https://sensor.oisp.dev/platforms/docker/) |
 | **Kubernetes** (Linux nodes) | ✅ Production | Full (eBPF) | [Guide](https://sensor.oisp.dev/platforms/kubernetes/) |
 
@@ -149,9 +157,9 @@ kubectl apply -f https://sensor.oisp.dev/manifests/daemonset.yaml
 
 | Event | Description | Linux | macOS | Windows |
 |-------|-------------|:-----:|:-----:|:-------:|
-| `ai.request` | AI API request (model, prompt, tools) | Full | Meta | Meta |
-| `ai.response` | AI API response (content, tool calls) | Full | Meta | Meta |
-| `agent.tool_call` | Tool invocation by AI agent | Full | Meta | Meta |
+| `ai.request` | AI API request (model, prompt, tools) | Full | Full | Full |
+| `ai.response` | AI API response (content, tool calls) | Full | Full | Full |
+| `agent.tool_call` | Tool invocation by AI agent | Full | Full | Full |
 | `process.exec` | Process execution | Full | Full | Full |
 | `file.write` | File write operation | Full | Full | Full |
 | `network.connect` | Outbound connection | Full | Full | Full |

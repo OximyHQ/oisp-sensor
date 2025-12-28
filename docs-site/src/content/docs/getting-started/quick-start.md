@@ -5,8 +5,12 @@ description: Capture your first AI events in 5 minutes
 
 import { Steps } from '@astrojs/starlight/components';
 import { Aside } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
 
 This guide will have you capturing AI events in under 5 minutes.
+
+<Tabs>
+  <TabItem label="Linux">
 
 ## Prerequisites
 
@@ -125,6 +129,108 @@ Run headless:
 ```bash
 sudo oisp-sensor record --no-web --output events.jsonl
 ```
+
+  </TabItem>
+  <TabItem label="Windows">
+
+## Prerequisites
+
+- OISP Sensor [installed](/getting-started/installation)
+- Windows 10/11 (64-bit)
+- Administrator privileges for packet capture
+- CA certificate installed for HTTPS interception
+
+## Start Capturing
+
+<Steps>
+
+1. **Launch OISP**
+
+   Double-click `OISPApp.exe` or launch from the Start Menu.
+
+2. **Install CA Certificate**
+
+   Right-click the tray icon → **"Install CA Certificate"**
+
+3. **Start Capture**
+
+   Right-click the tray icon → **"Start Capture"**
+
+   Accept the UAC prompt (Administrator required).
+
+4. **Generate some AI activity**
+
+   In PowerShell:
+
+   ```powershell
+   python -c "import openai; print(openai.OpenAI().chat.completions.create(model='gpt-4o-mini', messages=[{'role':'user','content':'Hello'}]).choices[0].message.content)"
+   ```
+
+5. **View captured events**
+
+   Right-click tray icon → **"View Logs"**
+
+   Or check `%USERPROFILE%\Documents\OISP\events.jsonl`
+
+</Steps>
+
+### Command Line Usage
+
+```powershell
+# Terminal 1: Start sensor
+.\oisp-sensor.exe record --output events.jsonl
+
+# Terminal 2 (Administrator): Start redirector
+.\oisp-redirector.exe --tls-mitm
+```
+
+  </TabItem>
+  <TabItem label="macOS">
+
+## Prerequisites
+
+- macOS 13+ (Ventura or later)
+- Apple Developer Program ($99/year) for System Extension signing
+- Admin access for extension approval
+
+## Start Capturing
+
+<Steps>
+
+1. **Build the sensor**
+
+   ```bash
+   cargo build --release
+   ```
+
+2. **Build the macOS app**
+
+   ```bash
+   cd macos
+   xcodegen generate
+   xcodebuild -project OISP.xcodeproj -scheme OISP build
+   ```
+
+3. **Start sensor with JSONL export**
+
+   ```bash
+   ./target/release/oisp-sensor record --output ~/oisp-events.jsonl --web
+   ```
+
+4. **Launch the menu bar app and approve the Network Extension**
+
+5. **Trust the OISP CA certificate when prompted**
+
+6. **Generate AI activity**
+
+   ```bash
+   python -c "import openai; print(openai.OpenAI().chat.completions.create(model='gpt-4', messages=[{'role':'user','content':'Hello'}]))"
+   ```
+
+</Steps>
+
+  </TabItem>
+</Tabs>
 
 ## Example Output
 

@@ -1,0 +1,60 @@
+# OISP Sensor Winget Manifest
+# This is a template - update URLs and SHA256 hashes before submission
+
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.singleton.1.5.0.schema.json
+
+PackageIdentifier: OISP.Sensor
+PackageVersion: 0.1.0
+PackageLocale: en-US
+Publisher: OISP
+PublisherUrl: https://github.com/your-org/oisp-sensor
+PublisherSupportUrl: https://github.com/your-org/oisp-sensor/issues
+# PrivacyUrl:
+Author: OISP Team
+PackageName: OISP Sensor
+PackageUrl: https://github.com/your-org/oisp-sensor
+License: MIT
+LicenseUrl: https://github.com/your-org/oisp-sensor/blob/main/LICENSE
+Copyright: Copyright (c) 2024 OISP
+# CopyrightUrl:
+ShortDescription: AI API traffic capture and monitoring tool
+Description: |
+  OISP Sensor captures and logs AI API traffic on your system, providing
+  visibility into how AI models are being used by your applications.
+
+  Features:
+  - Captures traffic to OpenAI, Anthropic, Google AI, and 40+ other providers
+  - TLS/HTTPS interception for complete visibility
+  - Process attribution - see which application made each request
+  - Low-overhead system-level capture
+  - JSON Lines output for easy analysis
+Moniker: oisp-sensor
+Tags:
+  - ai
+  - api
+  - monitoring
+  - capture
+  - network
+  - openai
+  - anthropic
+  - observability
+ReleaseNotesUrl: https://github.com/your-org/oisp-sensor/releases/tag/v0.1.0
+# PurchaseUrl:
+# Documentation:
+ManifestType: singleton
+ManifestVersion: 1.5.0
+
+# Installer information
+Installers:
+  - Architecture: x64
+    InstallerType: nullsoft
+    InstallerUrl: https://github.com/your-org/oisp-sensor/releases/download/v0.1.0/oisp-sensor-setup.exe
+    InstallerSha256: REPLACE_WITH_SHA256_HASH
+    InstallerSwitches:
+      Silent: /S
+      SilentWithProgress: /S
+    ElevationRequirement: elevationRequired
+
+# Required capabilities
+# Note: OISP Sensor needs admin privileges for packet capture
+# and network interception functionality.

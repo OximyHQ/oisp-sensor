@@ -35,10 +35,6 @@ jobs:
             target: aarch64-apple-darwin
             binary: oisp-sensor
             archive: tar.gz
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            binary: oisp-sensor.exe
-            archive: zip
 
     steps:
       - uses: actions/checkout@v4
@@ -84,22 +80,11 @@ jobs:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
 
       - name: Prepare artifact (Unix)
-        if: runner.os != 'Windows'
         run: |
           mkdir -p dist
           cp target/${{ matrix.target }}/release/${{ matrix.binary }} dist/
           cp README.md LICENSE dist/ 2>/dev/null || true
           cd dist && tar -czvf ../oisp-sensor-${{ matrix.target }}.tar.gz *
-
-      - name: Prepare artifact (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path dist
-          Copy-Item target/${{ matrix.target }}/release/${{ matrix.binary }} dist/
-          if (Test-Path README.md) { Copy-Item README.md dist/ }
-          if (Test-Path LICENSE) { Copy-Item LICENSE dist/ }
-          Compress-Archive -Path dist/* -DestinationPath oisp-sensor-${{ matrix.target }}.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -107,9 +92,113 @@ jobs:
           name: oisp-sensor-${{ matrix.target }}
           path: oisp-sensor-${{ matrix.target }}.${{ matrix.archive }}
 
+  # Windows full build with installer
+  windows-build:
+    name: Build Windows x64 (Full)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: release-windows
+
+      - name: Download WinDivert
+        shell: pwsh
+        run: |
+          $version = "2.2.2-A"
+          $url = "https://github.com/basil00/Divert/releases/download/v2.2.2/WinDivert-$version.zip"
+          $dest = "windows/deps"
+
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+          Invoke-WebRequest -Uri $url -OutFile "$dest/WinDivert.zip"
+          Expand-Archive -Path "$dest/WinDivert.zip" -DestinationPath $dest -Force
+
+          echo "WINDIVERT_PATH=$PWD\windows\deps\WinDivert-$version" >> $env:GITHUB_ENV
+
+      - name: Build Rust binaries
+        run: |
+          cargo build --release --bin oisp-sensor
+          cargo build --release --bin oisp-redirector
+
+      - name: Generate icons
+        shell: pwsh
+        run: |
+          $resourcesDir = "windows/OISPApp/Resources"
+          New-Item -ItemType Directory -Force -Path $resourcesDir | Out-Null
+
+          if (-not (Test-Path "$resourcesDir/oisp-icon.ico")) {
+            [byte[]]$ico = @(0,0,1,0,1,0,1,1,0,0,1,0,32,0,40,0,0,0,22,0,0,0,40,0,0,0,1,0,0,0,2,0,0,0,1,0,32,0,0,0,0,0,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,100,100,100,255,0,0,0,0)
+            [System.IO.File]::WriteAllBytes("$resourcesDir/oisp-icon.ico", $ico)
+          }
+          if (-not (Test-Path "$resourcesDir/oisp-icon-active.ico")) {
+            [byte[]]$ico = @(0,0,1,0,1,0,1,1,0,0,1,0,32,0,40,0,0,0,22,0,0,0,40,0,0,0,1,0,0,0,2,0,0,0,1,0,32,0,0,0,0,0,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,34,139,34,255,0,0,0,0)
+            [System.IO.File]::WriteAllBytes("$resourcesDir/oisp-icon-active.ico", $ico)
+          }
+
+      - name: Build .NET application
+        run: |
+          cd windows/OISPApp
+          dotnet build -c Release
+
+      - name: Create distribution
+        shell: pwsh
+        run: |
+          $distDir = "dist"
+          New-Item -ItemType Directory -Force -Path $distDir | Out-Null
+
+          # Copy Rust binaries
+          Copy-Item "target/release/oisp-sensor.exe" -Destination $distDir
+          Copy-Item "target/release/oisp-redirector.exe" -Destination $distDir
+
+          # Copy .NET app
+          Copy-Item "windows/OISPApp/bin/Release/net8.0-windows/*" -Destination $distDir -Recurse
+
+          # Copy WinDivert
+          Copy-Item "windows/deps/WinDivert-2.2.2-A/x64/WinDivert.dll" -Destination $distDir
+          Copy-Item "windows/deps/WinDivert-2.2.2-A/x64/WinDivert64.sys" -Destination $distDir
+
+          # Copy docs
+          if (Test-Path "README.md") { Copy-Item "README.md" -Destination $distDir }
+          if (Test-Path "LICENSE") { Copy-Item "LICENSE" -Destination $distDir }
+
+          # Create zip
+          Compress-Archive -Path "$distDir/*" -DestinationPath "oisp-sensor-x86_64-pc-windows-msvc.zip"
+
+      - name: Upload Windows distribution
+        uses: actions/upload-artifact@v4
+        with:
+          name: oisp-sensor-x86_64-pc-windows-msvc
+          path: oisp-sensor-x86_64-pc-windows-msvc.zip
+
   release:
     name: Create Release
-    needs: build
+    needs: [build, windows-build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
