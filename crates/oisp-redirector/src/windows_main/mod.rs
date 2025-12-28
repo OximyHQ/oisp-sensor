@@ -22,7 +22,7 @@ use ai_filter::AiEndpointFilter;
 use connection::ConnectionTracker;
 use ipc::IpcClient;
 use packet_rewrite::rewrite_ipv4_dst;
-use proxy::{TransparentProxy, DEFAULT_PROXY_PORT};
+use proxy::TransparentProxy;
 use std::net::Ipv4Addr;
 use tls_mitm::{get_ca_dir, CertificateAuthority, TlsMitmHandler};
 use windivert_capture::WinDivertCapture;
@@ -250,8 +250,8 @@ async fn run_capture(config: RedirectorConfig, running: Arc<AtomicBool>) -> Resu
     info!("  Filter ports: {:?}", config.filter_ports);
     info!("  Pipe path: {}", config.pipe_path);
 
-    // Initialize AI endpoint filter
-    let ai_filter = if config.ai_filter {
+    // Initialize AI endpoint filter (currently unused, will be used in future for filtering)
+    let _ai_filter = if config.ai_filter {
         match AiEndpointFilter::new() {
             Ok(filter) => {
                 let (domains, patterns) = filter.stats();

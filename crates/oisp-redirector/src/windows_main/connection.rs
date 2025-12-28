@@ -4,11 +4,11 @@
 //! Windows APIs (GetExtendedTcpTable).
 
 use std::collections::HashMap;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::{IpAddr, SocketAddr};
 use std::time::{Duration, Instant};
-use tracing::{debug, trace, warn};
+use tracing::{debug, trace};
 
-use super::windivert_capture::{PacketInfo, TcpFlags};
+use super::windivert_capture::PacketInfo;
 
 /// Information about a tracked connection
 #[derive(Debug, Clone)]
@@ -325,6 +325,7 @@ impl ConnectionTracker {
     /// Get PID from Windows TCP table
     #[cfg(windows)]
     fn get_pid_from_tcp_table(&self, local_port: u16) -> Option<u32> {
+        use windows::Win32::Foundation::NO_ERROR;
         use windows::Win32::NetworkManagement::IpHelper::{
             GetExtendedTcpTable, MIB_TCPTABLE_OWNER_PID, TCP_TABLE_OWNER_PID_ALL,
         };
@@ -360,7 +361,7 @@ impl ConnectionTracker {
                 0,
             );
 
-            if result.is_err() {
+            if result != NO_ERROR {
                 return None;
             }
 

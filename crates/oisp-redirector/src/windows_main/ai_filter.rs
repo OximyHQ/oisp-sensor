@@ -7,12 +7,10 @@ use anyhow::{Context, Result};
 use regex::Regex;
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::net::SocketAddr;
-use std::sync::Arc;
 use tracing::{debug, info, warn};
 
 /// Embedded spec bundle (compiled into binary)
-const EMBEDDED_SPEC: &str = include_str!("../../../../oisp-core/data/oisp-spec-bundle.json");
+const EMBEDDED_SPEC: &str = include_str!("../../../oisp-core/data/oisp-spec-bundle.json");
 
 /// OISP Spec Bundle structure
 #[derive(Debug, Deserialize)]

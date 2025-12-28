@@ -12,6 +12,8 @@ use tracing::{debug, trace};
 #[cfg(windows)]
 use internet_packet::InternetPacket;
 #[cfg(windows)]
+use windivert::address::WinDivertAddress;
+#[cfg(windows)]
 use windivert::prelude::*;
 
 /// Information about a captured packet
@@ -123,8 +125,8 @@ impl WinDivertCapture {
     pub fn new(filter: &str, capture_only: bool) -> Result<Self> {
         debug!("Opening WinDivert with filter: {}", filter);
 
-        // Open WinDivert handle
-        let handle = WinDivert::network(filter)
+        // Open WinDivert handle with default priority (0) and no special flags
+        let handle = WinDivert::network(filter, 0, WinDivertFlags::new())
             .context("Failed to open WinDivert handle. Ensure you have Administrator privileges and WinDivert is installed.")?;
 
         debug!("WinDivert handle opened successfully");
@@ -210,38 +212,33 @@ impl WinDivertCapture {
 
     /// Parse TCP packet information
     fn parse_tcp_packet(&self, data: &[u8]) -> Option<TcpPacketInfo> {
-        let packet = InternetPacket::try_from(data).ok()?;
+        use internet_packet::TransportProtocol;
 
-        match packet {
-            InternetPacket::Tcp(tcp) => {
-                let src_port = tcp.src_port();
-                let dst_port = tcp.dst_port();
+        let packet = InternetPacket::try_from(data.to_vec()).ok()?;
 
-                let (src_addr, dst_addr) = match (tcp.src_ip(), tcp.dst_ip()) {
-                    (std::net::IpAddr::V4(src), std::net::IpAddr::V4(dst)) => (
-                        SocketAddr::new(std::net::IpAddr::V4(src), src_port),
-                        SocketAddr::new(std::net::IpAddr::V4(dst), dst_port),
-                    ),
-                    (std::net::IpAddr::V6(src), std::net::IpAddr::V6(dst)) => (
-                        SocketAddr::new(std::net::IpAddr::V6(src), src_port),
-                        SocketAddr::new(std::net::IpAddr::V6(dst), dst_port),
-                    ),
-                    _ => return None,
-                };
-
-                Some(TcpPacketInfo {
-                    src_addr,
-                    dst_addr,
-                    src_port,
-                    dst_port,
-                    flags: TcpFlags::from_flags(tcp.flags()),
-                    seq: tcp.sequence_number(),
-                    ack: tcp.acknowledgement_number(),
-                    payload_len: tcp.payload().len(),
-                })
-            }
-            _ => None,
+        // Check if this is a TCP packet
+        if packet.protocol() != TransportProtocol::Tcp {
+            return None;
         }
+
+        let src_port = packet.src_port();
+        let dst_port = packet.dst_port();
+        let src_ip = packet.src_ip();
+        let dst_ip = packet.dst_ip();
+
+        let src_addr = SocketAddr::new(src_ip, src_port);
+        let dst_addr = SocketAddr::new(dst_ip, dst_port);
+
+        Some(TcpPacketInfo {
+            src_addr,
+            dst_addr,
+            src_port,
+            dst_port,
+            flags: TcpFlags::from_flags(packet.tcp_flags()),
+            seq: packet.tcp_sequence_number(),
+            ack: packet.tcp_acknowledgement_number(),
+            payload_len: packet.payload().len(),
+        })
     }
 
     /// Convert TCP flags to string for logging

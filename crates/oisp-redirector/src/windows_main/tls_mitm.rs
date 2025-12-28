@@ -13,11 +13,10 @@ use rcgen::{
     ExtendedKeyUsagePurpose, IsCa, KeyPair, KeyUsagePurpose, SanType,
 };
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer, ServerName};
-use rustls::server::Acceptor;
 use rustls::{ClientConfig, RootCertStore, ServerConfig};
 use std::collections::HashMap;
 use std::fs;
-use std::io::{BufReader, Write as IoWrite};
+use std::io::Write as IoWrite;
 use std::path::PathBuf;
 use std::sync::Arc;
 use time::{Duration, OffsetDateTime};
@@ -25,7 +24,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::RwLock;
 use tokio_rustls::{TlsAcceptor, TlsConnector};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info};
 
 use super::proxy::OriginalDestination;
 
