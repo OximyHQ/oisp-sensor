@@ -121,14 +121,27 @@ jobs:
         run: |
           $version = "2.2.2-A"
           $url = "https://github.com/basil00/Divert/releases/download/v2.2.2/WinDivert-$version.zip"
-          $dest = "windows/deps"
+          $dest = Join-Path $PWD "windows" "deps"
 
           New-Item -ItemType Directory -Force -Path $dest | Out-Null
-          Invoke-WebRequest -Uri $url -OutFile "$dest/WinDivert.zip"
-          Expand-Archive -Path "$dest/WinDivert.zip" -DestinationPath $dest -Force
+          $zipPath = Join-Path $dest "WinDivert.zip"
+          Invoke-WebRequest -Uri $url -OutFile $zipPath
+          Expand-Archive -Path $zipPath -DestinationPath $dest -Force
 
-          # Set environment variable for windivert crate
-          echo "WINDIVERT_PATH=$PWD/$dest/WinDivert-$version" >> $env:GITHUB_ENV
+          # Set environment variable for windivert crate (point to x64 directory containing .lib)
+          $windivertPath = Join-Path $dest "WinDivert-$version" "x64"
+
+          # Verify the files exist
+          Write-Host "WinDivert path: $windivertPath"
+          Write-Host "Contents:"
+          Get-ChildItem $windivertPath
+
+          if (-not (Test-Path (Join-Path $windivertPath "WinDivert.lib"))) {
+            Write-Error "WinDivert.lib not found!"
+            exit 1
+          }
+
+          echo "WINDIVERT_PATH=$windivertPath" >> $env:GITHUB_ENV
 
       # Build
       - name: Build (Linux/macOS)
@@ -195,13 +208,27 @@ jobs:
         run: |
           $version = "2.2.2-A"
           $url = "https://github.com/basil00/Divert/releases/download/v2.2.2/WinDivert-$version.zip"
-          $dest = "windows/deps"
+          $dest = Join-Path $PWD "windows" "deps"
 
           New-Item -ItemType Directory -Force -Path $dest | Out-Null
-          Invoke-WebRequest -Uri $url -OutFile "$dest/WinDivert.zip"
-          Expand-Archive -Path "$dest/WinDivert.zip" -DestinationPath $dest -Force
+          $zipPath = Join-Path $dest "WinDivert.zip"
+          Invoke-WebRequest -Uri $url -OutFile $zipPath
+          Expand-Archive -Path $zipPath -DestinationPath $dest -Force
 
-          echo "WINDIVERT_PATH=$PWD/$dest/WinDivert-$version" >> $env:GITHUB_ENV
+          # Set environment variable for windivert crate (point to x64 directory containing .lib)
+          $windivertPath = Join-Path $dest "WinDivert-$version" "x64"
+
+          # Verify the files exist
+          Write-Host "WinDivert path: $windivertPath"
+          Write-Host "Contents:"
+          Get-ChildItem $windivertPath
+
+          if (-not (Test-Path (Join-Path $windivertPath "WinDivert.lib"))) {
+            Write-Error "WinDivert.lib not found!"
+            exit 1
+          }
+
+          echo "WINDIVERT_PATH=$windivertPath" >> $env:GITHUB_ENV
 
       # Build Rust binaries (release)
       - name: Build Rust binaries
