@@ -1,152 +1,256 @@
 # Contributing to OISP Sensor
 
-Thank you for your interest in contributing to OISP Sensor! This document provides guidelines and information for contributors.
+We welcome contributions across the entire stack—from low-level eBPF probes to React dashboards. This document helps you find where to contribute and how to get started.
 
-## Getting Started
+## Contribution Areas
+
+### Linux Capture (Rust + eBPF + C)
+
+**Location:** `crates/oisp-capture-ebpf/`, `bpf/`
+
+The Linux sensor uses eBPF to capture SSL/TLS traffic at the kernel level by hooking OpenSSL and GnuTLS functions.
+
+**You can help with:**
+- Adding support for additional SSL libraries (BoringSSL, LibreSSL, rustls)
+- Improving kernel version compatibility
+- Optimizing eBPF programs for performance
+- Adding new probe types (file I/O, process exec)
+
+**Prerequisites:** Rust, C, understanding of eBPF, Linux kernel basics
+
+```bash
+# Build eBPF programs
+cd bpf && make
+
+# Build the capture crate
+cargo build -p oisp-capture-ebpf
+```
+
+---
+
+### macOS App (Swift + SwiftUI + Network Extension)
+
+**Location:** `macos/`
+
+The macOS app uses a Network Extension to intercept traffic at the system level, with a SwiftUI menu bar app for control.
+
+**You can help with:**
+- Improving the menu bar app UX
+- Network Extension stability and edge cases
+- Code signing and notarization workflow
+- DMG packaging and distribution
+
+**Prerequisites:** Swift, SwiftUI, macOS development, Apple Developer Program membership
+
+```bash
+cd macos
+xcodegen generate
+open OISP.xcodeproj
+```
+
+---
+
+### Windows App (C# + WPF + WinDivert)
+
+**Location:** `windows/`
+
+The Windows app uses WinDivert for packet capture and a WPF system tray application for user interaction.
+
+**You can help with:**
+- System tray app improvements
+- Installer (MSI/EXE) packaging
+- TLS interception reliability
+- Windows service integration
+- Certificate management UX
+
+**Prerequisites:** C#, WPF, Windows development, familiarity with WinDivert
+
+```bash
+cd windows/OISPApp
+dotnet build
+```
+
+---
+
+### Core Engine (Rust)
+
+**Location:** `crates/oisp-core/`, `crates/oisp-decode/`, `crates/oisp-export/`
+
+The core engine handles protocol decoding, AI provider detection, event correlation, and data export.
+
+**You can help with:**
+- Adding new AI provider detection (new endpoints, request formats)
+- Improving HTTP/2 and streaming response handling
+- Adding export destinations (Kafka, S3, custom webhooks)
+- Performance optimization
+
+**Prerequisites:** Rust
+
+```bash
+cargo build -p oisp-core
+cargo test -p oisp-decode
+```
+
+---
+
+### Web Dashboard (TypeScript + Next.js + React)
+
+**Location:** `frontend/`
+
+A real-time dashboard for visualizing captured AI activity.
+
+**You can help with:**
+- UI/UX improvements
+- Real-time event streaming
+- Timeline and trace visualization
+- Dark mode, accessibility
+
+**Prerequisites:** TypeScript, React, Next.js, Tailwind CSS
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+---
+
+### Terminal UI (Rust + Ratatui)
+
+**Location:** `crates/oisp-tui/`
+
+A terminal-based interface for monitoring AI activity.
+
+**You can help with:**
+- New views (trace details, process tree)
+- Keybinding improvements
+- Layout and theming
+- Performance with high event volumes
+
+**Prerequisites:** Rust, familiarity with TUI frameworks
+
+```bash
+cargo run -p oisp-tui
+```
+
+---
+
+### Documentation Site (Astro + MDX)
+
+**Location:** `docs-site/`
+
+The documentation at [sensor.oisp.dev](https://sensor.oisp.dev).
+
+**You can help with:**
+- Writing guides and tutorials
+- Improving API reference docs
+- Adding diagrams and visualizations
+- Fixing typos and improving clarity
+
+**Prerequisites:** Markdown, basic web development
+
+```bash
+cd docs-site
+npm install
+npm run dev
+```
+
+---
+
+### Cookbooks (Python, Node.js, Docker)
+
+**Location:** [github.com/oximyhq/oisp-cookbook](https://github.com/oximyhq/oisp-cookbook)
+
+Example applications demonstrating sensor capabilities.
+
+**You can help with:**
+- Adding examples for new frameworks (CrewAI, AutoGen, etc.)
+- Edge case examples (static OpenSSL builds, custom runtimes)
+- Self-hosted AI tool examples (Ollama, LocalAI)
+- Integration examples (n8n, Dify, Flowise)
+
+**Prerequisites:** Varies by example
+
+---
+
+## Development Setup
 
 ### Prerequisites
 
-- Rust 1.83 or later
-- Linux: clang, llvm, libbpf-dev for eBPF development
-- macOS: Xcode command line tools
-- Windows: Visual Studio Build Tools
+| Platform | Requirements |
+|----------|--------------|
+| **Linux** | Rust 1.83+, clang, llvm, libbpf-dev, Linux 5.8+ kernel |
+| **macOS** | Rust 1.83+, Xcode 15+, Apple Developer Program |
+| **Windows** | Rust 1.83+, Visual Studio 2022, .NET 8 SDK |
 
 ### Building
 
 ```bash
-# Clone the repository
+# Clone
 git clone https://github.com/oximyHQ/oisp-sensor.git
 cd oisp-sensor
 
-# Build all crates
+# Build all Rust crates
 cargo build
-
-# Build in release mode
-cargo build --release
 
 # Run tests
 cargo test
-```
 
-### Project Structure
-
-```
-oisp-sensor/
-├── Cargo.toml              # Workspace configuration
-├── README.md               # Project overview
-├── ebpf/                   # eBPF programs (Rust/Aya, separate workspace)
-│   ├── oisp-ebpf-capture-ebpf/  # eBPF kernel programs
-│   ├── oisp-ebpf-capture-common/ # Shared types
-│   └── oisp-ebpf-capture/  # Standalone binary for testing
-├── crates/
-│   ├── oisp-sensor/        # Main binary and CLI
-│   ├── oisp-core/          # Core types and traits
-│   ├── oisp-capture/       # Capture abstraction
-│   ├── oisp-capture-ebpf/  # Linux eBPF capture (loader)
-│   ├── oisp-capture-macos/ # macOS ESF capture (stub)
-│   ├── oisp-capture-windows/ # Windows ETW capture (stub)
-│   ├── oisp-decode/        # HTTP/SSE/AI decoding
-│   ├── oisp-enrich/        # Event enrichment
-│   ├── oisp-redact/        # Redaction/privacy
-│   ├── oisp-correlate/     # Trace building
-│   ├── oisp-export/        # Event export
-│   ├── oisp-tui/           # Terminal UI
-│   └── oisp-web/           # Web UI backend
-├── frontend/               # React/Next.js frontend
-└── docker/                 # Docker configuration
-```
-
-## Development Workflow
-
-### Code Style
-
-- Follow Rust standard style (use `cargo fmt`)
-- Run `cargo clippy` before submitting PRs
-- Keep functions small and focused
-- Document public APIs with doc comments
-
-### Testing
-
-```bash
-# Run all tests
-cargo test
-
-# Run tests for a specific crate
-cargo test -p oisp-core
-
-# Run with logging
-RUST_LOG=debug cargo test
-```
-
-### Building eBPF Programs (Linux only)
-
-The eBPF programs are written in Rust using the [Aya](https://aya-rs.dev/) framework. They compile automatically via `build.rs` when building with Docker:
-
-```bash
-# Build via Docker (recommended)
-./scripts/docker-build.sh
-
-# Or build the eBPF workspace directly (requires nightly Rust + bpf-linker)
-cd ebpf
+# Build release
 cargo build --release
 ```
 
-## Contributing Areas
+### Code Style
 
-### High Priority
-
-1. **eBPF Programs**: Improve SSL capture, add file content capture
-2. **macOS Support**: Implement ESF and Network Extension capture
-3. **Windows Support**: Implement ETW-based capture
-4. **Provider Detection**: Add more AI providers to the registry
-5. **Performance**: Optimize event processing pipeline
-
-### Medium Priority
-
-1. **Web UI**: Improve timeline, add trace visualization
-2. **TUI**: Add more views (trace details, risk indicators)
-3. **Documentation**: Tutorials, architecture docs
-4. **Testing**: Unit tests, integration tests
-
-### Good First Issues
-
-Look for issues labeled `good first issue` in the GitHub issue tracker.
+- **Rust:** Use `cargo fmt` and `cargo clippy`
+- **Swift:** Follow Swift standard style
+- **C#:** Follow .NET conventions
+- **TypeScript:** Use Prettier and ESLint
 
 ## Pull Request Process
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/my-feature`)
 3. Make your changes
-4. Run tests (`cargo test`)
-5. Run lints (`cargo clippy`)
-6. Format code (`cargo fmt`)
-7. Commit with a descriptive message
-8. Push to your fork
-9. Open a Pull Request
+4. Run tests and lints for the area you modified
+5. Commit with a descriptive message (see below)
+6. Push and open a Pull Request
 
 ### Commit Messages
 
 Follow conventional commits:
 
 ```
-feat: add support for Gemini provider detection
-fix: handle streaming responses correctly
-docs: update installation instructions
-test: add tests for redaction patterns
-refactor: simplify event pipeline
+feat(macos): add network extension reconnection logic
+fix(decode): handle chunked transfer encoding correctly
+docs: add troubleshooting guide for eBPF errors
+test(core): add provider detection tests for Azure
 ```
+
+### PR Guidelines
+
+- Keep PRs focused—one feature or fix per PR
+- Link related issues
+- Explain the "why" not just the "what"
+- Include tests where applicable
+- Update docs if behavior changes
+
+## Good First Issues
+
+Look for issues labeled:
+- [`good first issue`](https://github.com/oximyHQ/oisp-sensor/labels/good%20first%20issue) — Great starting points
+- [`help wanted`](https://github.com/oximyHQ/oisp-sensor/labels/help%20wanted) — We need community help
+- [`docs`](https://github.com/oximyHQ/oisp-sensor/labels/docs) — Documentation improvements
 
 ## Security
 
-If you discover a security vulnerability, please email security@oximy.com instead of opening a public issue.
+If you discover a security vulnerability, please email **security@oximy.com** instead of opening a public issue.
 
 ## License
 
-By contributing to OISP Sensor, you agree that your contributions will be licensed under the Apache 2.0 License.
+By contributing, you agree that your contributions will be licensed under the Apache 2.0 License.
 
 ## Questions?
 
-- Open a GitHub Discussion
-- Join our community Discord (coming soon)
+- Open a [GitHub Discussion](https://github.com/oximyHQ/oisp-sensor/discussions)
 - Email: community@oximy.com
-
