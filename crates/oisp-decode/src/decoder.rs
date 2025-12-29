@@ -464,6 +464,8 @@ struct PendingRequest {
     is_streaming: bool,
     #[allow(dead_code)]
     host: Option<String>,
+    /// Web context (Origin, Referer, User-Agent) for browser-originated requests
+    web_context: Option<WebContext>,
 }
 
 impl HttpDecoder {
@@ -709,6 +711,17 @@ impl HttpDecoder {
         let envelope = self.create_envelope(raw, "ai.request");
         let is_streaming = request_data.streaming.unwrap_or(false);
 
+        // Extract web context from HTTP headers (Origin, Referer, User-Agent)
+        let web_context = if http_req.has_web_context() {
+            Some(WebContext::from_headers(
+                http_req.origin().map(|s| s.to_string()),
+                http_req.referer().map(|s| s.to_string()),
+                http_req.user_agent().map(|s| s.to_string()),
+            ))
+        } else {
+            None
+        };
+
         // Store for response correlation
         {
             let mut pending = self.pending_requests.write().unwrap();
@@ -736,16 +749,25 @@ impl HttpDecoder {
                     provider,
                     is_streaming,
                     host: http_req.host.clone(),
+                    web_context: web_context.clone(),
                 },
             );
         }
 
         debug!(
-            "Parsed AI request: model={:?}, provider={:?}, streaming={}",
+            "Parsed AI request: model={:?}, provider={:?}, streaming={}, has_web_context={}",
             request_data.model.as_ref().map(|m| &m.id),
             provider,
-            is_streaming
+            is_streaming,
+            web_context.is_some()
         );
+
+        // Add web context to envelope if present
+        let envelope = if let Some(ref ctx) = web_context {
+            envelope.with_web_context(ctx.clone())
+        } else {
+            envelope
+        };
 
         events.push(OispEvent::AiRequest(AiRequestEvent {
             envelope,
@@ -929,6 +951,12 @@ impl HttpDecoder {
                 if reassembler.is_complete() {
                     // Build complete response
                     let envelope = self.create_envelope(raw, "ai.response");
+                    // Add web context from pending request
+                    let envelope = if let Some(ref ctx) = pending_req.web_context {
+                        envelope.with_web_context(ctx.clone())
+                    } else {
+                        envelope
+                    };
                     let latency = envelope.ts - pending_req.timestamp;
 
                     let (input_tokens, output_tokens) = reassembler.usage();
@@ -1005,6 +1033,12 @@ impl HttpDecoder {
 
                 if reassembler.is_complete() {
                     let envelope = self.create_envelope(raw, "ai.response");
+                    // Add web context from pending request
+                    let envelope = if let Some(ref ctx) = pending_req.web_context {
+                        envelope.with_web_context(ctx.clone())
+                    } else {
+                        envelope
+                    };
                     let latency = envelope.ts - pending_req.timestamp;
 
                     let response_data = AiResponseData {
@@ -1080,6 +1114,12 @@ impl HttpDecoder {
                 if reassembler.is_complete() {
                     // Build and emit response (same logic as above)
                     let envelope = self.create_envelope(raw, "ai.response");
+                    // Add web context from pending request
+                    let envelope = if let Some(ref ctx) = pending_req.web_context {
+                        envelope.with_web_context(ctx.clone())
+                    } else {
+                        envelope
+                    };
                     let latency = envelope.ts - pending_req.timestamp;
 
                     let (input_tokens, output_tokens) = reassembler.usage();
@@ -1200,6 +1240,12 @@ impl HttpDecoder {
         };
 
         let envelope = self.create_envelope(raw, "ai.response");
+        // Add web context from pending request
+        let envelope = if let Some(ref ctx) = pending_req.web_context {
+            envelope.with_web_context(ctx.clone())
+        } else {
+            envelope
+        };
         let latency = envelope.ts - pending_req.timestamp;
 
         let mut response_data = response_data;
@@ -1207,9 +1253,10 @@ impl HttpDecoder {
         response_data.status_code = Some(http_resp.status_code);
 
         debug!(
-            "Parsed AI response: status={}, latency={}ms",
+            "Parsed AI response: status={}, latency={}ms, has_web_context={}",
             http_resp.status_code,
-            latency.num_milliseconds()
+            latency.num_milliseconds(),
+            pending_req.web_context.is_some()
         );
 
         events.push(OispEvent::AiResponse(AiResponseEvent {
@@ -1290,6 +1337,7 @@ impl HttpDecoder {
             tid: raw.tid,
             container_id: None,
             hash: None,
+            bundle_id: raw.metadata.bundle_id.clone(),
             code_signature: None,
         });
 

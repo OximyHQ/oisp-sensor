@@ -191,6 +191,12 @@ impl Serialize for OispEvent {
         if let Some(ref process) = envelope.process {
             map.serialize_entry("process", process)?;
         }
+        if let Some(ref app) = envelope.app {
+            map.serialize_entry("app", app)?;
+        }
+        if let Some(ref web_context) = envelope.web_context {
+            map.serialize_entry("web_context", web_context)?;
+        }
         map.serialize_entry("source", &envelope.source)?;
         map.serialize_entry("confidence", &envelope.confidence)?;
 
@@ -491,14 +497,17 @@ mod tests {
                 tid: None,
                 container_id: None,
                 hash: None,
+                bundle_id: None,
                 code_signature: None,
             }),
+            app: None,
             source: Source::default(),
             confidence: Confidence::default(),
             attrs: Default::default(),
             ext: Default::default(),
             related_events: vec![],
             trace_context: None,
+            web_context: None,
         }
     }
 

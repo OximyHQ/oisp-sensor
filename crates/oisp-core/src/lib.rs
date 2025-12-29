@@ -9,15 +9,18 @@
 //! - **Config**: Configuration loading and management
 //! - **Enrichers**: Built-in enrichment plugins (host, process tree)
 //! - **Actions**: Built-in action plugins (redaction)
+//! - **Policy**: Policy engine for security rules (block, redact, alert)
 //! - **Trace**: Event correlation and trace building
 
 pub mod actions;
+pub mod app_registry;
 pub mod config;
 pub mod enrichers;
 pub mod events;
 pub mod metrics;
 pub mod pipeline;
 pub mod plugins;
+pub mod policy;
 pub mod providers;
 pub mod redaction;
 pub mod replay;
@@ -26,15 +29,17 @@ pub mod trace;
 
 // Re-export commonly used types
 pub use actions::RedactionPlugin;
+pub use app_registry::{AppProfile, AppRegistry, AppRegistryError, MatchResult};
 pub use config::{
     spawn_sighup_reload_handler, CaptureSettings, ConfigError, ConfigLoader, ConfigResult,
     CorrelationSettings, ExportSettings, JsonlExportConfig, KafkaExportConfig, OtlpExportConfig,
     OximyExportConfig, RedactionSettings, SensorConfig, SensorSettings, SharedConfig, WebSettings,
     WebSocketExportConfig, WebhookExportConfig,
 };
-pub use enrichers::{HostEnricher, ProcessTreeEnricher};
+pub use enrichers::{AppEnricher, HostEnricher, ProcessTreeEnricher};
 pub use events::{
-    Actor, Confidence, EventEnvelope, EventType, Host, OispEvent, ProcessInfo, Source,
+    Actor, AppInfo, AppTier, Confidence, EventEnvelope, EventType, Host, OispEvent, ProcessInfo,
+    Source,
 };
 pub use metrics::{create_metrics, MetricsCollector, SharedMetrics};
 pub use pipeline::{Pipeline, PipelineConfig};
@@ -48,6 +53,13 @@ pub use spec::{
     DEFAULT_BUNDLE_URL,
 };
 pub use trace::{AgentTrace, CorrelationConfig, Span, SpanKind};
+
+// Policy engine exports
+pub use policy::{
+    AuditEvent, AuditLogger, AuditSeverity, Condition, ConditionOp, DefaultAction, Policy,
+    PolicyAction, PolicyActionType, PolicyConfig, PolicyEvaluator, PolicyFile, PolicyManager,
+    PolicyPlugin, PolicyResult,
+};
 
 use once_cell::sync::Lazy;
 use std::sync::Arc;

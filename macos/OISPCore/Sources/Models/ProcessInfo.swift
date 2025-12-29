@@ -23,6 +23,10 @@ public struct OISPProcessInfo: Sendable {
     /// Full path to executable
     public let exe: String
 
+    /// macOS bundle identifier (e.g., "com.todesktop.230313mzl4w4u92")
+    /// Extracted from the .app bundle containing the executable
+    public let bundleId: String?
+
     /// User ID
     public let uid: uid_t
 
@@ -37,6 +41,7 @@ public struct OISPProcessInfo: Sendable {
         ppid: pid_t = 0,
         comm: String,
         exe: String,
+        bundleId: String? = nil,
         uid: uid_t = 0,
         gid: gid_t = 0,
         capturedAt: Date = Date()
@@ -45,6 +50,7 @@ public struct OISPProcessInfo: Sendable {
         self.ppid = ppid
         self.comm = comm
         self.exe = exe
+        self.bundleId = bundleId
         self.uid = uid
         self.gid = gid
         self.capturedAt = capturedAt
@@ -57,7 +63,8 @@ public struct OISPProcessInfo: Sendable {
             exe: exe,
             uid: UInt32(uid),
             fd: fd,
-            ppid: UInt32(ppid)
+            ppid: UInt32(ppid),
+            bundleId: bundleId
         )
     }
 }
@@ -91,6 +98,9 @@ public final class ProcessAttribution: @unchecked Sendable {
         // Get process name from path
         let comm = (exePath as NSString).lastPathComponent
 
+        // Extract bundle ID from executable path if inside a .app bundle
+        let bundleId = extractBundleId(fromExecutablePath: exePath)
+
         // Get BSD info for PPID, UID, GID
         var bsdInfo = proc_bsdinfo()
         let infoSize = proc_pidinfo(
@@ -120,9 +130,32 @@ public final class ProcessAttribution: @unchecked Sendable {
             ppid: ppid,
             comm: comm,
             exe: exePath,
+            bundleId: bundleId,
             uid: uid,
             gid: gid
         )
+    }
+
+    /// Extract bundle identifier from an executable path
+    /// Looks for .app in the path and reads Info.plist to get CFBundleIdentifier
+    private func extractBundleId(fromExecutablePath path: String) -> String? {
+        // Find .app in the path
+        // e.g., /Applications/Cursor.app/Contents/MacOS/Cursor -> /Applications/Cursor.app
+        guard let appRange = path.range(of: ".app/") ?? path.range(of: ".app", options: .backwards) else {
+            return nil
+        }
+
+        let appPath = String(path[..<appRange.upperBound]).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let infoPlistPath = appPath + "/Contents/Info.plist"
+
+        // Read Info.plist and extract CFBundleIdentifier
+        guard let infoPlistData = FileManager.default.contents(atPath: infoPlistPath),
+              let plist = try? PropertyListSerialization.propertyList(from: infoPlistData, options: [], format: nil) as? [String: Any],
+              let bundleId = plist["CFBundleIdentifier"] as? String else {
+            return nil
+        }
+
+        return bundleId
     }
 
     /// Get PID from audit token data

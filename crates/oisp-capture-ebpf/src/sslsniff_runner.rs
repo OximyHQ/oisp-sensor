@@ -212,7 +212,11 @@ impl SslsniffCapture {
     }
 
     /// Parse a JSON line from sslsniff into a RawCaptureEvent
-    fn parse_sslsniff_event(json_line: &str) -> Option<RawCaptureEvent> {
+    /// Uses proc_cache to enrich with full process info from /proc
+    fn parse_sslsniff_event(
+        json_line: &str,
+        proc_cache: &mut crate::linux_proc::ProcInfoCache,
+    ) -> Option<RawCaptureEvent> {
         use oisp_core::plugins::{RawEventKind, RawEventMetadata};
 
         let value: serde_json::Value = serde_json::from_str(json_line).ok()?;
@@ -236,6 +240,13 @@ impl SslsniffCapture {
         // We must treat it as Latin-1: each char's codepoint IS the byte value.
         let data: Vec<u8> = data_str.chars().map(|c| c as u8).collect();
 
+        // Enrich with full process info from /proc
+        let (exe, ppid, uid) = if let Some(proc_info) = proc_cache.get(pid) {
+            (proc_info.exe.clone(), proc_info.ppid, proc_info.uid)
+        } else {
+            (None, None, None)
+        };
+
         Some(RawCaptureEvent {
             id: ulid::Ulid::new().to_string(),
             timestamp_ns,
@@ -245,6 +256,9 @@ impl SslsniffCapture {
             data,
             metadata: RawEventMetadata {
                 comm: Some(comm),
+                exe,
+                ppid,
+                uid,
                 ..Default::default()
             },
         })
@@ -356,6 +370,10 @@ impl CapturePlugin for SslsniffCapture {
         // Spawn reader task
         std::thread::spawn(move || {
             let reader = BufReader::new(stdout);
+            // Create a proc cache for enriching events with /proc info
+            let mut proc_cache = crate::linux_proc::ProcInfoCache::new();
+            let mut events_since_cache_clear: u64 = 0;
+
             for line in reader.lines() {
                 if !running.load(Ordering::SeqCst) {
                     break;
@@ -371,7 +389,7 @@ impl CapturePlugin for SslsniffCapture {
                         // Using warn! so it shows up without RUST_LOG=debug
                         // tracing::warn!("sslsniff raw line: {}", line);
 
-                        match Self::parse_sslsniff_event(&line) {
+                        match Self::parse_sslsniff_event(&line, &mut proc_cache) {
                             Some(event) => {
                                 stats.events_captured.fetch_add(1, Ordering::Relaxed);
                                 stats
@@ -388,6 +406,13 @@ impl CapturePlugin for SslsniffCapture {
                                 tracing::warn!("Failed to parse sslsniff event: {}", line);
                                 stats.errors.fetch_add(1, Ordering::Relaxed);
                             }
+                        }
+
+                        // Periodically clear cache to handle process churn
+                        events_since_cache_clear += 1;
+                        if events_since_cache_clear > 1000 {
+                            proc_cache.clear();
+                            events_since_cache_clear = 0;
                         }
                     }
                     Err(e) => {

@@ -112,12 +112,8 @@ impl SystemDecoder {
             ppid: raw.metadata.ppid,
             name: raw.metadata.comm.clone(),
             exe: raw.metadata.exe.clone(),
-            cmdline: None,
-            cwd: None,
             tid: raw.tid,
-            container_id: None,
-            hash: None,
-            code_signature: None,
+            ..Default::default()
         });
 
         // Set actor info if we have uid
@@ -161,13 +157,8 @@ impl SystemDecoder {
             pid: raw.pid,
             ppid: raw.metadata.ppid,
             name: raw.metadata.comm.clone(),
-            exe: None,
-            cmdline: None,
-            cwd: None,
             tid: raw.tid,
-            container_id: None,
-            hash: None,
-            code_signature: None,
+            ..Default::default()
         });
 
         // Get exit code from extra metadata
@@ -209,13 +200,8 @@ impl SystemDecoder {
             pid: raw.pid,
             ppid: raw.metadata.ppid,
             name: raw.metadata.comm.clone(),
-            exe: None,
-            cmdline: None,
-            cwd: None,
             tid: raw.tid,
-            container_id: None,
-            hash: None,
-            code_signature: None,
+            ..Default::default()
         });
 
         // Set actor info if we have uid
@@ -283,15 +269,9 @@ impl SystemDecoder {
         // Set process info
         envelope.process = Some(ProcessInfo {
             pid: raw.pid,
-            ppid: None,
             name: raw.metadata.comm.clone(),
-            exe: None,
-            cmdline: None,
-            cwd: None,
             tid: raw.tid,
-            container_id: None,
-            hash: None,
-            code_signature: None,
+            ..Default::default()
         });
 
         // Set actor info if we have uid

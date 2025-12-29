@@ -28,12 +28,25 @@ public struct RawEventMetadata: Codable, Sendable {
     /// Parent process ID
     public let ppid: UInt32?
 
-    public init(comm: String, exe: String, uid: UInt32, fd: Int32? = nil, ppid: UInt32? = nil) {
+    /// macOS bundle identifier (e.g., "com.todesktop.230313mzl4w4u92")
+    public let bundleId: String?
+
+    enum CodingKeys: String, CodingKey {
+        case comm
+        case exe
+        case uid
+        case fd
+        case ppid
+        case bundleId = "bundle_id"
+    }
+
+    public init(comm: String, exe: String, uid: UInt32, fd: Int32? = nil, ppid: UInt32? = nil, bundleId: String? = nil) {
         self.comm = comm
         self.exe = exe
         self.uid = uid
         self.fd = fd
         self.ppid = ppid
+        self.bundleId = bundleId
     }
 }
 

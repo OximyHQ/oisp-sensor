@@ -35,6 +35,15 @@ pub struct EventEnvelope {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub process: Option<ProcessInfo>,
 
+    /// Application identification (which app made this request)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub app: Option<AppInfo>,
+
+    /// Web context for browser-originated traffic
+    /// Contains Origin, Referer, and identified web app (ChatGPT, Claude.ai, etc.)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub web_context: Option<WebContext>,
+
     /// Capture source/provenance
     pub source: Source,
 
@@ -70,6 +79,8 @@ impl EventEnvelope {
             host: None,
             actor: None,
             process: None,
+            app: None,
+            web_context: None,
             source: Source::default(),
             confidence: Confidence::default(),
             attrs: HashMap::new(),
@@ -94,6 +105,18 @@ impl EventEnvelope {
     /// Set the process context
     pub fn with_process(mut self, process: ProcessInfo) -> Self {
         self.process = Some(process);
+        self
+    }
+
+    /// Set the application context
+    pub fn with_app(mut self, app: AppInfo) -> Self {
+        self.app = Some(app);
+        self
+    }
+
+    /// Set the web context (for browser-originated traffic)
+    pub fn with_web_context(mut self, web_context: WebContext) -> Self {
+        self.web_context = Some(web_context);
         self
     }
 
@@ -234,6 +257,11 @@ pub struct ProcessInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hash: Option<String>,
 
+    /// macOS bundle identifier (e.g., "com.todesktop.230313mzl4w4u92")
+    /// Extracted from the .app bundle containing the executable
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bundle_id: Option<String>,
+
     /// Code signing information
     #[serde(skip_serializing_if = "Option::is_none")]
     pub code_signature: Option<CodeSignature>,
@@ -256,6 +284,212 @@ pub struct CodeSignature {
     /// Whether signature is valid
     #[serde(skip_serializing_if = "Option::is_none")]
     pub valid: Option<bool>,
+}
+
+/// Application identification and classification
+///
+/// Enables attribution of AI requests to specific applications.
+/// For example, identifying that a request came from "Cursor" vs "GitHub Copilot".
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct AppInfo {
+    /// Unique application identifier (e.g., "cursor", "github-copilot")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub app_id: Option<String>,
+
+    /// Human-readable application name (e.g., "Cursor", "GitHub Copilot")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+
+    /// Application vendor/developer (e.g., "Anysphere Inc.", "GitHub")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vendor: Option<String>,
+
+    /// Application version
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+
+    /// macOS bundle identifier (e.g., "com.todesktop.230313mzl4w4u92")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bundle_id: Option<String>,
+
+    /// Application category (e.g., "dev_tools", "chat", "productivity")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
+
+    /// Classification tier indicating confidence in identification
+    pub tier: AppTier,
+
+    /// Whether this app is known to use AI (from registry)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_ai_app: Option<bool>,
+
+    /// Whether this app hosts AI extensions (e.g., VSCode)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_ai_host: Option<bool>,
+}
+
+impl AppInfo {
+    /// Create an unknown app (Tier 0)
+    pub fn unknown() -> Self {
+        Self {
+            tier: AppTier::Unknown,
+            ..Default::default()
+        }
+    }
+
+    /// Create an identified app (Tier 1) with basic info
+    pub fn identified(app_id: impl Into<String>, name: impl Into<String>) -> Self {
+        Self {
+            app_id: Some(app_id.into()),
+            name: Some(name.into()),
+            tier: AppTier::Identified,
+            ..Default::default()
+        }
+    }
+
+    /// Create a profiled app (Tier 2) with full info
+    pub fn profiled(app_id: impl Into<String>, name: impl Into<String>) -> Self {
+        Self {
+            app_id: Some(app_id.into()),
+            name: Some(name.into()),
+            tier: AppTier::Profiled,
+            ..Default::default()
+        }
+    }
+
+    /// Builder: set vendor
+    pub fn with_vendor(mut self, vendor: impl Into<String>) -> Self {
+        self.vendor = Some(vendor.into());
+        self
+    }
+
+    /// Builder: set version
+    pub fn with_version(mut self, version: impl Into<String>) -> Self {
+        self.version = Some(version.into());
+        self
+    }
+
+    /// Builder: set bundle ID
+    pub fn with_bundle_id(mut self, bundle_id: impl Into<String>) -> Self {
+        self.bundle_id = Some(bundle_id.into());
+        self
+    }
+
+    /// Builder: set category
+    pub fn with_category(mut self, category: impl Into<String>) -> Self {
+        self.category = Some(category.into());
+        self
+    }
+
+    /// Builder: mark as AI app
+    pub fn as_ai_app(mut self) -> Self {
+        self.is_ai_app = Some(true);
+        self
+    }
+
+    /// Builder: mark as AI host
+    pub fn as_ai_host(mut self) -> Self {
+        self.is_ai_host = Some(true);
+        self
+    }
+}
+
+/// Web context for browser-originated AI traffic
+///
+/// When AI requests come from a browser (Chrome, Firefox, Safari, etc.),
+/// this captures the web context from HTTP headers, enabling identification
+/// of web apps like ChatGPT, Claude.ai, Notion AI, etc.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct WebContext {
+    /// HTTP Origin header - which site made the API call
+    /// e.g., "https://chat.openai.com", "https://claude.ai"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub origin: Option<String>,
+
+    /// HTTP Referer header - where the user came from
+    /// e.g., "https://mail.google.com" (user was on Gmail before ChatGPT)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub referer: Option<String>,
+
+    /// User-Agent header for browser identification
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_agent: Option<String>,
+
+    /// Identified web app ID (e.g., "chatgpt", "claude-web", "notion-ai")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub web_app_id: Option<String>,
+
+    /// Human-readable web app name (e.g., "ChatGPT", "Claude (Web)", "Notion AI")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub web_app_name: Option<String>,
+
+    /// Type of web app: "direct" (calls AI API directly) or "embedded" (AI via backend)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub web_app_type: Option<WebAppType>,
+}
+
+/// Type of web AI application
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WebAppType {
+    /// App calls AI provider directly (e.g., chat.openai.com → api.openai.com)
+    Direct,
+    /// App embeds AI via its own backend (e.g., Notion → notion.so/api → OpenAI)
+    Embedded,
+}
+
+impl WebContext {
+    /// Create a new WebContext from HTTP headers
+    pub fn from_headers(
+        origin: Option<String>,
+        referer: Option<String>,
+        user_agent: Option<String>,
+    ) -> Self {
+        Self {
+            origin,
+            referer,
+            user_agent,
+            web_app_id: None,
+            web_app_name: None,
+            web_app_type: None,
+        }
+    }
+
+    /// Check if this context has any useful information
+    pub fn is_empty(&self) -> bool {
+        self.origin.is_none() && self.referer.is_none() && self.web_app_id.is_none()
+    }
+
+    /// Set the identified web app
+    pub fn with_web_app(
+        mut self,
+        app_id: impl Into<String>,
+        name: impl Into<String>,
+        app_type: WebAppType,
+    ) -> Self {
+        self.web_app_id = Some(app_id.into());
+        self.web_app_name = Some(name.into());
+        self.web_app_type = Some(app_type);
+        self
+    }
+}
+
+/// Application classification tier
+///
+/// Indicates confidence level in application identification:
+/// - Tier 0 (Unknown): Process found but no app match - suspicious by default
+/// - Tier 1 (Identified): Matched by signature - basic trust
+/// - Tier 2 (Profiled): Full profile with expected behavior - baseline for anomaly detection
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum AppTier {
+    /// Tier 0: Process found, no app match. Suspicious by default.
+    #[default]
+    Unknown,
+    /// Tier 1: Matched by signature. Basic metadata available.
+    Identified,
+    /// Tier 2: Full profile with expected behavior. Baseline for anomaly detection.
+    Profiled,
 }
 
 /// Capture source/provenance

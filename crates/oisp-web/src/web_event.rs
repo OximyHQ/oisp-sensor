@@ -33,8 +33,39 @@ pub struct WebEvent {
     /// Process name - REQUIRED (e.g., "claude", "python3", "node")
     pub comm: String,
 
+    /// App information (if identified)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub app: Option<WebAppInfo>,
+
     /// Event-specific payload (simplified for frontend)
     pub data: WebEventData,
+}
+
+/// Simplified app information for frontend
+#[derive(Debug, Clone, Serialize)]
+pub struct WebAppInfo {
+    /// App identifier (e.g., "cursor", "github-copilot")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub app_id: Option<String>,
+
+    /// Display name (e.g., "Cursor", "GitHub Copilot")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+
+    /// Vendor/publisher (e.g., "Anysphere Inc.")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vendor: Option<String>,
+
+    /// App category (e.g., "dev_tools", "productivity")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
+
+    /// Tier: "profiled" (full profile), "identified" (matched), "unknown" (suspicious)
+    pub tier: String,
+
+    /// Whether this is a known AI application
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_ai_app: Option<bool>,
 }
 
 /// Event types for frontend display
@@ -173,6 +204,9 @@ impl WebEvent {
         // Extract process info - pid and comm are REQUIRED
         let (pid, ppid, comm) = Self::extract_process_info(envelope);
 
+        // Extract app info if available
+        let app = Self::extract_app_info(envelope);
+
         // Map event type and build data payload
         let (event_type, data) = Self::build_event_data(event);
 
@@ -183,8 +217,29 @@ impl WebEvent {
             pid,
             ppid,
             comm,
+            app,
             data,
         }
+    }
+
+    /// Extract app information from envelope
+    fn extract_app_info(envelope: &oisp_core::events::EventEnvelope) -> Option<WebAppInfo> {
+        envelope.app.as_ref().map(|app_info| {
+            let tier = match app_info.tier {
+                oisp_core::events::AppTier::Profiled => "profiled",
+                oisp_core::events::AppTier::Identified => "identified",
+                oisp_core::events::AppTier::Unknown => "unknown",
+            };
+
+            WebAppInfo {
+                app_id: app_info.app_id.clone(),
+                name: app_info.name.clone(),
+                vendor: app_info.vendor.clone(),
+                category: app_info.category.clone(),
+                tier: tier.to_string(),
+                is_ai_app: app_info.is_ai_app,
+            }
+        })
     }
 
     /// Extract process information from envelope
@@ -387,6 +442,14 @@ mod tests {
             pid: 1234,
             ppid: Some(1),
             comm: "claude".to_string(),
+            app: Some(WebAppInfo {
+                app_id: Some("claude-desktop".to_string()),
+                name: Some("Claude Desktop".to_string()),
+                vendor: Some("Anthropic".to_string()),
+                category: Some("ai_assistant".to_string()),
+                tier: "profiled".to_string(),
+                is_ai_app: Some(true),
+            }),
             data: WebEventData::AiPrompt(AiPromptData {
                 provider: "anthropic".to_string(),
                 model: "claude-3-opus".to_string(),
@@ -403,6 +466,9 @@ mod tests {
         assert!(json.contains("\"pid\": 1234"));
         assert!(json.contains("\"comm\": \"claude\""));
         assert!(json.contains("\"provider\": \"anthropic\""));
+        // Check app info is included
+        assert!(json.contains("\"app_id\": \"claude-desktop\""));
+        assert!(json.contains("\"tier\": \"profiled\""));
     }
 
     #[test]

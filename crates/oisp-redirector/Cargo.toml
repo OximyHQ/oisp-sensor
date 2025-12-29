@@ -1,6 +1,6 @@
 [package]
 name = "oisp-redirector"
-version = "0.1.0"
+version.workspace = true
 edition = "2021"
 description = "Windows packet redirector for OISP Sensor using WinDivert"
 license = "MIT"

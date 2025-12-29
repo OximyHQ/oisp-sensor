@@ -118,6 +118,10 @@ pub struct ProcessMetadata {
 
     /// User ID (always 0 on Windows)
     pub uid: u32,
+
+    /// Parent process ID (optional)
+    #[serde(default)]
+    pub ppid: Option<u32>,
 }
 
 impl RedirectorEvent {
@@ -155,14 +159,10 @@ impl RedirectorEvent {
                         comm: Some(ssl.metadata.comm),
                         exe: Some(ssl.metadata.exe),
                         uid: Some(ssl.metadata.uid),
-                        ppid: None,
-                        fd: None,
-                        path: None,
+                        ppid: ssl.metadata.ppid,
                         remote_addr: Some(ssl.remote_host),
                         remote_port: Some(ssl.remote_port),
-                        local_addr: None,
-                        local_port: None,
-                        extra: Default::default(),
+                        ..Default::default()
                     },
                 })
             }

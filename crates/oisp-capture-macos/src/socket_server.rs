@@ -59,6 +59,8 @@ pub struct SwiftEventMetadata {
     pub uid: u32,
     pub fd: Option<i32>,
     pub ppid: Option<u32>,
+    #[serde(default)]
+    pub bundle_id: Option<String>,
 }
 
 impl SwiftCaptureEvent {
@@ -91,6 +93,7 @@ impl SwiftCaptureEvent {
                 fd: self.metadata.fd,
                 remote_addr: self.remote_host,
                 remote_port: self.remote_port,
+                bundle_id: self.metadata.bundle_id,
                 ..Default::default()
             },
         })

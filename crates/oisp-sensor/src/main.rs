@@ -9,14 +9,16 @@ use oisp_capture_ebpf::{EbpfCapture, EbpfCaptureConfig};
 #[cfg(target_os = "macos")]
 use oisp_capture_macos::{MacOSCapture, MacOSCaptureConfig};
 use oisp_core::config::{ConfigLoader, SensorConfig};
-use oisp_core::enrichers::{HostEnricher, ProcessTreeEnricher};
+use oisp_core::enrichers::{AppEnricher, HostEnricher, ProcessTreeEnricher};
 use oisp_core::pipeline::{Pipeline, PipelineConfig};
 use oisp_core::replay::{EventReplay, ReplayConfig};
+use oisp_core::AppRegistry;
 use oisp_core::RedactionPlugin;
 use oisp_decode::{HttpDecoder, SystemDecoder};
 use oisp_export::jsonl::{JsonlExporter, JsonlExporterConfig};
 use oisp_export::websocket::{WebSocketExporter, WebSocketExporterConfig};
 use std::path::PathBuf;
+use std::sync::Arc;
 use tracing::{error, info, warn, Level};
 use tracing_subscriber::FmtSubscriber;
 
@@ -410,6 +412,55 @@ fn load_config(cli_path: Option<PathBuf>) -> SensorConfig {
     }
 }
 
+/// Load app registry from oisp-app-registry if available
+///
+/// Searches for app profiles in common locations:
+/// 1. OISP_APP_REGISTRY env var
+/// 2. ../oisp-app-registry/apps (relative to exe)
+/// 3. ~/.config/oisp/app-registry/apps
+/// 4. /usr/local/share/oisp/app-registry/apps
+///
+/// Returns empty registry if no profiles found
+fn load_app_registry() -> Arc<AppRegistry> {
+    use directories::ProjectDirs;
+
+    let registry_paths: Vec<Option<PathBuf>> = vec![
+        // 1. Environment variable
+        std::env::var("OISP_APP_REGISTRY").ok().map(PathBuf::from),
+        // 2. Relative to current exe (dev mode)
+        std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+            .map(|p| p.join("../../../oisp-app-registry/apps")),
+        // 3. User config directory
+        ProjectDirs::from("com", "oximy", "oisp")
+            .map(|dirs| dirs.config_dir().join("app-registry/apps")),
+        // 4. System-wide
+        Some(PathBuf::from("/usr/local/share/oisp/app-registry/apps")),
+    ];
+
+    for path in registry_paths.into_iter().flatten() {
+        if path.exists() {
+            match AppRegistry::load_from_directory(&path) {
+                Ok(registry) => {
+                    info!(
+                        "Loaded {} app profiles from {}",
+                        registry.len(),
+                        path.display()
+                    );
+                    return Arc::new(registry);
+                }
+                Err(e) => {
+                    warn!("Failed to load app registry from {}: {}", path.display(), e);
+                }
+            }
+        }
+    }
+
+    info!("No app registry found, using empty registry");
+    Arc::new(AppRegistry::new())
+}
+
 /// Merge CLI arguments with config file settings
 /// CLI arguments take precedence when explicitly provided
 #[allow(clippy::too_many_arguments)]
@@ -572,6 +623,10 @@ async fn record_command(config: RecordConfig) -> anyhow::Result<()> {
     pipeline.add_enrich(Box::new(HostEnricher::new()));
     pipeline.add_enrich(Box::new(ProcessTreeEnricher::new()));
 
+    // Add app enricher with registry loaded from oisp-app-registry if available
+    let app_registry = load_app_registry();
+    pipeline.add_enrich(Box::new(AppEnricher::new(app_registry)));
+
     // Add redaction
     let redaction = match config.redaction_mode.as_str() {
         "full" => RedactionPlugin::full_capture(),
@@ -656,19 +711,53 @@ async fn show_command(
     num: usize,
 ) -> anyhow::Result<()> {
     use std::fs::File;
-    use std::io::{BufRead, BufReader};
+    use std::io::{BufRead, BufReader, Seek, SeekFrom};
+    use std::time::Duration;
 
-    let file = File::open(input)?;
-    let reader = BufReader::new(file);
+    let mut file = File::open(input)?;
 
+    // If following, start from the end of the file
+    if follow {
+        file.seek(SeekFrom::End(0))?;
+    }
+
+    let mut reader = BufReader::new(file);
     let mut count = 0;
-    for line in reader.lines() {
-        let line = line?;
+
+    // Set up ctrl-c handler for follow mode
+    let running = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+    if follow {
+        let r = running.clone();
+        tokio::spawn(async move {
+            let _ = tokio::signal::ctrl_c().await;
+            r.store(false, std::sync::atomic::Ordering::SeqCst);
+        });
+    }
+
+    // Read existing content first
+    loop {
+        let mut line = String::new();
+        let bytes_read = reader.read_line(&mut line)?;
+
+        if bytes_read == 0 {
+            if follow && running.load(std::sync::atomic::Ordering::SeqCst) {
+                // No more data, wait and check again
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                continue;
+            } else {
+                break;
+            }
+        }
+
+        let line = line.trim();
         if line.is_empty() {
             continue;
         }
 
-        let event: serde_json::Value = serde_json::from_str(&line)?;
+        let event: serde_json::Value = match serde_json::from_str(line) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
 
         // Filter by event type if specified
         if let Some(ref filter) = event_type {
@@ -686,11 +775,6 @@ async fn show_command(
         if !follow && count >= num {
             break;
         }
-    }
-
-    if follow {
-        // TODO: Implement tail -f style following
-        println!("Follow mode not yet implemented");
     }
 
     Ok(())
@@ -884,6 +968,10 @@ async fn demo_command(config: DemoConfig) -> anyhow::Result<()> {
     // Add enrichers
     pipeline.add_enrich(Box::new(HostEnricher::new()));
     pipeline.add_enrich(Box::new(ProcessTreeEnricher::new()));
+
+    // Add app enricher with registry loaded from oisp-app-registry if available
+    let app_registry = load_app_registry();
+    pipeline.add_enrich(Box::new(AppEnricher::new(app_registry)));
 
     // Add redaction
     let redaction = match config.redaction_mode.as_str() {
@@ -2311,11 +2399,41 @@ fn parse_proc_start_time(stat: &str) -> Option<u64> {
     parts.get(21).and_then(|s| s.parse().ok())
 }
 
-/// Format uptime from jiffies
+/// Format uptime from process start jiffies
 #[cfg(target_os = "linux")]
 fn format_uptime(start_jiffies: u64) -> String {
-    // This is a simplified version - proper implementation would read /proc/uptime
-    // and calculate actual uptime from boot time
-    let _ = start_jiffies;
-    "unknown".to_string() // TODO: implement proper uptime calculation
+    use std::fs;
+
+    // Read system uptime from /proc/uptime (seconds since boot)
+    let system_uptime = match fs::read_to_string("/proc/uptime") {
+        Ok(content) => content
+            .split_whitespace()
+            .next()
+            .and_then(|s| s.parse::<f64>().ok())
+            .unwrap_or(0.0),
+        Err(_) => return "unknown".to_string(),
+    };
+
+    // Get clock ticks per second (usually 100 on Linux)
+    let clock_ticks_per_sec: u64 = unsafe { libc::sysconf(libc::_SC_CLK_TCK) as u64 };
+    if clock_ticks_per_sec == 0 {
+        return "unknown".to_string();
+    }
+
+    // Calculate process start time in seconds since boot
+    let process_start_secs = start_jiffies as f64 / clock_ticks_per_sec as f64;
+
+    // Process uptime = current system uptime - process start time
+    let uptime_secs = (system_uptime - process_start_secs).max(0.0) as u64;
+
+    // Format the uptime nicely
+    if uptime_secs < 60 {
+        format!("{}s", uptime_secs)
+    } else if uptime_secs < 3600 {
+        format!("{}m {}s", uptime_secs / 60, uptime_secs % 60)
+    } else if uptime_secs < 86400 {
+        format!("{}h {}m", uptime_secs / 3600, (uptime_secs % 3600) / 60)
+    } else {
+        format!("{}d {}h", uptime_secs / 86400, (uptime_secs % 86400) / 3600)
+    }
 }

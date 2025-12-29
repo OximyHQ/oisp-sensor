@@ -45,6 +45,9 @@ pub struct SensorConfig {
     /// Redaction settings
     pub redaction: RedactionSettings,
 
+    /// Policy engine settings
+    pub policy: PolicySettings,
+
     /// Export settings
     pub export: ExportSettings,
 
@@ -157,6 +160,79 @@ impl Default for RedactionSettings {
             custom_patterns: Vec::new(),
         }
     }
+}
+
+/// Policy engine settings
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PolicySettings {
+    /// Enable policy engine
+    pub enabled: bool,
+
+    /// Path to policy file (YAML)
+    pub policy_file: String,
+
+    /// Enable hot-reload of policy file
+    pub hot_reload: bool,
+
+    /// Default action when no policy matches: allow, block, log
+    pub default_action: String,
+
+    /// Enable audit logging
+    pub audit_enabled: bool,
+
+    /// Path to audit log file (JSONL format)
+    pub audit_file: Option<String>,
+
+    /// Minimum severity to audit: info, warning, alert, critical
+    pub audit_min_severity: String,
+
+    /// Webhook URL for alerts
+    pub alert_webhook_url: Option<String>,
+}
+
+impl Default for PolicySettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            policy_file: default_policy_path_string(),
+            hot_reload: true,
+            default_action: "allow".to_string(),
+            audit_enabled: false,
+            audit_file: None,
+            audit_min_severity: "info".to_string(),
+            alert_webhook_url: None,
+        }
+    }
+}
+
+impl PolicySettings {
+    /// Convert to PolicyConfig for use by the policy module
+    pub fn to_policy_config(&self) -> crate::policy::PolicyConfig {
+        use crate::policy::DefaultAction;
+
+        let default_action = match self.default_action.to_lowercase().as_str() {
+            "block" => DefaultAction::Block,
+            "log" => DefaultAction::Log,
+            _ => DefaultAction::Allow,
+        };
+
+        crate::policy::PolicyConfig {
+            policy_file: PathBuf::from(&self.policy_file),
+            hot_reload: self.hot_reload,
+            audit_enabled: self.audit_enabled,
+            audit_file: self.audit_file.as_ref().map(PathBuf::from),
+            default_action,
+            alert_webhook_url: self.alert_webhook_url.clone(),
+        }
+    }
+}
+
+/// Get the default policy file path as a string
+fn default_policy_path_string() -> String {
+    crate::policy::default_policy_path()
+        .to_string_lossy()
+        .to_string()
 }
 
 /// Export settings container
@@ -682,6 +758,32 @@ impl ConfigLoader {
         if let Ok(val) = std::env::var("OISP_JSONL_ENABLED") {
             config.export.jsonl.enabled = val.parse().unwrap_or(config.export.jsonl.enabled);
         }
+
+        // Policy settings
+        if let Ok(val) = std::env::var("OISP_POLICY_ENABLED") {
+            config.policy.enabled = val.parse().unwrap_or(config.policy.enabled);
+        }
+        if let Ok(val) = std::env::var("OISP_POLICY_FILE") {
+            config.policy.policy_file = val;
+        }
+        if let Ok(val) = std::env::var("OISP_POLICY_HOT_RELOAD") {
+            config.policy.hot_reload = val.parse().unwrap_or(config.policy.hot_reload);
+        }
+        if let Ok(val) = std::env::var("OISP_POLICY_DEFAULT_ACTION") {
+            config.policy.default_action = val;
+        }
+        if let Ok(val) = std::env::var("OISP_POLICY_AUDIT_ENABLED") {
+            config.policy.audit_enabled = val.parse().unwrap_or(config.policy.audit_enabled);
+        }
+        if let Ok(val) = std::env::var("OISP_POLICY_AUDIT_FILE") {
+            config.policy.audit_file = Some(val);
+        }
+        if let Ok(val) = std::env::var("OISP_POLICY_AUDIT_MIN_SEVERITY") {
+            config.policy.audit_min_severity = val;
+        }
+        if let Ok(val) = std::env::var("OISP_POLICY_ALERT_WEBHOOK_URL") {
+            config.policy.alert_webhook_url = Some(val);
+        }
     }
 
     /// Validate configuration
@@ -731,6 +833,26 @@ impl ConfigLoader {
             return Err(ConfigError::ValidationError(
                 "Web port cannot be 0".to_string(),
             ));
+        }
+
+        // Validate policy settings
+        if config.policy.enabled {
+            let valid_actions = ["allow", "block", "log"];
+            if !valid_actions.contains(&config.policy.default_action.to_lowercase().as_str()) {
+                return Err(ConfigError::ValidationError(format!(
+                    "Invalid policy default_action: {}. Must be one of: {:?}",
+                    config.policy.default_action, valid_actions
+                )));
+            }
+
+            let valid_severities = ["info", "warning", "alert", "critical"];
+            if !valid_severities.contains(&config.policy.audit_min_severity.to_lowercase().as_str())
+            {
+                return Err(ConfigError::ValidationError(format!(
+                    "Invalid policy audit_min_severity: {}. Must be one of: {:?}",
+                    config.policy.audit_min_severity, valid_severities
+                )));
+            }
         }
 
         Ok(())

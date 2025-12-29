@@ -19,6 +19,28 @@ pub struct ParsedHttpRequest {
     pub is_chunked: bool,
 }
 
+impl ParsedHttpRequest {
+    /// Get the Origin header (for CORS/web app identification)
+    pub fn origin(&self) -> Option<&str> {
+        self.headers.get("origin").map(|s| s.as_str())
+    }
+
+    /// Get the Referer header (for web app identification)
+    pub fn referer(&self) -> Option<&str> {
+        self.headers.get("referer").map(|s| s.as_str())
+    }
+
+    /// Get the User-Agent header
+    pub fn user_agent(&self) -> Option<&str> {
+        self.headers.get("user-agent").map(|s| s.as_str())
+    }
+
+    /// Check if this request has any web context headers
+    pub fn has_web_context(&self) -> bool {
+        self.origin().is_some() || self.referer().is_some()
+    }
+}
+
 /// Parsed HTTP response
 #[derive(Debug, Clone)]
 pub struct ParsedHttpResponse {

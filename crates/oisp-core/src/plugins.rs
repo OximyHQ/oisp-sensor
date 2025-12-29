@@ -187,6 +187,8 @@ pub struct RawEventMetadata {
     pub local_addr: Option<String>,
     /// Local port
     pub local_port: Option<u16>,
+    /// macOS bundle identifier (e.g., "com.todesktop.230313mzl4w4u92")
+    pub bundle_id: Option<String>,
     /// Additional data
     pub extra: std::collections::HashMap<String, serde_json::Value>,
 }

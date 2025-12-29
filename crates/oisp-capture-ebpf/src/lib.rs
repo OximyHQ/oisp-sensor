@@ -9,7 +9,13 @@
 mod sslsniff_runner;
 
 #[cfg(target_os = "linux")]
+mod linux_proc;
+
+#[cfg(target_os = "linux")]
 pub use sslsniff_runner::{SslsniffCapture, SslsniffConfig};
+
+#[cfg(target_os = "linux")]
+pub use linux_proc::{ProcInfo, ProcInfoCache, SocketToPidMap, TcpConnection};
 
 // Re-export as the main capture type for backwards compatibility
 #[cfg(target_os = "linux")]

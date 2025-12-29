@@ -9,7 +9,6 @@ use oisp_core::plugins::{
     RawEventKind, RawEventMetadata,
 };
 use std::any::Any;
-use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -150,12 +149,11 @@ impl TestGenerator {
                 ppid: Some(1),
                 uid: Some(1000),
                 fd: Some(42),
-                path: None,
                 remote_addr: Some("104.18.7.192".to_string()),
                 remote_port: Some(443),
                 local_addr: Some("192.168.1.100".to_string()),
                 local_port: Some(54321),
-                extra: HashMap::new(),
+                ..Default::default()
             },
         }
     }
@@ -200,12 +198,11 @@ impl TestGenerator {
                 ppid: Some(1),
                 uid: Some(1000),
                 fd: Some(42),
-                path: None,
                 remote_addr: Some("104.18.7.192".to_string()),
                 remote_port: Some(443),
                 local_addr: Some("192.168.1.100".to_string()),
                 local_port: Some(54321),
-                extra: HashMap::new(),
+                ..Default::default()
             },
         }
     }
@@ -252,12 +249,11 @@ impl TestGenerator {
                 ppid: Some(1),
                 uid: Some(1000),
                 fd: Some(43),
-                path: None,
                 remote_addr: Some("104.18.8.192".to_string()),
                 remote_port: Some(443),
                 local_addr: Some("192.168.1.100".to_string()),
                 local_port: Some(54322),
-                extra: HashMap::new(),
+                ..Default::default()
             },
         }
     }
@@ -279,13 +275,7 @@ impl TestGenerator {
                 exe: Some("/usr/bin/cargo".to_string()),
                 ppid: Some(self.config.pid),
                 uid: Some(1000),
-                fd: None,
-                path: None,
-                remote_addr: None,
-                remote_port: None,
-                local_addr: None,
-                local_port: None,
-                extra: HashMap::new(),
+                ..Default::default()
             },
         }
     }
