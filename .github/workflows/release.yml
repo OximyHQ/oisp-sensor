@@ -70,9 +70,16 @@ jobs:
           sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
           # Install OpenSSL for cross-compilation
           sudo dpkg --add-architecture arm64
-          sudo sed -i 's/^deb /deb [arch=amd64] /' /etc/apt/sources.list
+          # Fix all apt sources to specify amd64 architecture (including security.ubuntu.com)
+          sudo sed -i 's/^deb http/deb [arch=amd64] http/' /etc/apt/sources.list
+          sudo sed -i 's/^deb https/deb [arch=amd64] https/' /etc/apt/sources.list
+          # Also fix any files in sources.list.d
+          sudo find /etc/apt/sources.list.d/ -name "*.list" -exec sudo sed -i 's/^deb http/deb [arch=amd64] http/' {} \;
+          sudo find /etc/apt/sources.list.d/ -name "*.list" -exec sudo sed -i 's/^deb https/deb [arch=amd64] https/' {} \;
+          # Add arm64 sources from ports.ubuntu.com
           echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports $(lsb_release -cs) main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/arm64.list
           echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports $(lsb_release -cs)-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports $(lsb_release -cs)-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
           sudo apt-get update
           sudo apt-get install -y libssl-dev:arm64
 
