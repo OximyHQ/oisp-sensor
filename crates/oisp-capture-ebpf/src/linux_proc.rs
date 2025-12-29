@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-use tracing::{debug, trace, warn};
+use tracing::{trace, warn};
 
 /// Process information read from /proc
 #[derive(Debug, Clone)]
@@ -202,6 +202,7 @@ pub struct TcpConnection {
 
 /// Parse /proc/net/tcp to get TCP connection info
 /// Returns a map from (local_port, remote_addr, remote_port) to inode
+#[allow(dead_code)]
 pub fn parse_proc_net_tcp() -> Vec<TcpConnection> {
     let mut connections = Vec::new();
 
@@ -221,6 +222,7 @@ pub fn parse_proc_net_tcp() -> Vec<TcpConnection> {
 
 /// Parse a single line from /proc/net/tcp
 /// Format: sl local_address rem_address st tx_queue rx_queue tr tm->when retrnsmt uid timeout inode ...
+#[allow(dead_code)]
 fn parse_tcp_line(line: &str) -> Option<TcpConnection> {
     let parts: Vec<&str> = line.split_whitespace().collect();
     if parts.len() < 10 {
@@ -250,6 +252,7 @@ fn parse_tcp_line(line: &str) -> Option<TcpConnection> {
 }
 
 /// Parse hex address format: AABBCCDD:PORT (in little-endian for IPv4)
+#[allow(dead_code)]
 fn parse_hex_addr(hex: &str) -> Option<(std::net::Ipv4Addr, u16)> {
     let parts: Vec<&str> = hex.split(':').collect();
     if parts.len() != 2 {
@@ -267,6 +270,7 @@ fn parse_hex_addr(hex: &str) -> Option<(std::net::Ipv4Addr, u16)> {
 }
 
 /// Find the PID that owns a TCP connection
+#[allow(dead_code)]
 pub fn find_pid_for_connection(
     local_port: u16,
     remote_addr: std::net::Ipv4Addr,
@@ -300,11 +304,10 @@ impl ProcInfoCache {
 
     /// Get process info for a PID, using cache
     pub fn get(&mut self, pid: u32) -> Option<&ProcInfo> {
-        if !self.cache.contains_key(&pid) {
-            let info = ProcInfo::from_pid(pid);
-            self.cache.insert(pid, info);
-        }
-        self.cache.get(&pid).and_then(|o| o.as_ref())
+        self.cache
+            .entry(pid)
+            .or_insert_with(|| ProcInfo::from_pid(pid))
+            .as_ref()
     }
 
     /// Clear the cache (call periodically to handle process churn)
