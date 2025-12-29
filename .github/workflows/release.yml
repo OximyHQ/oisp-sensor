@@ -64,24 +64,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang llvm libelf-dev libbpf-dev
 
-      - name: Install cross-compilation tools (Linux aarch64)
+      - name: Install cross for aarch64 builds
         if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
-          # Install OpenSSL for cross-compilation
-          sudo dpkg --add-architecture arm64
-          # Fix all apt sources to specify amd64 architecture (including security.ubuntu.com)
-          sudo sed -i 's/^deb http/deb [arch=amd64] http/' /etc/apt/sources.list
-          sudo sed -i 's/^deb https/deb [arch=amd64] https/' /etc/apt/sources.list
-          # Also fix any files in sources.list.d
-          sudo find /etc/apt/sources.list.d/ -name "*.list" -exec sudo sed -i 's/^deb http/deb [arch=amd64] http/' {} \;
-          sudo find /etc/apt/sources.list.d/ -name "*.list" -exec sudo sed -i 's/^deb https/deb [arch=amd64] https/' {} \;
-          # Add arm64 sources from ports.ubuntu.com
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports $(lsb_release -cs) main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/arm64.list
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports $(lsb_release -cs)-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports $(lsb_release -cs)-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
-          sudo apt-get update
-          sudo apt-get install -y libssl-dev:arm64
+        run: cargo install cross --git https://github.com/cross-rs/cross
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
@@ -94,12 +79,7 @@ jobs:
 
       - name: Build release binary (aarch64 cross-compile)
         if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: cargo build --release --target ${{ matrix.target }}
-        env:
-          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
-          AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_LIB_DIR: /usr/lib/aarch64-linux-gnu
-          AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_INCLUDE_DIR: /usr/include
-          AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_DIR: /usr
+        run: cross build --release --target ${{ matrix.target }}
 
       - name: Prepare artifact (Unix)
         run: |
