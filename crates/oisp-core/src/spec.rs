@@ -22,6 +22,22 @@ pub const DEFAULT_BUNDLE_URL: &str = "https://oisp.dev/spec/v0.1/bundle.json";
 /// How often to check for bundle updates (1 hour)
 pub const BUNDLE_REFRESH_INTERVAL: Duration = Duration::from_secs(3600);
 
+/// Get the bundle URL from environment variable or use default
+/// Supports OISP_BUNDLE_URL environment variable for custom bundle locations
+pub fn bundle_url() -> String {
+    std::env::var("OISP_BUNDLE_URL").unwrap_or_else(|_| DEFAULT_BUNDLE_URL.to_string())
+}
+
+/// Get the bundle refresh interval from environment variable or use default
+/// Supports OISP_BUNDLE_REFRESH_SECS environment variable (in seconds)
+pub fn bundle_refresh_interval() -> Duration {
+    std::env::var("OISP_BUNDLE_REFRESH_SECS")
+        .ok()
+        .and_then(|s| s.parse::<u64>().ok())
+        .map(Duration::from_secs)
+        .unwrap_or(BUNDLE_REFRESH_INTERVAL)
+}
+
 /// Embedded spec bundle (compile-time fallback)
 /// This is updated when the sensor is built
 const EMBEDDED_BUNDLE: &str = include_str!("../data/oisp-spec-bundle.json");
@@ -468,14 +484,18 @@ pub struct SpecLoader {
 
 impl SpecLoader {
     /// Create a new loader with default settings
+    /// Uses OISP_BUNDLE_URL environment variable if set, otherwise default URL
     pub fn new() -> Self {
         let cache_path = Self::default_cache_path();
+        let url = bundle_url();
         let bundle = OispSpecBundle::load_with_fallback(Some(&cache_path));
+
+        info!("SpecLoader initialized with bundle URL: {}", url);
 
         Self {
             bundle: Arc::new(bundle),
             cache_path,
-            bundle_url: DEFAULT_BUNDLE_URL.to_string(),
+            bundle_url: url,
             network_enabled: true,
         }
     }

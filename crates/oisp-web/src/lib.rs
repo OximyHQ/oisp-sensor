@@ -125,9 +125,6 @@ pub async fn start_server_with_metrics(
         .route("/metrics", get(api::get_metrics_prometheus))
         .route("/api/health", get(health_check))
         .route("/ws", get(ws::ws_handler))
-        // Static file serving (fallback to legacy pages)
-        .route("/legacy", get(legacy_index))
-        .route("/legacy/timeline", get(legacy_timeline))
         // Frontend routes - serve React app for all paths
         .fallback(serve_frontend)
         .layer(cors)
@@ -136,7 +133,6 @@ pub async fn start_server_with_metrics(
     let addr = format!("{}:{}", config.host, config.port);
     info!("Web UI available at http://{}", addr);
     info!("  - React frontend at /");
-    info!("  - Legacy UI at /legacy");
     info!("  - API at /api/*");
     info!("  - WebSocket at /ws");
 
@@ -192,16 +188,6 @@ async fn serve_frontend(uri: axum::http::Uri) -> impl IntoResponse {
             "<html><body><h1>404 Not Found</h1></body></html>",
         ))
         .unwrap()
-}
-
-/// Legacy index page - redirects to React frontend
-async fn legacy_index() -> impl IntoResponse {
-    axum::response::Redirect::permanent("/")
-}
-
-/// Legacy timeline page - redirects to React frontend
-async fn legacy_timeline() -> impl IntoResponse {
-    axum::response::Redirect::permanent("/")
 }
 
 /// Health check endpoint for Docker/Kubernetes probes

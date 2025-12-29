@@ -25,6 +25,14 @@ pub enum Provider {
     LmStudio,
     Vllm,
     OpenAICompatible,
+    /// xAI (Grok) - api.x.ai
+    Xai,
+    /// OpenRouter - api.openrouter.ai
+    OpenRouter,
+    /// Cerebras - api.cerebras.ai
+    Cerebras,
+    /// SambaNova - api.sambanova.ai
+    SambaNova,
     Unknown,
 }
 
@@ -49,6 +57,10 @@ impl Provider {
             Provider::LmStudio => "LM Studio",
             Provider::Vllm => "vLLM",
             Provider::OpenAICompatible => "OpenAI Compatible",
+            Provider::Xai => "xAI (Grok)",
+            Provider::OpenRouter => "OpenRouter",
+            Provider::Cerebras => "Cerebras",
+            Provider::SambaNova => "SambaNova",
             Provider::Unknown => "Unknown",
         }
     }
@@ -234,6 +246,42 @@ impl ProviderRegistry {
             api_key_prefixes: vec![],
             auth_header: None,
         });
+
+        // xAI (Grok)
+        self.register(ProviderConfig {
+            provider: Provider::Xai,
+            domains: vec!["api.x.ai".into()],
+            domain_patterns: vec![],
+            api_key_prefixes: vec!["xai-".into()],
+            auth_header: Some("Authorization".into()),
+        });
+
+        // OpenRouter
+        self.register(ProviderConfig {
+            provider: Provider::OpenRouter,
+            domains: vec!["api.openrouter.ai".into(), "openrouter.ai".into()],
+            domain_patterns: vec![],
+            api_key_prefixes: vec!["sk-or-".into()],
+            auth_header: Some("Authorization".into()),
+        });
+
+        // Cerebras
+        self.register(ProviderConfig {
+            provider: Provider::Cerebras,
+            domains: vec!["api.cerebras.ai".into()],
+            domain_patterns: vec![],
+            api_key_prefixes: vec!["csk-".into()],
+            auth_header: Some("Authorization".into()),
+        });
+
+        // SambaNova
+        self.register(ProviderConfig {
+            provider: Provider::SambaNova,
+            domains: vec!["api.sambanova.ai".into()],
+            domain_patterns: vec![],
+            api_key_prefixes: vec![],
+            auth_header: Some("Authorization".into()),
+        });
     }
 
     fn register(&mut self, config: ProviderConfig) {
@@ -372,5 +420,51 @@ mod tests {
             registry.detect_from_key_prefix("gsk_abc123"),
             Some(Provider::Groq)
         );
+    }
+
+    #[test]
+    fn test_new_providers() {
+        let registry = ProviderRegistry::new();
+
+        // xAI
+        assert_eq!(registry.detect_from_domain("api.x.ai"), Some(Provider::Xai));
+        assert_eq!(
+            registry.detect_from_key_prefix("xai-abc123"),
+            Some(Provider::Xai)
+        );
+
+        // OpenRouter
+        assert_eq!(
+            registry.detect_from_domain("api.openrouter.ai"),
+            Some(Provider::OpenRouter)
+        );
+        assert_eq!(
+            registry.detect_from_domain("openrouter.ai"),
+            Some(Provider::OpenRouter)
+        );
+        assert_eq!(
+            registry.detect_from_key_prefix("sk-or-abc123"),
+            Some(Provider::OpenRouter)
+        );
+
+        // Cerebras
+        assert_eq!(
+            registry.detect_from_domain("api.cerebras.ai"),
+            Some(Provider::Cerebras)
+        );
+
+        // SambaNova
+        assert_eq!(
+            registry.detect_from_domain("api.sambanova.ai"),
+            Some(Provider::SambaNova)
+        );
+    }
+
+    #[test]
+    fn test_provider_display_names() {
+        assert_eq!(Provider::Xai.display_name(), "xAI (Grok)");
+        assert_eq!(Provider::OpenRouter.display_name(), "OpenRouter");
+        assert_eq!(Provider::Cerebras.display_name(), "Cerebras");
+        assert_eq!(Provider::SambaNova.display_name(), "SambaNova");
     }
 }

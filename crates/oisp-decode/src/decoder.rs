@@ -15,11 +15,12 @@ use oisp_core::plugins::{
     DecodePlugin, Plugin, PluginConfig, PluginInfo, PluginResult, RawCaptureEvent, RawEventKind,
 };
 use oisp_core::providers::{Provider, ProviderRegistry};
+use oisp_core::spec::{DynamicProviderRegistry, SpecLoader};
 
 use async_trait::async_trait;
 use std::any::Any;
 use std::collections::HashMap;
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 use tracing::{debug, info, trace, warn};
 
@@ -31,7 +32,10 @@ const MAX_PENDING_REQUESTS: usize = 10000;
 
 /// HTTP decoder plugin
 pub struct HttpDecoder {
-    provider_registry: ProviderRegistry,
+    /// Spec-driven provider registry (95+ providers from spec bundle)
+    spec_registry: Arc<DynamicProviderRegistry>,
+    /// Legacy provider registry (for Provider enum conversion, backward compatibility)
+    legacy_registry: ProviderRegistry,
     // Track partial requests being reassembled
     partial_requests: RwLock<HashMap<CorrelationKey, RequestReassembler>>,
     // Track partial responses being reassembled
@@ -463,9 +467,40 @@ struct PendingRequest {
 }
 
 impl HttpDecoder {
+    /// Create a new decoder with default spec bundle
     pub fn new() -> Self {
+        let spec_loader = SpecLoader::new();
+        let spec_registry = Arc::new(DynamicProviderRegistry::new(spec_loader.bundle()));
+        let provider_count = spec_registry.provider_ids().len();
+        info!(
+            "Initialized HttpDecoder with {} providers from spec bundle",
+            provider_count
+        );
+
         Self {
-            provider_registry: ProviderRegistry::new(),
+            spec_registry,
+            legacy_registry: ProviderRegistry::new(),
+            partial_requests: RwLock::new(HashMap::new()),
+            partial_responses: RwLock::new(HashMap::new()),
+            pending_requests: RwLock::new(HashMap::new()),
+            stream_reassemblers: RwLock::new(HashMap::new()),
+            anthropic_reassemblers: RwLock::new(HashMap::new()),
+            last_cleanup: RwLock::new(Instant::now()),
+        }
+    }
+
+    /// Create a decoder with a specific spec loader (for testing or custom bundles)
+    pub fn with_spec_loader(spec_loader: &SpecLoader) -> Self {
+        let spec_registry = Arc::new(DynamicProviderRegistry::new(spec_loader.bundle()));
+        let provider_count = spec_registry.provider_ids().len();
+        info!(
+            "Initialized HttpDecoder with {} providers from custom spec bundle",
+            provider_count
+        );
+
+        Self {
+            spec_registry,
+            legacy_registry: ProviderRegistry::new(),
             partial_requests: RwLock::new(HashMap::new()),
             partial_responses: RwLock::new(HashMap::new()),
             pending_requests: RwLock::new(HashMap::new()),
@@ -592,17 +627,46 @@ impl HttpDecoder {
             }
         };
 
-        // Check if this is an AI provider
+        // Check if this is an AI provider using spec-driven detection first
         let domain = http_req.host.as_deref().unwrap_or("");
-        let provider = match self.provider_registry.detect_from_domain(domain) {
-            Some(p) => p,
+
+        // Use spec-driven detection (95+ providers from spec bundle)
+        let provider_id = match self.spec_registry.detect_from_domain(domain) {
+            Some(id) => {
+                debug!(
+                    "Spec registry detected provider '{}' for domain {}",
+                    id, domain
+                );
+                id.to_string()
+            }
             None => {
-                info!("Domain {} is not a known AI provider", domain);
-                return Ok(events);
+                // Fall back to legacy registry for backward compatibility
+                match self.legacy_registry.detect_from_domain(domain) {
+                    Some(p) => {
+                        debug!(
+                            "Legacy registry detected provider {:?} for domain {}",
+                            p, domain
+                        );
+                        format!("{:?}", p).to_lowercase()
+                    }
+                    None => {
+                        debug!("Domain {} is not a known AI provider", domain);
+                        return Ok(events);
+                    }
+                }
             }
         };
 
-        debug!("Detected AI provider {:?} for domain {}", provider, domain);
+        // Convert to Provider enum for existing code paths (backward compatibility)
+        let provider = self
+            .legacy_registry
+            .detect_from_domain(domain)
+            .unwrap_or(Provider::Unknown);
+
+        debug!(
+            "Detected AI provider: id='{}', enum={:?} for domain {}",
+            provider_id, provider, domain
+        );
 
         // Try to parse body as JSON
         let body = match &http_req.body {

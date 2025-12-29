@@ -11,6 +11,7 @@ use oisp_capture_macos::{MacOSCapture, MacOSCaptureConfig};
 use oisp_core::config::{ConfigLoader, SensorConfig};
 use oisp_core::enrichers::{HostEnricher, ProcessTreeEnricher};
 use oisp_core::pipeline::{Pipeline, PipelineConfig};
+use oisp_core::replay::{EventReplay, ReplayConfig};
 use oisp_core::RedactionPlugin;
 use oisp_decode::{HttpDecoder, SystemDecoder};
 use oisp_export::jsonl::{JsonlExporter, JsonlExporterConfig};
@@ -198,6 +199,33 @@ enum Commands {
         #[arg(long, default_value = "full")]
         redaction: String,
     },
+
+    /// Replay recorded events from a JSONL file (for development without live capture)
+    Replay {
+        /// Input JSONL file with recorded events
+        #[arg(short, long)]
+        input: PathBuf,
+
+        /// Speed multiplier (1.0 = real-time, 0 = instant, 2.0 = 2x speed)
+        #[arg(long, default_value = "1.0")]
+        speed: f64,
+
+        /// Loop playback continuously
+        #[arg(long, default_value = "false")]
+        loop_playback: bool,
+
+        /// Start web UI
+        #[arg(long, default_value = "true")]
+        web: bool,
+
+        /// Web UI port
+        #[arg(long, default_value = "7777")]
+        port: u16,
+
+        /// Start TUI instead of web
+        #[arg(long)]
+        tui: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -343,6 +371,24 @@ async fn main() -> anyhow::Result<()> {
                 interval_ms: interval,
                 event_count: count,
                 redaction_mode: redaction,
+            })
+            .await
+        }
+        Commands::Replay {
+            input,
+            speed,
+            loop_playback,
+            web,
+            port,
+            tui,
+        } => {
+            replay_command(ReplayCommandConfig {
+                input,
+                speed,
+                loop_playback,
+                web,
+                port,
+                tui,
             })
             .await
         }
@@ -911,6 +957,121 @@ async fn demo_command(config: DemoConfig) -> anyhow::Result<()> {
     // Cleanup
     pipeline.stop().await?;
     info!("Demo stopped");
+
+    Ok(())
+}
+
+struct ReplayCommandConfig {
+    input: PathBuf,
+    speed: f64,
+    loop_playback: bool,
+    web: bool,
+    port: u16,
+    tui: bool,
+}
+
+/// Replay mode - replays recorded events from a JSONL file
+/// This bypasses the capture/decode pipeline since events are already in OISP format.
+async fn replay_command(config: ReplayCommandConfig) -> anyhow::Result<()> {
+    use oisp_core::trace::TraceBuilder;
+    use std::sync::Arc;
+    use tokio::sync::broadcast;
+
+    println!();
+    println!("  OISP Sensor v{} - REPLAY MODE", env!("CARGO_PKG_VERSION"));
+    println!();
+    println!("  Input file: {}", config.input.display());
+    println!(
+        "  Speed: {}",
+        if config.speed == 0.0 {
+            "instant".to_string()
+        } else {
+            format!("{}x", config.speed)
+        }
+    );
+    if config.loop_playback {
+        println!("  Loop: enabled");
+    }
+    println!();
+
+    // Check if input file exists
+    if !config.input.exists() {
+        anyhow::bail!("Input file does not exist: {}", config.input.display());
+    }
+
+    // Count events for progress display
+    let event_count = oisp_core::replay::count_events_in_file(&config.input).await?;
+    println!("  Found {} events to replay", event_count);
+    println!();
+
+    info!("Starting OISP Sensor in replay mode...");
+
+    // Create broadcast channel for events (same as pipeline uses)
+    let (event_tx, event_rx) = broadcast::channel::<Arc<oisp_core::events::OispEvent>>(1000);
+
+    // Create trace builder for trace correlation (wrapped in RwLock as expected by web server)
+    let trace_builder = Arc::new(tokio::sync::RwLock::new(TraceBuilder::new()));
+
+    // Create replay instance
+    let replay_config = ReplayConfig {
+        input_file: config.input.clone(),
+        speed_multiplier: config.speed,
+        loop_playback: config.loop_playback,
+    };
+    let replay = EventReplay::new(replay_config);
+    let stop_handle = replay.stop_handle();
+
+    // Start web UI if requested
+    if config.web {
+        let web_config = oisp_web::WebConfig {
+            host: "0.0.0.0".to_string(),
+            port: config.port,
+        };
+
+        let event_tx_clone = event_tx.clone();
+        let tb = trace_builder.clone();
+
+        tokio::spawn(async move {
+            if let Err(e) = oisp_web::start_server(web_config, event_tx_clone, tb).await {
+                error!("Web server error: {}", e);
+            }
+        });
+
+        println!("  Web UI: http://127.0.0.1:{}", config.port);
+    }
+
+    println!();
+    println!("  Press Ctrl+C to stop");
+    println!();
+
+    // Start replay in background task
+    let replay_handle = tokio::spawn(async move { replay.run(event_tx).await });
+
+    // Handle TUI or wait for Ctrl+C
+    if config.tui {
+        // Run TUI (blocking)
+        oisp_tui::run(event_rx).await?;
+        // TUI exited, stop replay
+        stop_handle.store(false, std::sync::atomic::Ordering::Relaxed);
+    } else {
+        // Wait for Ctrl+C or replay to finish
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {
+                info!("Ctrl+C received, stopping replay...");
+                stop_handle.store(false, std::sync::atomic::Ordering::Relaxed);
+            }
+            result = replay_handle => {
+                match result {
+                    Ok(Ok(count)) => info!("Replay finished: {} events", count),
+                    Ok(Err(e)) => error!("Replay error: {}", e),
+                    Err(e) => error!("Replay task error: {}", e),
+                }
+                return Ok(());
+            }
+        }
+    }
+
+    info!("Replay stopped");
 
     Ok(())
 }

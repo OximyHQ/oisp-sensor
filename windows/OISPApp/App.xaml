@@ -27,6 +27,8 @@
                         <MenuItem Header="Se_ttings..." Click="Settings_Click"/>
                         <MenuItem Header="View _Logs" Click="ViewLogs_Click"/>
                         <Separator/>
+                        <MenuItem Header="Open _Dashboard" Click="Dashboard_Click"/>
+                        <Separator/>
                         <MenuItem Header="E_xit" Click="Exit_Click"/>
                     </ContextMenu>
                 </tb:TaskbarIcon.ContextMenu>

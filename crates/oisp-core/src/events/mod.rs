@@ -33,6 +33,9 @@ pub enum OispEvent {
     // Agent events
     AgentToolCall(AgentToolCallEvent),
     AgentToolResult(AgentToolResultEvent),
+    AgentPlanStep(AgentPlanStepEvent),
+    AgentRagRetrieve(AgentRagRetrieveEvent),
+    AgentSession(AgentSessionEvent),
 
     // Process events
     ProcessExec(ProcessExecEvent),
@@ -65,6 +68,9 @@ impl OispEvent {
             OispEvent::AiEmbedding(_) => "ai.embedding",
             OispEvent::AgentToolCall(_) => "agent.tool_call",
             OispEvent::AgentToolResult(_) => "agent.tool_result",
+            OispEvent::AgentPlanStep(_) => "agent.plan_step",
+            OispEvent::AgentRagRetrieve(_) => "agent.rag_retrieve",
+            OispEvent::AgentSession(_) => "agent.session",
             OispEvent::ProcessExec(_) => "process.exec",
             OispEvent::ProcessExit(_) => "process.exit",
             OispEvent::ProcessFork(_) => "process.fork",
@@ -90,6 +96,9 @@ impl OispEvent {
                 | OispEvent::AiEmbedding(_)
                 | OispEvent::AgentToolCall(_)
                 | OispEvent::AgentToolResult(_)
+                | OispEvent::AgentPlanStep(_)
+                | OispEvent::AgentRagRetrieve(_)
+                | OispEvent::AgentSession(_)
         )
     }
 
@@ -102,6 +111,9 @@ impl OispEvent {
             OispEvent::AiEmbedding(e) => &e.envelope,
             OispEvent::AgentToolCall(e) => &e.envelope,
             OispEvent::AgentToolResult(e) => &e.envelope,
+            OispEvent::AgentPlanStep(e) => &e.envelope,
+            OispEvent::AgentRagRetrieve(e) => &e.envelope,
+            OispEvent::AgentSession(e) => &e.envelope,
             OispEvent::ProcessExec(e) => &e.envelope,
             OispEvent::ProcessExit(e) => &e.envelope,
             OispEvent::ProcessFork(e) => &e.envelope,
@@ -203,6 +215,9 @@ impl Serialize for OispEvent {
             OispEvent::AiEmbedding(e) => map.serialize_entry("data", &e.data)?,
             OispEvent::AgentToolCall(e) => map.serialize_entry("data", &e.data)?,
             OispEvent::AgentToolResult(e) => map.serialize_entry("data", &e.data)?,
+            OispEvent::AgentPlanStep(e) => map.serialize_entry("data", &e.data)?,
+            OispEvent::AgentRagRetrieve(e) => map.serialize_entry("data", &e.data)?,
+            OispEvent::AgentSession(e) => map.serialize_entry("data", &e.data)?,
             OispEvent::ProcessExec(e) => map.serialize_entry("data", &e.data)?,
             OispEvent::ProcessExit(e) => map.serialize_entry("data", &e.data)?,
             OispEvent::ProcessFork(e) => map.serialize_entry("data", &e.data)?,
@@ -297,6 +312,30 @@ impl<'de> Deserialize<'de> for OispEvent {
                 let event_data: AgentToolResultData =
                     serde_json::from_value(data).map_err(D::Error::custom)?;
                 Ok(OispEvent::AgentToolResult(AgentToolResultEvent {
+                    envelope,
+                    data: event_data,
+                }))
+            }
+            "agent.plan_step" => {
+                let event_data: AgentPlanStepData =
+                    serde_json::from_value(data).map_err(D::Error::custom)?;
+                Ok(OispEvent::AgentPlanStep(AgentPlanStepEvent {
+                    envelope,
+                    data: event_data,
+                }))
+            }
+            "agent.rag_retrieve" => {
+                let event_data: AgentRagRetrieveData =
+                    serde_json::from_value(data).map_err(D::Error::custom)?;
+                Ok(OispEvent::AgentRagRetrieve(AgentRagRetrieveEvent {
+                    envelope,
+                    data: event_data,
+                }))
+            }
+            "agent.session" => {
+                let event_data: AgentSessionData =
+                    serde_json::from_value(data).map_err(D::Error::custom)?;
+                Ok(OispEvent::AgentSession(AgentSessionEvent {
                     envelope,
                     data: event_data,
                 }))

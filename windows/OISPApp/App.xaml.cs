@@ -144,6 +144,28 @@ namespace OISPApp
             }
         }
 
+        private void Dashboard_Click(object sender, RoutedEventArgs e)
+        {
+            var settings = Settings.Load();
+            var url = $"http://localhost:{settings.WebPort}";
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = url,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Failed to open dashboard:\n{ex.Message}\n\nMake sure the sensor is running with web server enabled.",
+                    "OISP Sensor",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+        }
+
         private void Exit_Click(object sender, RoutedEventArgs e)
         {
             Shutdown();

@@ -40,6 +40,11 @@ namespace OISPApp
         public int ProxyPort { get; set; } = 8443;
 
         /// <summary>
+        /// Web dashboard port
+        /// </summary>
+        public int WebPort { get; set; } = 7777;
+
+        /// <summary>
         /// Verbose logging
         /// </summary>
         public bool VerboseLogging { get; set; } = false;

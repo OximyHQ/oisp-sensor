@@ -391,7 +391,13 @@ impl TraceBuilder {
 
     fn handle_tool_call(&mut self, event: &AgentToolCallEvent) {
         // Tool call events give us more detail about the tool execution
-        if let Some(_pending) = self.pending_tool_calls.get_mut(&event.data.tool_call_id) {
+        // call_id is now Option<String> per OISP spec
+        let call_id = match &event.data.call_id {
+            Some(id) => id.clone(),
+            None => return, // No call_id, can't correlate
+        };
+
+        if let Some(_pending) = self.pending_tool_calls.get_mut(&call_id) {
             if let Some(trace) = self
                 .active_traces
                 .get_mut(&event.envelope.process.as_ref().map(|p| p.pid).unwrap_or(0))
@@ -399,13 +405,16 @@ impl TraceBuilder {
                 if let Some(span) = trace
                     .spans
                     .iter_mut()
-                    .find(|s| s.tool_call_id.as_ref() == Some(&event.data.tool_call_id))
+                    .find(|s| s.tool_call_id.as_ref() == Some(&call_id))
                 {
                     span.event_ids.push(event.envelope.event_id.clone());
 
                     // Generate summary based on tool type
-                    if let Some(parsed) = &event.data.parsed_arguments {
-                        span.summary = Some(format!("{}: {:?}", event.data.tool_name, parsed));
+                    // arguments is now Option<ToolArguments> per OISP spec
+                    // tool.name is nested per OISP spec
+                    if let Some(args) = &event.data.arguments {
+                        let tool_name = event.data.tool.name.as_deref().unwrap_or("unknown");
+                        span.summary = Some(format!("{}: {:?}", tool_name, args));
                     }
                 }
             }
@@ -413,7 +422,8 @@ impl TraceBuilder {
     }
 
     fn handle_tool_result(&mut self, event: &AgentToolResultEvent) {
-        if let Some(pending) = self.pending_tool_calls.remove(&event.data.tool_call_id) {
+        // call_id is now required String per OISP spec
+        if let Some(pending) = self.pending_tool_calls.remove(&event.data.call_id) {
             if let Some(trace) = self
                 .active_traces
                 .get_mut(&event.envelope.process.as_ref().map(|p| p.pid).unwrap_or(0))
@@ -423,7 +433,8 @@ impl TraceBuilder {
                     .iter_mut()
                     .find(|s| s.span_id == pending.span_id)
                 {
-                    span.complete(if event.data.success {
+                    // success is now Option<bool> per OISP spec
+                    span.complete(if event.data.success.unwrap_or(false) {
                         SpanStatus::Success
                     } else {
                         SpanStatus::Error

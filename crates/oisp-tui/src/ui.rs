@@ -122,7 +122,7 @@ fn draw_timeline(frame: &mut Frame, area: Rect, app: &App) {
                         .unwrap_or_default();
                     format!("{} {}", tokens, latency)
                 }
-                OispEvent::AgentToolCall(e) => e.data.tool_name.clone(),
+                OispEvent::AgentToolCall(e) => e.data.tool.name.clone().unwrap_or_default(),
                 OispEvent::ProcessExec(e) => e.data.exe.clone(),
                 OispEvent::FileWrite(e) => e.data.path.clone(),
                 OispEvent::NetworkConnect(e) => e
