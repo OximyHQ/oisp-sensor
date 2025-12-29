@@ -344,9 +344,9 @@ mod tests {
     fn test_parse_hex_addr() {
         // 127.0.0.1:8080
         // In /proc/net/tcp, 127.0.0.1 appears as 0100007F (little-endian)
-        let (ip, port) = parse_hex_addr("0100007F:1F90").unwrap();
+        let (_ip, port) = parse_hex_addr("0100007F:1F90").unwrap();
         assert_eq!(port, 8080);
-        // Note: The IP parsing depends on system endianness
+        // Note: The IP parsing depends on system endianness, so we only check port
     }
 
     #[test]
