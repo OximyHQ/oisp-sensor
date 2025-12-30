@@ -1,5 +1,6 @@
 {
   "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
   "name": "OISP Sensor",
   "logo": {
     "dark": "/logo/dark.svg",
@@ -9,11 +10,7 @@
   "colors": {
     "primary": "#059669",
     "light": "#34d399",
-    "dark": "#064e3b",
-    "anchors": {
-      "from": "#059669",
-      "to": "#10b981"
-    }
+    "dark": "#064e3b"
   },
   "topbarLinks": [
     {
@@ -27,162 +24,177 @@
   },
   "anchors": [
     {
-      "name": "GitHub",
+      "anchor": "GitHub",
       "icon": "github",
-      "url": "https://github.com/oximyHQ/oisp-sensor"
+      "href": "https://github.com/oximyHQ/oisp-sensor"
     },
     {
-      "name": "Community",
+      "anchor": "Community",
       "icon": "discord",
-      "url": "https://discord.gg/oximy"
+      "href": "https://discord.gg/oximy"
     }
   ],
-  "navigation": [
-    {
-      "group": "Getting Started",
-      "pages": [
-        "getting-started/introduction",
-        "getting-started/installation",
-        "getting-started/quick-start",
-        "getting-started/what-works-today"
-      ]
-    },
-    {
-      "group": "Platforms",
-      "pages": [
-        {
-          "group": "Linux",
-          "pages": [
-            "platforms/linux/overview",
-            "platforms/linux/installation",
-            "platforms/linux/quick-start",
-            "platforms/linux/service",
-            "platforms/linux/production",
-            "platforms/linux/distributions",
-            "platforms/linux/troubleshooting"
-          ]
-        },
-        {
-          "group": "macOS",
-          "pages": [
-            "platforms/macos/overview",
-            "platforms/macos/installation",
-            "platforms/macos/quick-start",
-            "platforms/macos/limitations"
-          ]
-        },
-        {
-          "group": "Windows",
-          "pages": [
-            "platforms/windows/overview",
-            "platforms/windows/installation",
-            "platforms/windows/quick-start"
-          ]
-        },
-        {
-          "group": "Docker",
-          "pages": [
-            "platforms/docker/overview",
-            "platforms/docker/running",
-            "platforms/docker/compose"
-          ]
-        },
-        {
-          "group": "Kubernetes",
-          "pages": [
-            "platforms/kubernetes/overview",
-            "platforms/kubernetes/daemonset",
-            "platforms/kubernetes/logging"
-          ]
-        }
-      ]
-    },
-    {
-      "group": "Cookbooks",
-      "pages": [
-        "cookbooks/overview",
-        {
-          "group": "Python",
-          "pages": [
-            "cookbooks/python/openai-simple",
-            "cookbooks/python/litellm",
-            "cookbooks/python/langchain-agent",
-            "cookbooks/python/fastapi-service"
-          ]
-        },
-        {
-          "group": "Node.js",
-          "pages": [
-            "cookbooks/node/openai-simple"
-          ]
-        },
-        {
-          "group": "Self-Hosted",
-          "pages": [
-            "cookbooks/self-hosted/n8n"
-          ]
-        },
-        {
-          "group": "Multi-Process",
-          "pages": [
-            "cookbooks/multi-process/celery"
-          ]
-        },
-        {
-          "group": "Kubernetes",
-          "pages": [
-            "cookbooks/kubernetes/daemonset"
-          ]
-        },
-        {
-          "group": "Edge Cases",
-          "pages": [
-            "cookbooks/edge-cases/nvm-node",
-            "cookbooks/edge-cases/pyenv-python"
-          ]
-        }
-      ]
-    },
-    {
-      "group": "Architecture",
-      "pages": [
-        "architecture/overview",
-        "architecture/ebpf",
-        "architecture/pipeline",
-        "architecture/app-identification",
-        "architecture/events"
-      ]
-    },
-    {
-      "group": "Configuration",
-      "pages": [
-        "configuration/config-file",
-        "configuration/policies",
-        "configuration/exports",
-        "configuration/filters",
-        "configuration/redaction"
-      ]
-    },
-    {
-      "group": "Reference",
-      "pages": [
-        "reference/cli",
-        "reference/events",
-        "reference/api",
-        "reference/oisp-spec"
-      ]
-    },
-    {
-      "group": "Guides",
-      "pages": [
-        "guides/troubleshooting",
-        "guides/oximy-cloud",
-        "guides/multi-node",
-        "guides/ci-cd",
-        "guides/contributing"
-      ]
-    }
-  ],
+  "navigation": {
+    "dropdowns": [
+      {
+        "dropdown": "Documentation",
+        "icon": "book",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "getting-started/introduction",
+              "getting-started/installation",
+              "getting-started/quick-start",
+              "getting-started/what-works-today"
+            ]
+          },
+          {
+            "group": "Architecture",
+            "pages": [
+              "architecture/overview",
+              "architecture/ebpf",
+              "architecture/pipeline",
+              "architecture/app-identification",
+              "architecture/events"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/config-file",
+              "configuration/policies",
+              "configuration/exports",
+              "configuration/filters",
+              "configuration/redaction"
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              "reference/cli",
+              "reference/events",
+              "reference/api",
+              "reference/oisp-spec"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/troubleshooting",
+              "guides/oximy-cloud",
+              "guides/multi-node",
+              "guides/ci-cd",
+              "guides/contributing"
+            ]
+          }
+        ]
+      },
+      {
+        "dropdown": "Platforms",
+        "icon": "server",
+        "groups": [
+          {
+            "group": "Linux",
+            "pages": [
+              "platforms/linux/overview",
+              "platforms/linux/installation",
+              "platforms/linux/quick-start",
+              "platforms/linux/service",
+              "platforms/linux/production",
+              "platforms/linux/distributions",
+              "platforms/linux/troubleshooting"
+            ]
+          },
+          {
+            "group": "macOS",
+            "pages": [
+              "platforms/macos/overview",
+              "platforms/macos/installation",
+              "platforms/macos/quick-start",
+              "platforms/macos/limitations"
+            ]
+          },
+          {
+            "group": "Windows",
+            "pages": [
+              "platforms/windows/overview",
+              "platforms/windows/installation",
+              "platforms/windows/quick-start"
+            ]
+          },
+          {
+            "group": "Docker",
+            "pages": [
+              "platforms/docker/overview",
+              "platforms/docker/running",
+              "platforms/docker/compose"
+            ]
+          },
+          {
+            "group": "Kubernetes",
+            "pages": [
+              "platforms/kubernetes/overview",
+              "platforms/kubernetes/daemonset",
+              "platforms/kubernetes/logging"
+            ]
+          }
+        ]
+      },
+      {
+        "dropdown": "Cookbooks",
+        "icon": "flask",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "cookbooks/overview"
+            ]
+          },
+          {
+            "group": "Python",
+            "pages": [
+              "cookbooks/python/openai-simple",
+              "cookbooks/python/litellm",
+              "cookbooks/python/langchain-agent",
+              "cookbooks/python/fastapi-service"
+            ]
+          },
+          {
+            "group": "Node.js",
+            "pages": [
+              "cookbooks/node/openai-simple"
+            ]
+          },
+          {
+            "group": "Self-Hosted",
+            "pages": [
+              "cookbooks/self-hosted/n8n"
+            ]
+          },
+          {
+            "group": "Multi-Process",
+            "pages": [
+              "cookbooks/multi-process/celery"
+            ]
+          },
+          {
+            "group": "Kubernetes",
+            "pages": [
+              "cookbooks/kubernetes/daemonset"
+            ]
+          },
+          {
+            "group": "Edge Cases",
+            "pages": [
+              "cookbooks/edge-cases/nvm-node",
+              "cookbooks/edge-cases/pyenv-python"
+            ]
+          }
+        ]
+      }
+    ]
+  },
   "footerSocials": {
     "github": "https://github.com/oximyHQ/oisp-sensor",
     "twitter": "https://twitter.com/oximyHQ"

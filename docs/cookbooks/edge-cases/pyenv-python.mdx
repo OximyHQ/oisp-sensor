@@ -207,29 +207,29 @@ sudo journalctl -u oisp-sensor | grep "Attached uprobe"
 
 ## Architecture Diagram
 
-```
-┌─────────────────────────────────────────────────────┐
-│  User Space                                         │
-│                                                     │
-│  ┌──────────────┐       ┌──────────────┐           │
-│  │ pyenv Python │       │ OISP Sensor  │           │
-│  │ (~/.pyenv/)  │       │              │           │
-│  │              │       │ Config:      │           │
-│  │ openai SDK   │       │ binary_paths │           │
-│  │    │         │       │    │         │           │
-│  │    ▼         │       │    ▼         │           │
-│  │ _ssl.so      │◄──────┤ eBPF uprobes │           │
-│  │ (bundled     │ SSL   │ (SSL_read/   │           │
-│  │  OpenSSL)    │ calls │  SSL_write)  │           │
-│  └──────────────┘       └──────────────┘           │
-│         │                       │                   │
-└─────────┼───────────────────────┼───────────────────┘
-          │                       │
-          ▼                       ▼
-    ┌──────────┐            ┌─────────────┐
-    │ OpenAI   │            │ events.jsonl│
-    │ API      │            └─────────────┘
-    └──────────┘
+```text
++-----------------------------------------------------+
+|  User Space                                         |
+|                                                     |
+|  +--------------+       +--------------+            |
+|  | pyenv Python |       | OISP Sensor  |            |
+|  | (~/.pyenv/)  |       |              |            |
+|  |              |       | Config:      |            |
+|  | openai SDK   |       | binary_paths |            |
+|  |    |         |       |    |         |            |
+|  |    v         |       |    v         |            |
+|  | _ssl.so      |<------| eBPF uprobes |            |
+|  | (bundled     | SSL   | (SSL_read/   |            |
+|  |  OpenSSL)    | calls |  SSL_write)  |            |
+|  +--------------+       +--------------+            |
+|         |                       |                   |
++---------|-----------------------|-------------------+
+          |                       |
+          v                       v
+    +----------+            +-------------+
+    | OpenAI   |            | events.jsonl|
+    | API      |            +-------------+
+    +----------+
 ```
 
 ---
@@ -460,7 +460,7 @@ binary_paths = [
 
 **Impact of monitoring multiple binaries:**
 - Each binary path adds one eBPF uprobe attachment
-- Minimal overhead per attachment (<1% CPU)
+- Minimal overhead per attachment (less than 1% CPU)
 - Safe to monitor 5-10 Python versions simultaneously
 
 **Best practice:**

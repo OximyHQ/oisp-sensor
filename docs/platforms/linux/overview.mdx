@@ -19,7 +19,7 @@ Linux is the only platform with **complete** SSL/TLS capture using eBPF:
 - **Plaintext capture** - Direct access to decrypted HTTP traffic
 - **No proxy required** - Captures at the kernel level, not network level
 - **No application changes** - Works with any binary
-- **Minimal performance impact** - <3% CPU overhead
+- **Minimal performance impact** - Less than 3% CPU overhead
 - **Invisible to applications** - Cannot be detected by monitored apps
 
 ### Event Types
@@ -88,36 +88,36 @@ Most modern distributions include these by default.
 
 ### eBPF Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  User Applications                                           │
-│  (Cursor, Python, Node.js, curl, etc.)                      │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-                      │ SSL_read/SSL_write calls
-                      ▼
-┌─────────────────────────────────────────────────────────────┐
-│  OpenSSL Library (libssl.so)                                │
-│  ┌─────────────────┐                                        │
-│  │ eBPF uprobes    │  ← OISP Sensor hooks                   │
-│  └─────────────────┘                                        │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-                      │ Plaintext data
-                      ▼
-┌─────────────────────────────────────────────────────────────┐
-│  eBPF Ring Buffer (kernel space)                            │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-                      │ Efficient zero-copy transfer
-                      ▼
-┌─────────────────────────────────────────────────────────────┐
-│  OISP Sensor (userspace)                                    │
-│  ├─ HTTP Parser                                             │
-│  ├─ Provider Detection                                      │
-│  ├─ Event Correlation                                       │
-│  └─ Export (JSONL, OTLP, Kafka, etc.)                       │
-└─────────────────────────────────────────────────────────────┘
+```text
++-------------------------------------------------------------+
+|  User Applications                                          |
+|  (Cursor, Python, Node.js, curl, etc.)                      |
++----------------------------+--------------------------------+
+                             |
+                             | SSL_read/SSL_write calls
+                             v
++-------------------------------------------------------------+
+|  OpenSSL Library (libssl.so)                                |
+|  +-------------------+                                      |
+|  | eBPF uprobes      |  <-- OISP Sensor hooks               |
+|  +-------------------+                                      |
++----------------------------+--------------------------------+
+                             |
+                             | Plaintext data
+                             v
++-------------------------------------------------------------+
+|  eBPF Ring Buffer (kernel space)                            |
++----------------------------+--------------------------------+
+                             |
+                             | Efficient zero-copy transfer
+                             v
++-------------------------------------------------------------+
+|  OISP Sensor (userspace)                                    |
+|  - HTTP Parser                                              |
+|  - Provider Detection                                       |
+|  - Event Correlation                                        |
+|  - Export (JSONL, OTLP, Kafka, etc.)                        |
++-------------------------------------------------------------+
 ```
 
 ### SSL Library Support
@@ -168,9 +168,9 @@ Typical resource usage on Ubuntu 24.04 (Intel Core i7, 16GB RAM):
 
 | Load | CPU | Memory | Disk I/O |
 |------|-----|--------|----------|
-| **Idle** | <0.5% | 80MB | <100 KB/s |
-| **Light** (10 req/s) | <2% | 150MB | <1 MB/s |
-| **Heavy** (100 req/s) | <5% | 300MB | <10 MB/s |
+| **Idle** | ~0.5% | 80MB | ~100 KB/s |
+| **Light** (10 req/s) | ~2% | 150MB | ~1 MB/s |
+| **Heavy** (100 req/s) | ~5% | 300MB | ~10 MB/s |
 
 ## Next Steps
 
