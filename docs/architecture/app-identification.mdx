@@ -1,0 +1,415 @@
+---
+title: App Identification
+description: How OISP identifies which application made an AI request
+---
+
+OISP Sensor identifies which application generated each AI request, transforming raw "OpenAI traffic" into actionable insights like "Cursor made 47 requests, ChatGPT web made 23."
+
+## Why It Matters
+
+Without app identification:
+- "OpenAI API call detected"
+
+With app identification:
+- "Cursor IDE made a GPT-4 request"
+- "ChatGPT web (Chrome) received a response"
+- "Unknown process making DeepSeek calls"
+
+This context enables:
+- **Cost attribution** by application
+- **Per-app policies** (allow Cursor, block others)
+- **Shadow AI detection** (unknown apps using AI)
+- **Browser AI visibility** (ChatGPT, Claude.ai)
+
+---
+
+## Three-Tier Model
+
+Apps are classified into tiers based on identification confidence:
+
+| Tier | Description | Example |
+|------|-------------|---------|
+| **Unknown** | Process not matched | `python3` making OpenAI calls |
+| **Identified** | Matched by signature | Cursor IDE (bundle ID match) |
+| **Profiled** | Full behavioral profile | Cursor with expected API patterns |
+
+---
+
+## Native App Identification
+
+### How It Works
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   Capture   │────►│   Process   │────►│    App      │
+│   Event     │     │   Context   │     │   Registry  │
+└─────────────┘     └─────────────┘     └──────┬──────┘
+                                               │
+                                               ▼
+                                        ┌─────────────┐
+                                        │  App Match  │
+                                        │  Result     │
+                                        └─────────────┘
+```
+
+1. Capture event includes process PID
+2. Process context extracted (name, path, bundle ID)
+3. App registry matches against signatures
+4. App context attached to event
+
+### Signature Types
+
+#### macOS
+
+```yaml
+# Example: Cursor IDE
+platforms:
+  macos:
+    bundle_id: "com.todesktop.230313mzl4w4u92"
+    team_id: "WDNM93K4GX"
+    paths:
+      - "/Applications/Cursor.app"
+    helper_bundles:
+      - "com.todesktop.230313mzl4w4u92.helper"
+```
+
+#### Windows
+
+```yaml
+platforms:
+  windows:
+    paths:
+      - "C:\\Users\\*\\AppData\\Local\\Programs\\cursor\\Cursor.exe"
+    publisher: "Cursor, Inc."
+    product_name: "Cursor"
+```
+
+#### Linux
+
+```yaml
+platforms:
+  linux:
+    paths:
+      - "/opt/cursor/cursor"
+      - "/usr/bin/cursor"
+    executable_names:
+      - "cursor"
+    desktop_files:
+      - "cursor.desktop"
+```
+
+### Built-in App Registry
+
+OISP includes signatures for 50+ common AI-enabled apps:
+
+| Category | Apps |
+|----------|------|
+| **IDEs** | Cursor, VS Code, Zed, Windsurf |
+| **AI Assistants** | Claude Desktop, ChatGPT Desktop |
+| **Terminals** | Warp, iTerm2 (with AI) |
+| **Browsers** | Chrome, Firefox, Safari, Arc, Brave, Edge |
+| **Dev Tools** | GitHub Copilot, Codeium, Tabnine |
+
+---
+
+## Web App Identification
+
+For browser-based AI (ChatGPT, Claude.ai), OISP extracts HTTP headers:
+
+### How It Works
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   HTTP      │────►│   Extract   │────►│   Web App   │
+│   Request   │     │   Headers   │     │   Match     │
+└─────────────┘     └─────────────┘     └─────────────┘
+       │
+       │ Origin: https://chat.openai.com
+       │ Referer: https://chat.openai.com/c/abc
+       ▼
+  ┌─────────────┐
+  │ Web Context │
+  │ chatgpt-web │
+  └─────────────┘
+```
+
+### Headers Used
+
+| Header | Purpose | Example |
+|--------|---------|---------|
+| `Origin` | Primary web app identifier | `https://chat.openai.com` |
+| `Referer` | Page context | `https://chat.openai.com/c/123` |
+| `User-Agent` | Browser identification | `Chrome/120.0` |
+
+### Web Apps Detected
+
+| Web App | Origin Pattern |
+|---------|----------------|
+| ChatGPT | `chat.openai.com` |
+| Claude.ai | `claude.ai` |
+| Perplexity | `perplexity.ai` |
+| Notion AI | `notion.so` |
+| Google AI Studio | `aistudio.google.com` |
+| Poe | `poe.com` |
+
+### Output
+
+```json
+{
+  "process": {
+    "name": "Google Chrome",
+    "bundle_id": "com.google.Chrome"
+  },
+  "app": {
+    "id": "chrome",
+    "name": "Google Chrome",
+    "tier": "identified"
+  },
+  "web": {
+    "origin": "https://chat.openai.com",
+    "web_app_id": "chatgpt-web",
+    "web_app_name": "ChatGPT",
+    "web_app_type": "direct"
+  }
+}
+```
+
+---
+
+## App Registry
+
+### External Registry
+
+OISP loads app profiles from the [oisp-app-registry](https://github.com/oximyHQ/oisp-app-registry):
+
+```
+oisp-app-registry/
+├── apps/
+│   ├── cursor.yaml
+│   ├── vscode.yaml
+│   ├── claude-desktop.yaml
+│   └── ...
+└── web-apps/
+    ├── chatgpt.yaml
+    ├── claude-ai.yaml
+    └── ...
+```
+
+### Profile Format
+
+```yaml
+id: cursor
+name: Cursor
+category: ide
+vendor: Anysphere
+description: AI-first code editor
+
+platforms:
+  macos:
+    bundle_id: "com.todesktop.230313mzl4w4u92"
+    team_id: "WDNM93K4GX"
+    paths:
+      - "/Applications/Cursor.app"
+    helper_bundles:
+      - "com.todesktop.230313mzl4w4u92.helper"
+
+  windows:
+    paths:
+      - "C:\\Users\\*\\AppData\\Local\\Programs\\cursor\\Cursor.exe"
+    publisher: "Cursor, Inc."
+
+  linux:
+    paths:
+      - "/opt/cursor/cursor"
+    executable_names:
+      - "cursor"
+
+traffic_patterns:
+  providers:
+    - openai
+    - anthropic
+  direct: true
+  backend: false
+```
+
+### Custom Apps
+
+Add custom app profiles:
+
+```bash
+# Create custom registry
+mkdir -p ~/.config/oisp-sensor/apps
+
+# Add custom app
+cat > ~/.config/oisp-sensor/apps/my-app.yaml << 'EOF'
+id: my-internal-tool
+name: Internal AI Tool
+category: internal
+
+platforms:
+  linux:
+    paths:
+      - "/opt/company/ai-tool"
+    executable_names:
+      - "ai-tool"
+EOF
+```
+
+Configure in `config.toml`:
+
+```toml
+[app_registry]
+custom_path = "~/.config/oisp-sensor/apps"
+```
+
+---
+
+## Traffic Patterns
+
+### Direct Traffic
+
+App connects directly to AI provider:
+
+```
+┌─────────┐         ┌─────────┐
+│  Cursor │────────►│ OpenAI  │
+└─────────┘         └─────────┘
+```
+
+### Backend Traffic
+
+App uses intermediate backend:
+
+```
+┌─────────┐    ┌─────────┐    ┌─────────┐
+│  MyApp  │───►│ Backend │───►│ OpenAI  │
+└─────────┘    └─────────┘    └─────────┘
+```
+
+Backend traffic is harder to attribute—the sensor sees the backend process, not the originating app.
+
+---
+
+## Event Output
+
+### With App Identification
+
+```json
+{
+  "event_type": "ai.request",
+  "process": {
+    "pid": 12345,
+    "name": "Cursor",
+    "exe": "/Applications/Cursor.app/Contents/MacOS/Cursor",
+    "bundle_id": "com.todesktop.230313mzl4w4u92"
+  },
+  "app": {
+    "id": "cursor",
+    "name": "Cursor",
+    "tier": "profiled",
+    "category": "ide"
+  },
+  "data": {
+    "provider": { "id": "openai" },
+    "model": { "id": "gpt-4o" }
+  }
+}
+```
+
+### Without App Identification
+
+```json
+{
+  "event_type": "ai.request",
+  "process": {
+    "pid": 54321,
+    "name": "python3",
+    "exe": "/usr/bin/python3"
+  },
+  "app": {
+    "id": null,
+    "tier": "unknown"
+  },
+  "data": {
+    "provider": { "id": "deepseek" }
+  }
+}
+```
+
+---
+
+## Policy Integration
+
+Use app identification in policies:
+
+```yaml
+policies:
+  # Allow only approved apps
+  - id: "approved-apps-only"
+    match:
+      app:
+        tier:
+          equals: "unknown"
+    action: block
+    reason: "Only approved apps can use AI"
+
+  # Different rules per app
+  - id: "cursor-gpt4"
+    match:
+      app:
+        id:
+          equals: "cursor"
+      model:
+        family: "gpt-4"
+    action: allow
+
+  # Block browser AI for contractors
+  - id: "no-web-ai-contractors"
+    match:
+      web:
+        web_app_id:
+          in: [chatgpt-web, claude-ai]
+      actor:
+        group:
+          in: [contractors]
+    action: block
+```
+
+---
+
+## Troubleshooting
+
+### App Not Identified
+
+```bash
+# Check what the sensor sees
+oisp-sensor record --output - | jq '.process'
+
+# Verify app registry loaded
+oisp-sensor status --verbose
+```
+
+### Adding Missing App
+
+1. Check process details:
+   ```bash
+   # macOS
+   codesign -dv /Applications/MyApp.app
+
+   # Linux
+   readelf -d /usr/bin/myapp
+   ```
+
+2. Create profile and submit PR to [oisp-app-registry](https://github.com/oximyHQ/oisp-app-registry)
+
+### Web App Not Detected
+
+Check if browser is identified:
+```bash
+oisp-sensor record --output - | jq 'select(.web != null)'
+```
+
+Verify Origin header is being extracted in debug logs:
+```bash
+RUST_LOG=oisp_decode=debug oisp-sensor record
+```

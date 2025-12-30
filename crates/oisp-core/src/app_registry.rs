@@ -4,6 +4,7 @@
 //! - Loading app profiles from YAML/JSON
 //! - Matching processes to known applications
 //! - Three-tier classification (Unknown, Identified, Profiled)
+//! - Remote fetching from GitHub with background refresh
 
 use crate::events::{AppInfo, ProcessInfo};
 #[cfg(test)]
@@ -11,7 +12,20 @@ use crate::events::{AppTier, CodeSignature};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
+
+/// GitHub raw URL for the app registry
+pub const REGISTRY_URL: &str =
+    "https://raw.githubusercontent.com/oximyhq/oisp-app-registry/main/apps.json";
+
+/// Bundled apps.json - compiled into the binary
+/// This is the fallback when network is unavailable
+const BUNDLED_REGISTRY: &str = include_str!("../../../../oisp-app-registry/apps.json");
+
+/// How often to refresh the registry from GitHub (in seconds)
+pub const REFRESH_INTERVAL_SECS: u64 = 6 * 60 * 60; // 6 hours
 
 /// App Registry - holds all known app profiles and provides matching
 #[derive(Debug, Clone)]
@@ -178,6 +192,121 @@ pub struct AppMetadata {
     pub is_ai_host: Option<bool>,
 }
 
+// =============================================================================
+// oisp-app-registry JSON format (apps.json)
+// =============================================================================
+
+/// The apps.json bundle format from oisp-app-registry
+#[derive(Debug, Clone, Deserialize)]
+pub struct RegistryBundle {
+    pub version: String,
+    pub apps: Vec<RegistryApp>,
+}
+
+/// An app entry in the registry bundle (simplified format)
+#[derive(Debug, Clone, Deserialize)]
+pub struct RegistryApp {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub vendor: Option<String>,
+    /// AI status: "native", "enabled", "host", "none"
+    #[serde(default)]
+    pub ai: Option<String>,
+    #[serde(default)]
+    pub signatures: RegistrySignatures,
+    #[serde(default)]
+    pub providers: Vec<String>,
+}
+
+/// Platform signatures in the registry format
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct RegistrySignatures {
+    pub macos: Option<RegistryMacOS>,
+    pub windows: Option<RegistryWindows>,
+    pub linux: Option<RegistryLinux>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RegistryMacOS {
+    pub bundle_id: Option<String>,
+    pub team_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RegistryWindows {
+    pub exe: Option<String>,
+    pub publisher: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RegistryLinux {
+    pub exe: Option<String>,
+}
+
+impl RegistryApp {
+    /// Convert from registry format to internal AppProfile format
+    pub fn into_app_profile(self) -> AppProfile {
+        let is_ai_app = matches!(self.ai.as_deref(), Some("native") | Some("enabled"));
+        let is_ai_host = matches!(self.ai.as_deref(), Some("host"));
+
+        AppProfile {
+            app_id: self.id,
+            name: self.name,
+            vendor: self.vendor,
+            category: "other".to_string(),
+            subcategory: None,
+            description: None,
+            website: None,
+            signatures: AppSignatures {
+                macos: self.signatures.macos.map(|m| MacOSSignature {
+                    bundle_id: m.bundle_id,
+                    bundle_id_patterns: None,
+                    team_id: m.team_id,
+                    paths: vec![],
+                    executable_name: None,
+                    helper_bundles: vec![],
+                }),
+                windows: self.signatures.windows.map(|w| WindowsSignature {
+                    paths: vec![],
+                    executable_name: w.exe,
+                    publisher: w.publisher,
+                    product_name: None,
+                    msix_package_family: None,
+                }),
+                linux: self.signatures.linux.map(|l| LinuxSignature {
+                    paths: vec![],
+                    executable_name: l.exe,
+                    package_names: vec![],
+                    desktop_file: None,
+                    flatpak_id: None,
+                    snap_name: None,
+                }),
+            },
+            traffic_patterns: if !self.providers.is_empty() {
+                Some(TrafficPatterns {
+                    pattern_type: None,
+                    expected_providers: self.providers,
+                    expected_models: vec![],
+                    backend_domains: vec![],
+                    extracts_web_context: false,
+                })
+            } else {
+                None
+            },
+            metadata: Some(AppMetadata {
+                icon_url: None,
+                first_release: None,
+                open_source: None,
+                pricing: None,
+                is_ai_app: Some(is_ai_app),
+                is_ai_host: Some(is_ai_host),
+            }),
+            is_browser: false,
+        }
+    }
+}
+
 /// Path pattern for matching
 #[derive(Debug, Clone)]
 pub struct PathPattern {
@@ -274,7 +403,7 @@ impl AppRegistry {
         Ok(())
     }
 
-    /// Load profiles from a JSON bundle
+    /// Load profiles from a JSON bundle (array of AppProfile)
     pub fn load_from_json(json: &str) -> Result<Self, AppRegistryError> {
         let profiles: Vec<AppProfile> = serde_json::from_str(json)?;
         let mut registry = Self::new();
@@ -282,6 +411,62 @@ impl AppRegistry {
             registry.add_profile(profile);
         }
         Ok(registry)
+    }
+
+    /// Load from the bundled apps.json (compiled into binary)
+    pub fn load_bundled() -> Result<Self, AppRegistryError> {
+        info!("Loading bundled app registry");
+        Self::load_from_registry_json(BUNDLED_REGISTRY)
+    }
+
+    /// Load from the oisp-app-registry apps.json format
+    /// This handles the wrapper object with version and apps array
+    pub fn load_from_registry_json(json: &str) -> Result<Self, AppRegistryError> {
+        let bundle: RegistryBundle = serde_json::from_str(json)?;
+        info!(
+            "Loading app registry v{} with {} apps",
+            bundle.version,
+            bundle.apps.len()
+        );
+
+        let mut registry = Self::new();
+        for app in bundle.apps {
+            let profile = app.into_app_profile();
+            registry.add_profile(profile);
+        }
+        Ok(registry)
+    }
+
+    /// Fetch the latest registry from GitHub
+    pub async fn fetch_from_github() -> Result<Self, AppRegistryError> {
+        info!("Fetching app registry from GitHub: {}", REGISTRY_URL);
+
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .map_err(|e| AppRegistryError::Network(e.to_string()))?;
+
+        let response = client
+            .get(REGISTRY_URL)
+            .header("User-Agent", "oisp-sensor")
+            .send()
+            .await
+            .map_err(|e| AppRegistryError::Network(e.to_string()))?;
+
+        if !response.status().is_success() {
+            return Err(AppRegistryError::Network(format!(
+                "HTTP {}: {}",
+                response.status(),
+                response.status().canonical_reason().unwrap_or("Unknown")
+            )));
+        }
+
+        let json = response
+            .text()
+            .await
+            .map_err(|e| AppRegistryError::Network(e.to_string()))?;
+
+        Self::load_from_registry_json(&json)
     }
 
     /// Add a profile to the registry
@@ -963,6 +1148,129 @@ pub enum AppRegistryError {
     Yaml(#[from] serde_yaml::Error),
     #[error("JSON parse error: {0}")]
     Json(#[from] serde_json::Error),
+    #[error("Network error: {0}")]
+    Network(String),
+}
+
+// =============================================================================
+// LiveRegistry - Thread-safe registry with background refresh
+// =============================================================================
+
+/// A thread-safe app registry that supports background refresh from GitHub.
+///
+/// Usage:
+/// ```ignore
+/// // Create with bundled data, start background refresh
+/// let live_registry = LiveRegistry::new_with_refresh().await;
+///
+/// // Use for matching (read-only access)
+/// let registry = live_registry.get().await;
+/// let result = registry.match_process(&process);
+/// ```
+pub struct LiveRegistry {
+    inner: Arc<RwLock<AppRegistry>>,
+    refresh_handle: Option<tokio::task::JoinHandle<()>>,
+}
+
+impl LiveRegistry {
+    /// Create a new LiveRegistry from the bundled registry, then start background refresh
+    pub async fn new_with_refresh() -> Self {
+        // Start with bundled registry (instant, no network)
+        let registry = AppRegistry::load_bundled().unwrap_or_else(|e| {
+            warn!("Failed to load bundled registry: {}, using empty", e);
+            AppRegistry::new()
+        });
+
+        let inner = Arc::new(RwLock::new(registry));
+
+        // Try to fetch latest immediately (non-blocking for startup)
+        let inner_clone = inner.clone();
+        tokio::spawn(async move {
+            if let Err(e) = Self::refresh_once(&inner_clone).await {
+                warn!("Initial registry refresh failed: {}", e);
+            }
+        });
+
+        // Start periodic refresh
+        let refresh_handle = Self::start_refresh_task(inner.clone());
+
+        Self {
+            inner,
+            refresh_handle: Some(refresh_handle),
+        }
+    }
+
+    /// Create from bundled registry only (no network)
+    pub fn new_bundled_only() -> Self {
+        let registry = AppRegistry::load_bundled().unwrap_or_else(|e| {
+            warn!("Failed to load bundled registry: {}, using empty", e);
+            AppRegistry::new()
+        });
+
+        Self {
+            inner: Arc::new(RwLock::new(registry)),
+            refresh_handle: None,
+        }
+    }
+
+    /// Get read access to the current registry
+    pub async fn get(&self) -> tokio::sync::RwLockReadGuard<'_, AppRegistry> {
+        self.inner.read().await
+    }
+
+    /// Get a clone of the current registry (for use in sync contexts)
+    pub async fn clone_registry(&self) -> AppRegistry {
+        self.inner.read().await.clone()
+    }
+
+    /// Get an Arc to the inner RwLock for sharing
+    pub fn inner(&self) -> Arc<RwLock<AppRegistry>> {
+        self.inner.clone()
+    }
+
+    /// Manually trigger a refresh
+    pub async fn refresh(&self) -> Result<(), AppRegistryError> {
+        Self::refresh_once(&self.inner).await
+    }
+
+    async fn refresh_once(inner: &Arc<RwLock<AppRegistry>>) -> Result<(), AppRegistryError> {
+        let new_registry = AppRegistry::fetch_from_github().await?;
+        let count = new_registry.len();
+
+        let mut guard = inner.write().await;
+        *guard = new_registry;
+        drop(guard);
+
+        info!("Registry refreshed: {} apps loaded from GitHub", count);
+        Ok(())
+    }
+
+    fn start_refresh_task(inner: Arc<RwLock<AppRegistry>>) -> tokio::task::JoinHandle<()> {
+        tokio::spawn(async move {
+            let mut interval =
+                tokio::time::interval(std::time::Duration::from_secs(REFRESH_INTERVAL_SECS));
+
+            // Skip the first tick (we already did an initial refresh)
+            interval.tick().await;
+
+            loop {
+                interval.tick().await;
+
+                debug!("Periodic registry refresh starting...");
+                if let Err(e) = Self::refresh_once(&inner).await {
+                    warn!("Periodic registry refresh failed: {}", e);
+                }
+            }
+        })
+    }
+}
+
+impl Drop for LiveRegistry {
+    fn drop(&mut self) {
+        if let Some(handle) = self.refresh_handle.take() {
+            handle.abort();
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1198,5 +1506,54 @@ mod tests {
         };
         let result = registry.match_process(&process);
         assert!(registry.is_browser_match(&result));
+    }
+
+    #[test]
+    fn test_load_bundled_registry() {
+        // Test that the bundled apps.json loads correctly
+        let registry = AppRegistry::load_bundled().expect("Failed to load bundled registry");
+
+        // Should have at least some apps
+        assert!(!registry.is_empty(), "Bundled registry should not be empty");
+        assert!(registry.len() >= 3, "Should have at least 3 apps bundled");
+
+        // Check that cursor is present (we know it's in the registry)
+        let cursor = registry.get_profile("cursor");
+        assert!(cursor.is_some(), "Cursor should be in bundled registry");
+
+        let cursor = cursor.unwrap();
+        assert_eq!(cursor.name, "Cursor");
+        assert_eq!(cursor.vendor, Some("Anysphere Inc.".to_string()));
+
+        // Check macOS signature
+        assert!(cursor.signatures.macos.is_some());
+        let macos = cursor.signatures.macos.as_ref().unwrap();
+        assert_eq!(
+            macos.bundle_id,
+            Some("com.todesktop.230313mzl4w4u92".to_string())
+        );
+    }
+
+    #[test]
+    fn test_bundled_registry_matching() {
+        let registry = AppRegistry::load_bundled().expect("Failed to load bundled registry");
+
+        // Test matching cursor by bundle_id
+        let process = ProcessInfo {
+            pid: 1234,
+            bundle_id: Some("com.todesktop.230313mzl4w4u92".to_string()),
+            ..Default::default()
+        };
+
+        let result = registry.match_process(&process);
+        assert!(
+            matches!(result, MatchResult::Profiled(_)),
+            "Should match Cursor by bundle_id"
+        );
+
+        if let MatchResult::Profiled(profile) = result {
+            assert_eq!(profile.app_id, "cursor");
+            assert_eq!(profile.name, "Cursor");
+        }
     }
 }

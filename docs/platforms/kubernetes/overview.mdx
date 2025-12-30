@@ -1,0 +1,72 @@
+---
+title: Kubernetes Overview
+description: Deploy OISP Sensor on Kubernetes
+---
+
+
+Deploy OISP Sensor on Kubernetes for cluster-wide AI activity monitoring.
+
+## Deployment Pattern
+
+**DaemonSet** - Run one sensor pod on each node to monitor all workloads.
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                   Kubernetes Cluster                     │
+├─────────────────────────────────────────────────────────┤
+│  Node 1                 Node 2                 Node 3   │
+│  ┌──────────┐          ┌──────────┐          ┌────────┐│
+│  │ OISP Pod │          │ OISP Pod │          │OISP Pod││
+│  │ (sensor) │          │ (sensor) │          │(sensor)││
+│  └──────────┘          └──────────┘          └────────┘│
+│  ┌──────────┐          ┌──────────┐          ┌────────┐│
+│  │ App Pod  │          │ App Pod  │          │App Pod ││
+│  └──────────┘          └──────────┘          └────────┘│
+└─────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+         ┌────────────────────────────────┐
+         │  Centralized Log Aggregation   │
+         │  (OTLP / Kafka / S3)           │
+         └────────────────────────────────┘
+```
+
+## When to Use
+
+**Use Kubernetes DaemonSet when:**
+- Running AI workloads on Kubernetes
+- Need cluster-wide observability
+- Want centralized log collection
+- Running multi-tenant environments
+
+**Use host installation when:**
+- Single server deployment
+- Not using Kubernetes
+- Direct access to logs preferred
+
+## Requirements
+
+- Kubernetes 1.23+
+- Linux nodes only (eBPF support)
+- Privileged pod security (for eBPF)
+- Host network mode
+- Node kernel 5.8+ with BTF
+
+## Capabilities
+
+✅ **Full SSL/TLS capture** (same as native Linux)
+✅ **All event types** supported
+✅ **All AI providers** detected
+✅ **Per-node monitoring**
+✅ **Cluster-wide aggregation**
+
+## Quick Start
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/oximyHQ/oisp-sensor/main/deploy/kubernetes/daemonset.yaml
+```
+
+## Next Steps
+
+- [DaemonSet Deployment](./daemonset) - Full deployment guide
+- [Centralized Logging](./logging) - OTLP, Kafka, S3

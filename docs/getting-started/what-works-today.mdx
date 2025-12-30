@@ -1,0 +1,250 @@
+---
+title: "What Works Today"
+description: "Honest assessment of current OISP Sensor capabilities"
+---
+
+> **Last Updated**: December 2025
+>
+> This page provides an honest assessment of what OISP Sensor can capture today.
+
+## Platform Support
+
+| Platform | Status | What Works |
+|----------|:------:|------------|
+| **Linux** | ✅ Production Ready | Full SSL/TLS capture via eBPF, process attribution |
+| **Docker** | ✅ Production Ready | Same as Linux (requires privileged mode) |
+| **Kubernetes** | ✅ Production Ready | DaemonSet deployment |
+| **macOS** | 🧪 Beta | Network Extension with TLS MITM, needs testing |
+| **Windows** | 🧪 Beta | WinDivert + TLS proxy, needs testing |
+
+<Note>
+**macOS and Windows implementations are complete** but need more real-world testing. We welcome feedback from beta testers!
+</Note>
+
+---
+
+## Linux: Production Ready
+
+### Supported Distributions
+
+- **Ubuntu** 22.04 LTS, 24.04 LTS
+- **Debian** 12 (Bookworm)
+- **Fedora** 39, 40
+- **RHEL / Rocky / Alma** 9.x
+
+### System Requirements
+
+| Requirement | Details |
+|-------------|---------|
+| **Kernel** | 5.8+ recommended (5.0+ works) |
+| **Architecture** | x86_64, aarch64 |
+| **Privileges** | Root or CAP_BPF + CAP_PERFMON + CAP_SYS_ADMIN |
+| **BTF** | Required (CONFIG_DEBUG_INFO_BTF=y) |
+
+### What's Captured
+
+| Event Type | Status | Description |
+|------------|:------:|-------------|
+| `ai.request` | ✅ | AI API requests with model, messages, tools |
+| `ai.response` | ✅ | Responses with content, tool calls, token usage |
+| `agent.tool_call` | ✅ | Tool invocations extracted from responses |
+| `process.exec` | ✅ | Process execution and termination |
+| `network.connect` | ✅ | Outbound TCP connections |
+| `file.open` | ✅ | File operations |
+
+---
+
+## macOS: Beta
+
+### What's Implemented
+
+| Component | Status | Description |
+|-----------|:------:|-------------|
+| **Network Extension** | ✅ Done | NETransparentProxyProvider for traffic interception |
+| **TLS Interceptor** | ✅ Done | MITM proxy with dynamic certificate generation |
+| **Certificate Authority** | ✅ Done | Local CA for signing intercepted connections |
+| **AI Endpoint Filter** | ✅ Done | Filters traffic to AI provider domains |
+| **Process Attribution** | ✅ Done | Identifies which app made each request |
+| **Menu Bar App** | ✅ Done | SwiftUI app for status and control |
+| **Unix Socket Bridge** | ✅ Done | IPC with oisp-sensor Rust binary |
+
+### Requirements
+
+- macOS 13.0 (Ventura) or later
+- Apple Silicon (M1/M2/M3/M4) or Intel
+- Admin access for extension approval
+- Trust OISP CA certificate
+
+### What Needs Testing
+
+- Long-running stability
+- Edge cases with different AI SDKs
+- Certificate trust flow UX
+- Memory usage under load
+
+---
+
+## Windows: Beta
+
+### What's Implemented
+
+| Component | Status | Description |
+|-----------|:------:|-------------|
+| **System Tray App** | ✅ Done | WPF app for status, settings, control |
+| **WinDivert Integration** | ✅ Done | Kernel-level packet interception |
+| **TLS MITM Proxy** | ✅ Done | Transparent proxy with certificate generation |
+| **Certificate Service** | ✅ Done | CA installation to Windows trust store |
+| **Redirector Service** | ✅ Done | Elevated process for packet capture |
+| **AI Endpoint Filter** | ✅ Done | Routes AI traffic through proxy |
+| **Named Pipe IPC** | ✅ Done | Communication between components |
+
+### Requirements
+
+- Windows 10/11 (64-bit)
+- Administrator privileges
+- ~50 MB disk space
+- Trust OISP CA certificate
+
+### What Needs Testing
+
+- Different Windows versions
+- Antivirus compatibility
+- UAC elevation flow
+- Long-running stability
+
+---
+
+## SSL/TLS Library Support (Linux)
+
+| SSL Library | Status | Notes |
+|------------|:------:|-------|
+| **OpenSSL 3.x** | ✅ Works | System library, most common |
+| **OpenSSL 1.1.x** | ✅ Works | Older systems |
+| OpenSSL (static) | ⚠️ Config needed | Add binary path to config |
+| BoringSSL | ⚠️ Partial | Different symbols, may not work |
+| GnuTLS | ❌ Not supported | Different API |
+| Go crypto/tls | ❌ Not supported | Pure Go implementation |
+| Rust rustls | ❌ Not supported | Pure Rust implementation |
+
+### Check Your Application
+
+```bash
+# Check what SSL library your app uses
+ldd /path/to/your/binary | grep -E "(ssl|crypto)"
+
+# For Python
+python3 -c "import ssl; print(ssl.OPENSSL_VERSION)"
+
+# For Node.js
+node -e "console.log(process.versions.openssl)"
+```
+
+---
+
+## Language/Runtime Support (Linux)
+
+| Runtime | SSL Library | Works? | Notes |
+|---------|-------------|:------:|-------|
+| **Python (system)** | System OpenSSL | ✅ Yes | `/usr/bin/python3` |
+| Python (pyenv) | May compile own | ⚠️ Maybe | Add path to config |
+| Python (conda) | Bundles own | ⚠️ Maybe | Add conda lib path |
+| **Node.js (system)** | System OpenSSL | ✅ Yes | `apt install nodejs` |
+| Node.js (NVM) | Static OpenSSL | ❌ No | Requires config |
+| **Go applications** | crypto/tls | ❌ No | Not supported |
+| **Rust (native-tls)** | System OpenSSL | ⚠️ Maybe | If dynamically linked |
+| Rust (rustls) | rustls | ❌ No | Not supported |
+| Java | JSSE | ❌ No | Not supported |
+| Ruby | System OpenSSL | ✅ Yes | Usually works |
+
+---
+
+## AI Provider Support
+
+All platforms support the same AI providers:
+
+| Provider | Domain | Parsing Level |
+|----------|--------|:-------------:|
+| **OpenAI** | api.openai.com | Full |
+| **Anthropic** | api.anthropic.com | Full |
+| **Google Gemini** | generativelanguage.googleapis.com | Full |
+| **Azure OpenAI** | *.openai.azure.com | Full |
+| **DeepSeek** | api.deepseek.com | Full |
+| **Ollama** | localhost:11434 | Full |
+| **LM Studio** | localhost:1234 | Full |
+| AWS Bedrock | bedrock-runtime.*.amazonaws.com | Basic |
+| Mistral | api.mistral.ai | Basic |
+| Cohere | api.cohere.ai | Basic |
+| Groq | api.groq.com | Basic |
+| Together | api.together.xyz | Basic |
+| Fireworks | api.fireworks.ai | Basic |
+| Perplexity | api.perplexity.ai | Basic |
+| OpenRouter | openrouter.ai | Basic |
+| Replicate | api.replicate.com | Basic |
+| Hugging Face | api-inference.huggingface.co | Basic |
+| xAI (Grok) | api.x.ai | Basic |
+
+**Full**: Request parsing, response parsing, tool calls, token usage
+**Basic**: Provider detection, model extraction, request/response metadata
+
+---
+
+## Known Limitations
+
+### Large Responses (Linux)
+
+eBPF has buffer size limits. Very large responses (>16KB per chunk) may be truncated.
+
+### Streaming (SSE)
+
+Server-Sent Events are captured per-chunk and reassembled. Very fast streams may not parse correctly.
+
+### Static OpenSSL (Linux)
+
+Applications that statically link OpenSSL require manual configuration:
+
+```toml
+# ~/.config/oisp-sensor/config.toml
+[capture.ssl]
+binary_paths = [
+    "~/.nvm/versions/node/*/bin/node",
+]
+```
+
+---
+
+## Not Yet Implemented
+
+| Feature | Status | Notes |
+|---------|:------:|-------|
+| Cost calculation | Planned | Token counts captured, pricing lookup not implemented |
+| User attribution | Planned | Auth header parsing for account identification |
+| HTTP/2 | Limited | Some traffic may be missed |
+| gRPC | Not supported | Affects Google Cloud AI |
+| WebSocket AI APIs | Limited | Partial support |
+| Full trace correlation | Planned | Basic correlation works |
+
+---
+
+## Verified Scenarios
+
+| Scenario | Linux | macOS | Windows |
+|----------|:-----:|:-----:|:-------:|
+| Python + OpenAI SDK | ✅ | 🧪 | 🧪 |
+| Python + Anthropic SDK | ✅ | 🧪 | 🧪 |
+| Python + LangChain | ✅ | 🧪 | 🧪 |
+| Node.js + OpenAI SDK | ✅ | 🧪 | 🧪 |
+| FastAPI + OpenAI | ✅ | 🧪 | 🧪 |
+| Docker containers | ✅ | N/A | N/A |
+
+✅ = Verified working | 🧪 = Needs testing | N/A = Not applicable
+
+---
+
+## Getting Help
+
+If something doesn't work:
+
+1. **Check requirements** for your platform
+2. **Run with debug**: `RUST_LOG=debug oisp-sensor record`
+3. **File an issue** with platform, version, and debug logs
+

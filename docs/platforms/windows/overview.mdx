@@ -1,0 +1,105 @@
+---
+title: Windows Overview
+description: OISP Sensor on Windows - architecture and capabilities
+---
+
+<Tip title="Beta Release">
+Windows support is **implemented and functional** but needs more real-world testing. We welcome feedback from beta testers!
+</Tip>
+
+## Architecture
+
+OISP Sensor on Windows uses WinDivert for packet capture and a TLS proxy for decryption:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                   OISP System Tray App (WPF)                     │
+│  - Status display, settings, and process control                │
+│  - Launches redirector with UAC elevation                       │
+│  - One-click CA certificate installation                        │
+└────────────────────────┬────────────────────────────────────────┘
+                         │ Named Pipe IPC
+┌────────────────────────▼────────────────────────────────────────┐
+│                    oisp-sensor.exe (Rust)                        │
+│  Receives events, decodes HTTP, emits to dashboard/exports      │
+└────────────────────────▲────────────────────────────────────────┘
+                         │ Named Pipe IPC
+┌────────────────────────┴────────────────────────────────────────┐
+│              oisp-redirector.exe (Elevated)                      │
+│  - WinDivert packet capture and redirection                     │
+│  - TLS MITM proxy (rustls + rcgen)                              │
+│  - AI endpoint filtering                                        │
+│  - Process attribution                                          │
+└────────────────────────┬────────────────────────────────────────┘
+                         │ WinDivert Driver
+┌────────────────────────▼────────────────────────────────────────┐
+│                Windows Network Stack                             │
+│  - Kernel-mode packet interception                              │
+│  - Pre-signed driver (no test signing required)                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## What's Implemented
+
+| Component | Status | Description |
+|-----------|:------:|-------------|
+| **System Tray App** | ✅ Done | WPF app for status, settings, control |
+| **WinDivert Integration** | ✅ Done | Kernel-level packet interception |
+| **TLS MITM Proxy** | ✅ Done | Transparent proxy with certificate generation |
+| **Certificate Service** | ✅ Done | CA installation to Windows trust store |
+| **Redirector Service** | ✅ Done | Elevated process for packet capture |
+| **AI Endpoint Filter** | ✅ Done | Routes AI traffic through proxy |
+| **Named Pipe IPC** | ✅ Done | Communication between components |
+
+## Supported AI Providers
+
+Traffic to these endpoints is automatically intercepted:
+
+| Provider | Endpoints |
+|----------|-----------|
+| OpenAI | api.openai.com |
+| Anthropic | api.anthropic.com |
+| Google AI | generativelanguage.googleapis.com, aiplatform.googleapis.com |
+| Azure OpenAI | *.openai.azure.com |
+| AWS Bedrock | bedrock-runtime.*.amazonaws.com |
+| Cohere | api.cohere.ai, api.cohere.com |
+| Mistral | api.mistral.ai |
+| Groq | api.groq.com |
+| Together AI | api.together.xyz, api.together.ai |
+| Fireworks | api.fireworks.ai |
+| Perplexity | api.perplexity.ai |
+| OpenRouter | openrouter.ai, api.openrouter.ai |
+| Replicate | api.replicate.com |
+| Hugging Face | api-inference.huggingface.co |
+| DeepSeek | api.deepseek.com |
+| xAI (Grok) | api.x.ai |
+| Local (Ollama) | localhost:11434, 127.0.0.1:11434 |
+| Local (LM Studio) | localhost:1234, 127.0.0.1:1234 |
+
+## Requirements
+
+- **Windows 10/11** (64-bit)
+- **Administrator privileges** for packet capture
+- ~50 MB disk space
+- Trust the OISP CA certificate
+
+## How It Works
+
+1. **WinDivert** intercepts outbound HTTPS connections to AI providers
+2. **TLS Proxy** decrypts traffic using a locally-generated CA
+3. **Events sent** to Rust sensor via named pipe
+4. **Sensor decodes** HTTP and extracts AI-specific fields
+5. **Exports** to your chosen destination
+
+## What Needs Testing
+
+- Different Windows versions
+- Antivirus compatibility
+- UAC elevation flow
+- Long-running stability
+
+## Next Steps
+
+- [Installation](./installation) — Download and install
+- [Quick Start](./quick-start) — Get started capturing events
+

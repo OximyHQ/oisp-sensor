@@ -1,0 +1,173 @@
+---
+title: Linux Quick Start
+description: See AI activity on your Linux machine in 5 minutes
+---
+
+See AI activity on your Linux machine in 5 minutes.
+
+---
+
+## Step 1: Install
+
+```bash
+# Download
+curl -fsSL https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor-x86_64-unknown-linux-gnu.tar.gz | tar xz
+
+# Install
+sudo mv oisp-sensor /usr/local/bin/
+sudo chmod +x /usr/local/bin/oisp-sensor
+
+# Set capabilities (run without full root)
+sudo setcap cap_sys_admin,cap_bpf,cap_perfmon,cap_net_admin+ep /usr/local/bin/oisp-sensor
+```
+
+Verify:
+```bash
+oisp-sensor --version
+```
+
+---
+
+## Step 2: Start the Sensor
+
+### Option A: Web UI
+
+```bash
+sudo oisp-sensor record
+```
+
+Open [http://localhost:7777](http://localhost:7777) in your browser.
+
+### Option B: Terminal UI (TUI)
+
+```bash
+sudo oisp-sensor
+```
+
+You'll see a real-time dashboard:
+
+```
+┌─ OISP Sensor ─────────────────────────────────── v0.2.0 ────┐
+│                                                              │
+│  AI ACTIVITY (last 5 min)                                   │
+│  ──────────────────────────────────────────────────────────│
+│  (Waiting for AI events...)                                 │
+│                                                              │
+│  [t]imeline  [i]nventory  [p]rocess tree  [q]uit          │
+└──────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Step 3: Generate AI Activity
+
+In a **new terminal**, use any AI tool:
+
+### Python + OpenAI
+
+```bash
+pip install openai
+
+python3 << EOF
+import openai
+client = openai.OpenAI()
+response = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Say hello!"}]
+)
+print(response.choices[0].message.content)
+EOF
+```
+
+### Curl
+
+```bash
+curl https://api.openai.com/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -d '{"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "Hello!"}]}'
+```
+
+### Any AI Tool
+
+Just use Cursor, Claude CLI, or any AI application. OISP captures everything automatically.
+
+---
+
+## Step 4: See the Events
+
+Check your sensor window/browser. You'll see:
+
+- **ai.request** — The outgoing API call
+- **ai.response** — The response with tokens and latency
+- **Process info** — Which application made the call
+
+---
+
+## Export to File
+
+Save events for later analysis:
+
+```bash
+sudo oisp-sensor record --output /tmp/events.jsonl --no-web
+```
+
+Then analyze:
+```bash
+# Count event types
+cat /tmp/events.jsonl | jq -r '.event_type' | sort | uniq -c
+
+# View requests only
+cat /tmp/events.jsonl | jq 'select(.event_type=="ai.request")'
+```
+
+---
+
+## Common Patterns
+
+### Monitor specific process
+
+```bash
+sudo oisp-sensor record --process python3
+```
+
+### Run as background service
+
+```bash
+sudo systemctl enable oisp-sensor
+sudo systemctl start oisp-sensor
+```
+
+See [Running as a Service](./service) for details.
+
+---
+
+## Troubleshooting
+
+### No events appearing?
+
+1. **Check API key:**
+   ```bash
+   echo $OPENAI_API_KEY  # Should not be empty
+   ```
+
+2. **Check sensor is capturing:**
+   ```bash
+   RUST_LOG=debug sudo oisp-sensor record
+   ```
+
+3. **Verify system requirements:**
+   ```bash
+   oisp-sensor check
+   ```
+
+See [Troubleshooting Guide](./troubleshooting) for more help.
+
+---
+
+## What's Next?
+
+- [Production Guide](./production) — Deploy to production
+- [Configuration](/configuration/config-file/) — Customize exports, redaction
+- [Cookbooks](/cookbooks/overview/) — Ready-to-run examples
+

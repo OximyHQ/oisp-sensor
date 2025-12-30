@@ -29,7 +29,10 @@ pub mod trace;
 
 // Re-export commonly used types
 pub use actions::RedactionPlugin;
-pub use app_registry::{AppProfile, AppRegistry, AppRegistryError, MatchResult};
+pub use app_registry::{
+    AppProfile, AppRegistry, AppRegistryError, LiveRegistry, MatchResult, REFRESH_INTERVAL_SECS,
+    REGISTRY_URL,
+};
 pub use config::{
     spawn_sighup_reload_handler, CaptureSettings, ConfigError, ConfigLoader, ConfigResult,
     CorrelationSettings, ExportSettings, JsonlExportConfig, KafkaExportConfig, OtlpExportConfig,

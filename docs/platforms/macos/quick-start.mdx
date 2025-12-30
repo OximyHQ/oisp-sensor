@@ -1,0 +1,108 @@
+---
+title: macOS Quick Start
+description: Capture AI events on macOS in 5 minutes
+---
+
+<Tip title="Beta Release">
+macOS support is implemented and functional. We welcome feedback on any issues!
+</Tip>
+
+Capture AI API calls from any application on macOS.
+
+---
+
+## Prerequisites
+
+- macOS 13.0 (Ventura) or later
+- OISP installed (see [Installation](./installation))
+- Network Extension approved
+- CA certificate trusted
+
+---
+
+## Start Capturing
+
+1. **Launch OISP** from Applications (or click the menu bar icon)
+
+2. **Start Capture** — Click "Start Capture" in the menu bar dropdown
+
+3. **Open Web UI** — Go to [http://localhost:7777](http://localhost:7777)
+
+---
+
+## Generate AI Activity
+
+Make an AI API call to test:
+
+### Python
+
+```python
+import openai
+client = openai.OpenAI()
+response = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+print(response.choices[0].message.content)
+```
+
+### curl
+
+```bash
+curl https://api.openai.com/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -d '{"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "Hello!"}]}'
+```
+
+### Any AI Tool
+
+Use Cursor, Claude CLI, ChatGPT apps, or any AI application. OISP captures it automatically.
+
+---
+
+## See Events
+
+The Web UI at [http://localhost:7777](http://localhost:7777) shows:
+
+- **ai.request** — Outgoing API calls
+- **ai.response** — Responses with tokens and latency
+- **Process info** — Which app made each call
+
+---
+
+## Menu Bar Controls
+
+Click the OISP icon in the menu bar:
+
+| Action | Description |
+|--------|-------------|
+| **Start Capture** | Begin intercepting AI traffic |
+| **Stop Capture** | Pause capture (traffic passes through) |
+| **Open Web UI** | Open browser to dashboard |
+| **Settings** | Configure exports, filters |
+| **Quit** | Exit OISP |
+
+---
+
+## Troubleshooting
+
+### No events appearing?
+
+1. **Check extension is approved** — System Settings → Privacy & Security → Network Extensions
+2. **Check CA is trusted** — Keychain Access → search "OISP"
+3. **Check capture is started** — Menu bar should show "Capturing"
+
+### Certificate errors in browser?
+
+1. **Trust CA** — Click "Install CA Certificate" in menu
+2. **Restart browser** after trusting
+
+---
+
+## Next Steps
+
+- [Installation](./installation) — Full setup details
+- [Overview](./overview) — How it works
+- [Configuration](/configuration/config-file/) — Customize exports
+

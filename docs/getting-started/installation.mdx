@@ -1,0 +1,198 @@
+---
+title: Installation
+description: Install OISP Sensor on Linux
+---
+
+<Warning>
+**Linux Only.** OISP Sensor currently only works on Linux. macOS and Windows support is [in development](/getting-started/what-works-today/).
+</Warning>
+
+## Quick Install
+
+Download the latest release and install:
+
+```bash
+# Download
+curl -fsSL https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor-x86_64-unknown-linux-gnu.tar.gz | tar xz
+
+# Install
+sudo mv oisp-sensor /usr/local/bin/
+sudo chmod +x /usr/local/bin/oisp-sensor
+
+# Set capabilities (allows running without full root)
+sudo setcap cap_sys_admin,cap_bpf,cap_perfmon,cap_net_admin+ep /usr/local/bin/oisp-sensor
+```
+
+Verify it worked:
+
+```bash
+oisp-sensor --version
+```
+
+---
+
+## System Requirements
+
+| Requirement | Minimum | Recommended |
+|-------------|---------|-------------|
+| **Kernel** | 5.0+ | 5.8+ |
+| **Architecture** | x86_64 or aarch64 | x86_64 |
+| **Privileges** | Root or CAP_BPF | CAP_BPF + CAP_PERFMON |
+| **BTF** | Required | Required |
+
+### Check Your System
+
+```bash
+# Check kernel version (need 5.0+)
+uname -r
+
+# Check BTF support (required)
+ls /sys/kernel/btf/vmlinux
+
+# Check if debugfs is mounted
+ls /sys/kernel/debug/
+```
+
+**What is BTF?** BTF (BPF Type Format) allows OISP to work across different kernel versions without needing kernel headers. Most modern distros enable it by default.
+
+---
+
+## Package Installation
+
+### Ubuntu / Debian (.deb)
+
+```bash
+# Download .deb package
+curl -LO https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor_amd64.deb
+
+# Install
+sudo dpkg -i oisp-sensor_amd64.deb
+
+# Start service
+sudo systemctl enable --now oisp-sensor
+```
+
+### RHEL / Rocky / AlmaLinux / Fedora (.rpm)
+
+```bash
+# Download .rpm package
+curl -LO https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor.x86_64.rpm
+
+# Install
+sudo dnf install ./oisp-sensor.x86_64.rpm
+
+# Start service
+sudo systemctl enable --now oisp-sensor
+```
+
+---
+
+## Verify Installation
+
+After installation, check that your system is ready:
+
+```bash
+oisp-sensor check
+```
+
+Expected output:
+
+```
+OISP Sensor System Check
+========================
+
+Platform: linux x86_64 (supported)
+
+Kernel Version:    6.8.0 [OK]
+BTF Support:       /sys/kernel/btf/vmlinux [OK]
+eBPF Filesystem:   /sys/fs/bpf [OK]
+Permissions:       CAP_BPF+CAP_PERFMON set [OK]
+
+SSL Libraries:
+  /usr/lib/x86_64-linux-gnu/libssl.so.3 [FOUND]
+
+Result: READY
+```
+
+---
+
+## Docker Installation
+
+Run OISP Sensor in a Docker container:
+
+```bash
+docker run --privileged -p 7777:7777 ghcr.io/oximyhq/oisp-sensor
+```
+
+The `--privileged` flag is required for eBPF operations.
+
+### Docker Compose
+
+```yaml
+version: '3.8'
+services:
+  oisp-sensor:
+    image: ghcr.io/oximyhq/oisp-sensor:latest
+    privileged: true
+    ports:
+      - "7777:7777"
+    volumes:
+      - ./config.toml:/etc/oisp/config.toml
+      - ./events:/var/log/oisp
+```
+
+---
+
+## Build from Source
+
+If you want to build from source:
+
+### Prerequisites
+
+- Rust 1.75+
+- clang, llvm, libelf-dev (for eBPF)
+- Node.js 18+ (for frontend)
+
+### Build Steps
+
+```bash
+# Clone repository
+git clone https://github.com/oximyHQ/oisp-sensor.git
+cd oisp-sensor
+
+# Build eBPF programs
+cd ebpf && cargo build --release && cd ..
+
+# Build frontend
+cd frontend && npm install && npm run build && cd ..
+
+# Build sensor
+cargo build --release
+
+# Install
+sudo cp target/release/oisp-sensor /usr/local/bin/
+```
+
+---
+
+## Supported Distributions
+
+| Distribution | Version | Status |
+|-------------|---------|--------|
+| Ubuntu | 22.04 LTS, 24.04 LTS | ✅ Tested |
+| Debian | 12 (Bookworm) | ✅ Tested |
+| Fedora | 39, 40 | ✅ Tested |
+| RHEL | 9.x | ✅ Tested |
+| Rocky Linux | 9.x | ✅ Tested |
+| AlmaLinux | 9.x | ✅ Tested |
+
+Older versions may work but are not officially tested.
+
+---
+
+## Next Steps
+
+- [Quick Start](/getting-started/quick-start/) - Capture your first AI events
+- [Configuration](/configuration/config-file/) - Customize OISP Sensor
+- [What Works Today](/getting-started/what-works-today/) - Current capabilities and limitations
+

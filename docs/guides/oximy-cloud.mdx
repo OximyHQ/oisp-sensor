@@ -1,0 +1,307 @@
+---
+title: Oximy Cloud Integration
+description: Connect OISP Sensor to Oximy Cloud for centralized management
+---
+
+[Oximy Cloud](https://oximy.com) provides centralized management for OISP Sensor deployments. Connect your sensors to get:
+
+- **Centralized Dashboard**: View all AI activity across devices
+- **Policy Sync**: Push policies to all sensors from the cloud
+- **Alerting**: Get notified on Slack, email, or webhooks
+- **Compliance Reports**: SOC2, HIPAA, GDPR audit exports
+
+## Quick Start
+
+### 1. Get an API Key
+
+Sign up at [oximy.com](https://oximy.com) and create an API key from Settings → API Keys.
+
+### 2. Configure the Sensor
+
+```toml
+# ~/.config/oisp-sensor/config.toml
+[mode]
+connection = "oximy"
+
+[oximy]
+api_key = "oxm_live_xxxxxxxxxxxxxxxx"
+```
+
+Or use environment variable:
+
+```bash
+export OISP_OXIMY_API_KEY="oxm_live_xxxxxxxxxxxxxxxx"
+oisp-sensor record
+```
+
+### 3. Verify Connection
+
+```bash
+oisp-sensor status
+```
+
+Output:
+```
+OISP Sensor Status
+==================
+Platform: Linux x86_64
+Connection: Oximy Cloud
+  Status: Connected
+  Device ID: dev_abc123
+  Last Sync: 2 seconds ago
+```
+
+---
+
+## Enrollment Methods
+
+### API Key (Individual)
+
+For individual developers or small teams:
+
+```toml
+[oximy]
+api_key = "oxm_live_xxxxxxxxxxxxxxxx"
+```
+
+### Enrollment Token (MDM)
+
+For enterprise MDM deployments, use one-time enrollment tokens:
+
+```toml
+[oximy]
+enrollment_token = "enroll_xxxxxxxxxxxxxxxx"
+```
+
+The sensor exchanges the token for device credentials on first run.
+
+### Device Code Flow
+
+Interactive enrollment:
+
+```bash
+oisp-sensor enroll
+```
+
+Output:
+```
+Visit https://oximy.com/device and enter code: ABC-123
+
+Waiting for authorization...
+✓ Enrolled successfully
+  Device ID: dev_xyz789
+```
+
+---
+
+## Configuration
+
+### Full Configuration
+
+```toml
+[oximy]
+# Authentication (use env var OISP_OXIMY_API_KEY for production)
+api_key = "oxm_live_xxxxxxxxxxxxxxxx"
+
+# Endpoints (defaults to production)
+endpoint = "https://api.oximy.com"
+stream_endpoint = "wss://stream.oximy.com"
+
+# Policy sync
+policy_sync_interval = 60    # seconds
+
+# Offline handling
+offline_buffer_size = 10000  # events
+
+# Retry settings
+[oximy.retry]
+max_attempts = 5
+initial_delay_ms = 1000
+max_delay_ms = 60000
+```
+
+### Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `OISP_OXIMY_API_KEY` | API key (recommended) |
+| `OISP_OXIMY_ENDPOINT` | API endpoint override |
+
+---
+
+## Features
+
+### Event Streaming
+
+Events stream to Oximy Cloud in real-time:
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   Sensor    │────►│   Stream    │────►│   Oximy     │
+│             │ WSS │   Endpoint  │     │   Cloud     │
+└─────────────┘     └─────────────┘     └─────────────┘
+```
+
+Events are batched for efficiency:
+- Batch size: 100 events (configurable)
+- Flush interval: 5 seconds
+- Compression: gzip
+
+### Offline Resilience
+
+If connection is lost, events buffer locally:
+
+```
+┌─────────────┐     ┌─────────────┐
+│   Events    │────►│   SQLite    │
+│             │     │   Queue     │
+└─────────────┘     └──────┬──────┘
+                           │ Reconnect
+                           ▼
+                    ┌─────────────┐
+                    │   Oximy     │
+                    │   Cloud     │
+                    └─────────────┘
+```
+
+- Max buffer: 100,000 events
+- Persisted to disk
+- Auto-sync on reconnect
+
+### Policy Sync
+
+Policies defined in Oximy Cloud sync to sensors:
+
+```bash
+# Check policy status
+oisp-sensor policy status
+
+Policy Sync Status
+==================
+Source: Oximy Cloud
+Last Sync: 30 seconds ago
+Policies: 5 active
+```
+
+Cloud policies override local policies when connected.
+
+### Heartbeat
+
+Sensors send periodic heartbeats:
+
+```json
+{
+  "device_id": "dev_abc123",
+  "timestamp": "2025-01-15T10:30:00Z",
+  "uptime_seconds": 3600,
+  "stats": {
+    "events_captured": 1500,
+    "events_exported": 1480
+  }
+}
+```
+
+Default interval: 30 seconds
+
+---
+
+## MDM Deployment
+
+### macOS (Jamf, Kandji)
+
+Create a configuration profile:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN">
+<plist version="1.0">
+<dict>
+  <key>PayloadContent</key>
+  <array>
+    <dict>
+      <key>PayloadType</key>
+      <string>com.oximy.oisp</string>
+      <key>connection</key>
+      <string>oximy</string>
+      <key>enrollment_token</key>
+      <string>enroll_xxxxxxxxxxxxxxxx</string>
+    </dict>
+  </array>
+</dict>
+</plist>
+```
+
+### Windows (Intune)
+
+Use PowerShell enrollment script:
+
+```powershell
+$token = "enroll_xxxxxxxxxxxxxxxx"
+& "C:\Program Files\OISP\oisp-sensor.exe" enroll --token $token
+```
+
+### Linux (Ansible)
+
+```yaml
+- name: Configure OISP Sensor
+  template:
+    src: oisp-config.toml.j2
+    dest: /etc/oisp-sensor/config.toml
+  notify: restart oisp-sensor
+
+- name: Enroll sensor
+  command: oisp-sensor enroll --token {{ oximy_enrollment_token }}
+  args:
+    creates: /var/lib/oisp-sensor/credentials.json
+```
+
+---
+
+## Troubleshooting
+
+### Connection Failed
+
+```bash
+# Check connectivity
+curl -I https://api.oximy.com/health
+
+# Check API key
+OISP_OXIMY_API_KEY="oxm_live_xxx" oisp-sensor status
+```
+
+### Events Not Appearing
+
+```bash
+# Check local queue
+oisp-sensor queue status
+
+# Force flush
+oisp-sensor queue flush
+```
+
+### Policy Not Syncing
+
+```bash
+# Force policy sync
+oisp-sensor policy sync
+
+# Check policy status
+oisp-sensor policy status
+```
+
+---
+
+## Self-Hosted Option
+
+For air-gapped environments, Oximy can be self-hosted:
+
+```toml
+[mode]
+connection = "self-hosted"
+
+[oximy]
+endpoint = "https://oximy.internal.company.com"
+stream_endpoint = "wss://oximy.internal.company.com/stream"
+```
+
+Contact [sales@oximy.com](mailto:sales@oximy.com) for self-hosted licensing.

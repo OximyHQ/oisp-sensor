@@ -1,0 +1,399 @@
+---
+title: Policies
+description: Define rules to control AI traffic with OISP policies
+---
+
+OISP Policies define rules for how the sensor handles AI API traffic. Policies enable you to:
+
+- **Allow**: Permit requests (default behavior)
+- **Block**: Prevent requests from reaching AI providers
+- **Redact**: Remove sensitive data before forwarding
+- **Alert**: Allow but generate notifications for review
+
+## Quick Start
+
+Create a policy file at `~/.config/oisp-sensor/policies.yaml`:
+
+```yaml
+version: "1.0"
+metadata:
+  name: "My AI Policy"
+
+settings:
+  default_action: allow
+
+policies:
+  - id: "block-unapproved-providers"
+    name: "Block Unapproved AI Providers"
+    enabled: true
+    priority: 100
+    match:
+      provider:
+        not_in: [openai, anthropic, google]
+    action: block
+    reason: "Provider not on approved list"
+```
+
+Enable policies in your config:
+
+```toml
+# ~/.config/oisp-sensor/config.toml
+[policy]
+enabled = true
+file = "~/.config/oisp-sensor/policies.yaml"
+hot_reload = true
+```
+
+---
+
+## Policy Structure
+
+### Basic Format
+
+```yaml
+version: "1.0"
+metadata:
+  name: "Policy Name"
+  description: "Description"
+
+settings:
+  default_action: allow    # allow | block
+  fail_mode: open          # open | closed
+
+policies:
+  - id: "unique-id"
+    name: "Human-readable name"
+    enabled: true
+    priority: 100          # Higher = evaluated first
+    match:
+      # Conditions
+    action: block          # allow | block | redact | alert
+    reason: "Why blocked"
+```
+
+### Supported Formats
+
+| Format | Use Case | Example |
+|--------|----------|---------|
+| YAML | Cloud sync, complex policies | `policies.yaml` |
+| TOML | Local config, developer use | `policies.toml` |
+| JSON | API responses, programmatic | `policies.json` |
+
+---
+
+## Match Conditions
+
+All conditions in a policy are AND-ed. For OR logic, use multiple policies.
+
+### Provider
+
+```yaml
+match:
+  provider:
+    equals: "openai"
+    in: [openai, anthropic, google]
+    not_in: [deepseek, baidu]
+    matches: "openai*"    # Wildcard
+```
+
+### Model
+
+```yaml
+match:
+  model:
+    equals: "gpt-4o"
+    family: "gpt-4"       # Matches gpt-4, gpt-4o, gpt-4-turbo
+    in: [gpt-4o, claude-3-opus]
+    not_in: [gpt-4-32k]   # Block expensive models
+```
+
+### Process
+
+```yaml
+match:
+  process:
+    name:
+      equals: "cursor"
+      in: [cursor, code, claude]
+      matches: "*python*"
+    path:
+      starts_with: "/Applications/"
+      matches: "*/node_modules/*"
+```
+
+### Actor (User)
+
+```yaml
+match:
+  actor:
+    user:
+      equals: "john"
+      in: [john, jane]
+    uid:
+      greater_than: 1000    # Non-system users
+```
+
+### Content (for Redaction)
+
+```yaml
+match:
+  content:
+    contains_pattern:
+      - email
+      - credit_card
+      - ssn
+      - api_key
+    contains_keywords:
+      - password
+      - secret
+```
+
+### Time-Based
+
+```yaml
+match:
+  time:
+    hour:
+      between: [9, 17]      # Business hours
+    day:
+      in: [monday, tuesday, wednesday, thursday, friday]
+    timezone: "America/New_York"
+```
+
+### Cost/Usage
+
+```yaml
+match:
+  cost:
+    request_cost:
+      greater_than: 1.00    # USD
+    user_daily_total:
+      greater_than: 50.00
+```
+
+---
+
+## Actions
+
+### Allow
+
+Permit the request (default).
+
+```yaml
+action: allow
+```
+
+### Block
+
+Prevent the request from reaching the AI provider.
+
+```yaml
+action: block
+reason: "Human-readable reason"
+```
+
+### Redact
+
+Modify the request to remove sensitive data.
+
+```yaml
+action: redact
+redaction:
+  targets: [request_body]
+  patterns:
+    - type: email
+      replacement: "[EMAIL REDACTED]"
+    - type: api_key
+      replacement: "[API KEY REDACTED]"
+    - type: regex
+      pattern: "\\b\\d{3}-\\d{2}-\\d{4}\\b"
+      replacement: "[SSN REDACTED]"
+  mode: mask    # mask | hash | remove
+```
+
+### Alert
+
+Allow but generate an alert.
+
+```yaml
+action: alert
+alert:
+  severity: high    # low | medium | high | critical
+  channels: [webhook]
+  message: "Unusual AI usage detected"
+```
+
+---
+
+## Examples
+
+### Block Chinese AI Providers
+
+```yaml
+policies:
+  - id: "block-chinese-providers"
+    name: "Block Chinese AI Providers"
+    priority: 100
+    match:
+      provider:
+        in: [deepseek, baidu, qwen, zhipu]
+    action: block
+    reason: "Chinese AI providers not approved"
+```
+
+### Approved Apps Only
+
+```yaml
+settings:
+  default_action: block    # Deny by default
+
+policies:
+  - id: "allow-approved-apps"
+    priority: 100
+    match:
+      process:
+        name:
+          in: [cursor, claude, copilot]
+    action: allow
+```
+
+### Redact PII in External Requests
+
+```yaml
+policies:
+  - id: "redact-pii"
+    priority: 100
+    match:
+      provider:
+        not_in: [ollama]    # External only
+      content:
+        contains_pattern: [email, phone, ssn]
+    action: redact
+    redaction:
+      targets: [request_body]
+      patterns:
+        - type: email
+          replacement: "[EMAIL]"
+        - type: phone
+          replacement: "[PHONE]"
+        - type: ssn
+          replacement: "[SSN]"
+```
+
+### Cost Controls
+
+```yaml
+policies:
+  # Block expensive models for non-leads
+  - id: "restrict-gpt4"
+    priority: 100
+    match:
+      model:
+        in: [gpt-4, claude-3-opus]
+    action: block
+    reason: "Premium models require approval"
+
+  # Daily spend limit
+  - id: "daily-limit"
+    priority: 90
+    match:
+      cost:
+        user_daily_total:
+          greater_than: 50.00
+    action: block
+    reason: "Daily AI spend limit exceeded ($50)"
+```
+
+### Business Hours Only
+
+```yaml
+policies:
+  - id: "business-hours"
+    priority: 100
+    match:
+      time:
+        hour:
+          not_between: [9, 17]
+    action: block
+    reason: "AI access restricted to business hours"
+```
+
+---
+
+## Evaluation Logic
+
+### Order
+
+1. Policies sorted by priority (highest first)
+2. First matching policy wins
+3. If no match, `default_action` applies
+
+### Exception Handling
+
+Use `except` to carve out exceptions:
+
+```yaml
+- id: "block-external"
+  match:
+    provider:
+      not_in: [ollama]
+  except:
+    actor:
+      user:
+        in: [admin, researcher]
+  action: block
+```
+
+### Fail Mode
+
+```yaml
+settings:
+  fail_mode: open     # Allow if policy engine fails
+  # fail_mode: closed # Block if policy engine fails
+```
+
+---
+
+## Built-in Patterns
+
+| Pattern | Description | Example |
+|---------|-------------|---------|
+| `email` | Email addresses | `user@example.com` |
+| `phone` | Phone numbers | `+1-555-123-4567` |
+| `ssn` | US Social Security | `123-45-6789` |
+| `credit_card` | Credit cards | `4111-1111-1111-1111` |
+| `api_key` | API keys | `sk-xxx`, `key-xxx` |
+
+---
+
+## Hot Reload
+
+Policies reload automatically when the file changes:
+
+```toml
+[policy]
+hot_reload = true
+```
+
+Or send SIGHUP to reload manually:
+
+```bash
+kill -HUP $(pgrep oisp-sensor)
+```
+
+---
+
+## Oximy Cloud Sync
+
+With [Oximy Cloud](/guides/oximy-cloud), policies sync from the cloud:
+
+```toml
+[mode]
+connection = "oximy"
+
+[oximy]
+api_key = "oxm_live_xxx"
+policy_sync_interval = 60    # seconds
+```
+
+Cloud policies override local policies when connected.

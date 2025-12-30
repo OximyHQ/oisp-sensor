@@ -12,8 +12,8 @@ use oisp_core::config::{ConfigLoader, SensorConfig};
 use oisp_core::enrichers::{AppEnricher, HostEnricher, ProcessTreeEnricher};
 use oisp_core::pipeline::{Pipeline, PipelineConfig};
 use oisp_core::replay::{EventReplay, ReplayConfig};
-use oisp_core::AppRegistry;
 use oisp_core::RedactionPlugin;
+use oisp_core::{AppRegistry, LiveRegistry};
 use oisp_decode::{HttpDecoder, SystemDecoder};
 use oisp_export::jsonl::{JsonlExporter, JsonlExporterConfig};
 use oisp_export::websocket::{WebSocketExporter, WebSocketExporterConfig};
@@ -412,34 +412,53 @@ fn load_config(cli_path: Option<PathBuf>) -> SensorConfig {
     }
 }
 
-/// Load app registry from oisp-app-registry if available
+/// Load app registry using hybrid approach:
+/// 1. Start with bundled apps.json (compiled into binary)
+/// 2. Try to fetch latest from GitHub (non-blocking)
+/// 3. Background refresh every 6 hours
 ///
-/// Searches for app profiles in common locations:
-/// 1. OISP_APP_REGISTRY env var
-/// 2. ../oisp-app-registry/apps (relative to exe)
-/// 3. ~/.config/oisp/app-registry/apps
-/// 4. /usr/local/share/oisp/app-registry/apps
-///
-/// Returns empty registry if no profiles found
-fn load_app_registry() -> Arc<AppRegistry> {
+/// Falls back to local directory loading if OISP_APP_REGISTRY env var is set.
+async fn load_app_registry() -> Arc<AppRegistry> {
     use directories::ProjectDirs;
 
-    let registry_paths: Vec<Option<PathBuf>> = vec![
-        // 1. Environment variable
-        std::env::var("OISP_APP_REGISTRY").ok().map(PathBuf::from),
-        // 2. Relative to current exe (dev mode)
+    // Check if user wants to use a local directory instead
+    if let Some(local_path) = std::env::var("OISP_APP_REGISTRY").ok().map(PathBuf::from) {
+        if local_path.exists() {
+            match AppRegistry::load_from_directory(&local_path) {
+                Ok(registry) => {
+                    info!(
+                        "Loaded {} app profiles from local directory {}",
+                        registry.len(),
+                        local_path.display()
+                    );
+                    return Arc::new(registry);
+                }
+                Err(e) => {
+                    warn!(
+                        "Failed to load app registry from {}: {}, falling back to bundled",
+                        local_path.display(),
+                        e
+                    );
+                }
+            }
+        }
+    }
+
+    // Also check legacy paths for backward compatibility
+    let legacy_paths: Vec<Option<PathBuf>> = vec![
+        // Relative to current exe (dev mode)
         std::env::current_exe()
             .ok()
             .and_then(|p| p.parent().map(|p| p.to_path_buf()))
             .map(|p| p.join("../../../oisp-app-registry/apps")),
-        // 3. User config directory
+        // User config directory
         ProjectDirs::from("com", "oximy", "oisp")
             .map(|dirs| dirs.config_dir().join("app-registry/apps")),
-        // 4. System-wide
+        // System-wide
         Some(PathBuf::from("/usr/local/share/oisp/app-registry/apps")),
     ];
 
-    for path in registry_paths.into_iter().flatten() {
+    for path in legacy_paths.into_iter().flatten() {
         if path.exists() {
             match AppRegistry::load_from_directory(&path) {
                 Ok(registry) => {
@@ -457,8 +476,21 @@ fn load_app_registry() -> Arc<AppRegistry> {
         }
     }
 
-    info!("No app registry found, using empty registry");
-    Arc::new(AppRegistry::new())
+    // Use hybrid approach: bundled + GitHub refresh
+    info!("Using hybrid app registry (bundled + GitHub refresh)");
+    let live_registry = LiveRegistry::new_with_refresh().await;
+
+    // Clone the current registry state for use with AppEnricher
+    // Note: This gives us a snapshot. In the future, we could make AppEnricher
+    // work with LiveRegistry directly for real-time updates.
+    let registry = live_registry.clone_registry().await;
+    info!("App registry initialized with {} apps", registry.len());
+
+    // Keep the live registry running in the background for refreshes
+    // The LiveRegistry will be dropped when the program exits, stopping the refresh task
+    std::mem::forget(live_registry);
+
+    Arc::new(registry)
 }
 
 /// Merge CLI arguments with config file settings
@@ -623,8 +655,8 @@ async fn record_command(config: RecordConfig) -> anyhow::Result<()> {
     pipeline.add_enrich(Box::new(HostEnricher::new()));
     pipeline.add_enrich(Box::new(ProcessTreeEnricher::new()));
 
-    // Add app enricher with registry loaded from oisp-app-registry if available
-    let app_registry = load_app_registry();
+    // Add app enricher with hybrid registry (bundled + GitHub refresh)
+    let app_registry = load_app_registry().await;
     pipeline.add_enrich(Box::new(AppEnricher::new(app_registry)));
 
     // Add redaction
@@ -969,8 +1001,8 @@ async fn demo_command(config: DemoConfig) -> anyhow::Result<()> {
     pipeline.add_enrich(Box::new(HostEnricher::new()));
     pipeline.add_enrich(Box::new(ProcessTreeEnricher::new()));
 
-    // Add app enricher with registry loaded from oisp-app-registry if available
-    let app_registry = load_app_registry();
+    // Add app enricher with hybrid registry (bundled + GitHub refresh)
+    let app_registry = load_app_registry().await;
     pipeline.add_enrich(Box::new(AppEnricher::new(app_registry)));
 
     // Add redaction

@@ -1,0 +1,348 @@
+---
+title: Linux Installation
+description: Install OISP Sensor on Linux using packages or binary
+---
+
+# Linux Installation
+
+Install OISP Sensor on any Linux distribution with native packages or standalone binary.
+
+---
+
+## Quick Install (Recommended)
+
+Download and install the binary:
+
+```bash
+# Download
+curl -fsSL https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor-x86_64-unknown-linux-gnu.tar.gz | tar xz
+
+# Install
+sudo mv oisp-sensor /usr/local/bin/
+sudo chmod +x /usr/local/bin/oisp-sensor
+
+# Set capabilities (allows running without full root)
+sudo setcap cap_sys_admin,cap_bpf,cap_perfmon,cap_net_admin+ep /usr/local/bin/oisp-sensor
+
+# Verify
+oisp-sensor --version
+```
+
+---
+
+## Installation Methods
+
+### Method 1: Package Manager
+
+Install using your distribution's native package manager.
+
+<Tabs>
+  <TabItem label="Ubuntu / Debian">
+    ```bash
+    # Download .deb package
+    curl -LO https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor_amd64.deb
+
+    # Install
+    sudo dpkg -i oisp-sensor_amd64.deb
+
+    # Fix dependencies if needed
+    sudo apt-get install -f
+    ```
+
+    **What gets installed:**
+    - Binary: `/usr/bin/oisp-sensor`
+    - Config: `/etc/oisp/config.toml`
+    - Service: `/lib/systemd/system/oisp-sensor.service`
+    - Logs: `/var/log/oisp/`
+  </TabItem>
+
+  <TabItem label="RHEL / Rocky / Alma / Fedora">
+    ```bash
+    # Download .rpm package
+    curl -LO https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor.x86_64.rpm
+
+    # Install (Fedora / Rocky / Alma)
+    sudo dnf install ./oisp-sensor.x86_64.rpm
+
+    # Or RHEL 8
+    sudo yum install ./oisp-sensor.x86_64.rpm
+    ```
+
+    **What gets installed:**
+    - Binary: `/usr/bin/oisp-sensor`
+    - Config: `/etc/oisp/config.toml`
+    - Service: `/usr/lib/systemd/system/oisp-sensor.service`
+    - Logs: `/var/log/oisp/`
+  </TabItem>
+</Tabs>
+
+---
+
+### Method 2: Binary Installation
+
+Portable binary installation without package manager:
+
+```bash
+# Download binary
+curl -fsSL https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor-x86_64-unknown-linux-gnu.tar.gz | tar xz
+
+# Install
+sudo mv oisp-sensor /usr/local/bin/
+sudo chmod +x /usr/local/bin/oisp-sensor
+
+# Set capabilities for non-root operation
+sudo setcap cap_sys_admin,cap_bpf,cap_perfmon,cap_net_admin+ep /usr/local/bin/oisp-sensor
+```
+
+**Manual systemd service setup:**
+
+```bash
+# Create service file
+sudo tee /etc/systemd/system/oisp-sensor.service > /dev/null <<EOF
+[Unit]
+Description=OISP Sensor - AI Activity Monitoring
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/oisp-sensor record --output /var/log/oisp/events.jsonl
+Restart=on-failure
+RestartSec=10
+
+# Capabilities
+AmbientCapabilities=CAP_SYS_ADMIN CAP_BPF CAP_PERFMON CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_SYS_ADMIN CAP_BPF CAP_PERFMON CAP_NET_ADMIN
+
+# Security
+NoNewPrivileges=no
+ProtectSystem=strict
+ReadWritePaths=/var/log/oisp
+ProtectHome=read-only
+PrivateTmp=true
+
+# Resource limits
+LimitMEMLOCK=infinity
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Create log directory
+sudo mkdir -p /var/log/oisp
+sudo chmod 755 /var/log/oisp
+
+# Enable and start service
+sudo systemctl daemon-reload
+sudo systemctl enable oisp-sensor
+sudo systemctl start oisp-sensor
+```
+
+---
+
+## Verify Installation
+
+After installation, verify OISP Sensor is working:
+
+### 1. Check Binary Version
+
+```bash
+oisp-sensor --version
+```
+
+### 2. Run System Check
+
+```bash
+oisp-sensor check
+```
+
+**Expected output:**
+
+```
+OISP Sensor System Check
+========================
+
+Platform: linux x86_64 (supported)
+
+Kernel Version:    6.8.0 [OK]
+BTF Support:       /sys/kernel/btf/vmlinux [OK]
+eBPF Filesystem:   /sys/fs/bpf [OK]
+Permissions:       CAP_BPF+CAP_PERFMON set [OK]
+
+SSL Libraries:
+  /usr/lib/x86_64-linux-gnu/libssl.so.3 [FOUND]
+
+Result: READY
+```
+
+### 3. Test Capture
+
+Run a simple test to verify capture works:
+
+```bash
+# Start sensor in one terminal
+sudo oisp-sensor record --output /tmp/test.jsonl
+
+# In another terminal, make an HTTPS request
+curl -s https://api.openai.com/v1/models > /dev/null
+
+# Stop sensor (Ctrl+C) and check events
+cat /tmp/test.jsonl | jq -r '.event_type' | sort | uniq -c
+```
+
+---
+
+## System Requirements
+
+Before installing, verify your system meets the requirements:
+
+### 1. Kernel Version
+
+```bash
+uname -r  # Should be >= 5.0 (5.8+ recommended)
+```
+
+### 2. BTF Support
+
+```bash
+ls /sys/kernel/btf/vmlinux  # Should exist
+```
+
+**If BTF is missing:**
+
+<Tabs>
+  <TabItem label="Ubuntu / Debian">
+    ```bash
+    # Install kernel headers
+    sudo apt-get install linux-headers-$(uname -r)
+    ```
+  </TabItem>
+
+  <TabItem label="RHEL / Rocky / Fedora">
+    ```bash
+    # Install kernel-devel
+    sudo dnf install kernel-devel
+    ```
+  </TabItem>
+</Tabs>
+
+### 3. BPF Filesystem
+
+```bash
+ls /sys/fs/bpf  # Should exist
+```
+
+### 4. OpenSSL Library
+
+```bash
+ldconfig -p | grep libssl  # Should show libssl.so.3 or libssl.so.1.1
+```
+
+---
+
+## ARM64 (aarch64)
+
+OISP Sensor fully supports ARM64 (Graviton, Raspberry Pi, etc.):
+
+```bash
+# Download ARM64 binary
+curl -fsSL https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor-aarch64-unknown-linux-gnu.tar.gz | tar xz
+
+# Install
+sudo mv oisp-sensor /usr/local/bin/
+sudo chmod +x /usr/local/bin/oisp-sensor
+sudo setcap cap_sys_admin,cap_bpf,cap_perfmon,cap_net_admin+ep /usr/local/bin/oisp-sensor
+```
+
+---
+
+## Troubleshooting Installation
+
+### "Permission denied" when running
+
+Run with `sudo` or set capabilities:
+
+```bash
+sudo setcap cap_sys_admin,cap_bpf,cap_perfmon,cap_net_admin+ep /usr/bin/oisp-sensor
+```
+
+### "BTF not found"
+
+Install kernel headers:
+
+```bash
+# Ubuntu/Debian
+sudo apt-get install linux-headers-$(uname -r)
+
+# RHEL/Fedora
+sudo dnf install kernel-devel
+```
+
+### "No SSL libraries found"
+
+Install OpenSSL:
+
+```bash
+# Ubuntu/Debian
+sudo apt-get install libssl3
+
+# RHEL/Fedora
+sudo dnf install openssl-libs
+```
+
+See [Troubleshooting Guide](./troubleshooting) for more issues.
+
+---
+
+## Uninstallation
+
+<Tabs>
+  <TabItem label="Ubuntu / Debian">
+    ```bash
+    # Stop service
+    sudo systemctl stop oisp-sensor
+    sudo systemctl disable oisp-sensor
+
+    # Remove package
+    sudo dpkg --purge oisp-sensor
+    ```
+  </TabItem>
+
+  <TabItem label="RHEL / Rocky / Fedora">
+    ```bash
+    # Stop service
+    sudo systemctl stop oisp-sensor
+    sudo systemctl disable oisp-sensor
+
+    # Remove package
+    sudo dnf remove oisp-sensor
+    ```
+  </TabItem>
+
+  <TabItem label="Binary Installation">
+    ```bash
+    # Stop service
+    sudo systemctl stop oisp-sensor
+    sudo systemctl disable oisp-sensor
+
+    # Remove files
+    sudo rm /usr/local/bin/oisp-sensor
+    sudo rm /etc/systemd/system/oisp-sensor.service
+    sudo rm -rf /var/log/oisp
+    sudo rm -rf /etc/oisp
+
+    # Reload systemd
+    sudo systemctl daemon-reload
+    ```
+  </TabItem>
+</Tabs>
+
+---
+
+## Next Steps
+
+1. **[Quick Start](./quick-start)** — See events in 5 minutes
+2. **[Running as a Service](./service)** — Configure systemd service
+3. **[Production Deployment](./production)** — Deploy to production
+4. **[Troubleshooting](./troubleshooting)** — Solve common issues
+

@@ -1,0 +1,170 @@
+---
+title: Windows Installation
+description: Install OISP Sensor on Windows
+---
+
+<Tip title="Beta Release">
+Windows support is **implemented and functional** but needs more real-world testing. We welcome feedback!
+</Tip>
+
+## Requirements
+
+- Windows 10/11 (64-bit)
+- Administrator privileges
+- ~50 MB disk space
+
+---
+
+## Installation
+
+### Option 1: Installer (Recommended)
+
+1. Download `oisp-sensor-setup.exe` from the [releases page](https://github.com/oximyHQ/oisp-sensor/releases)
+2. Run the installer (requires Administrator)
+3. Launch OISP from the Start Menu
+4. Right-click tray icon → "Install CA Certificate"
+5. Right-click tray icon → "Start Capture"
+
+### Option 2: Portable ZIP
+
+```powershell
+# Download
+Invoke-WebRequest -Uri https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor-x86_64-pc-windows-msvc.zip -OutFile oisp-sensor.zip
+
+# Extract
+Expand-Archive oisp-sensor.zip -DestinationPath C:\OISP
+
+# Run
+C:\OISP\OISPApp.exe
+```
+
+### Option 3: Build from Source
+
+```powershell
+# Prerequisites
+# - Rust 1.83+ (rustup)
+# - .NET 8 SDK
+# - Visual Studio Build Tools
+
+# Clone
+git clone https://github.com/oximyHQ/oisp-sensor.git
+cd oisp-sensor
+
+# Setup (downloads WinDivert)
+.\windows\Scripts\setup-dev.ps1
+
+# Build
+cargo build --release --bin oisp-sensor --bin oisp-redirector
+
+# Build .NET app
+cd windows\OISPApp
+dotnet build -c Release
+```
+
+---
+
+## Setup
+
+### 1. Install CA Certificate
+
+Right-click the OISP tray icon and select **"Install CA Certificate"**.
+
+This installs the OISP CA into the Windows certificate store, allowing HTTPS traffic to AI providers to be intercepted.
+
+<Warning>
+The CA certificate is only used for connections to AI provider domains. All other HTTPS traffic passes through unchanged.
+</Warning>
+
+### 2. Start Capture
+
+Right-click the OISP tray icon and select **"Start Capture"**.
+
+You'll see a UAC prompt because the redirector needs elevated privileges for WinDivert packet capture.
+
+### 3. Open Web UI
+
+Click the tray icon or go to [http://localhost:7777](http://localhost:7777) to see captured events.
+
+---
+
+## Verify Installation
+
+### Check Tray Icon
+
+The OISP icon in the system tray shows status:
+- **Green** — Capturing
+- **Yellow** — Running but not capturing
+- **Red** — Error
+
+### Test Capture
+
+Make an API call and check the web UI:
+
+```powershell
+# Make a test API call
+$headers = @{
+    "Authorization" = "Bearer $env:OPENAI_API_KEY"
+}
+Invoke-RestMethod -Uri "https://api.openai.com/v1/models" -Headers $headers
+
+# Open web UI
+Start-Process "http://localhost:7777"
+```
+
+---
+
+## Settings
+
+Right-click the tray icon → **Settings** to configure:
+
+- **Auto-start on login** — Launch OISP when Windows starts
+- **Auto-start capture** — Begin capturing automatically
+- **Web UI port** — Change from default 7777
+- **Export options** — JSONL, WebSocket, OTLP
+
+---
+
+## Uninstallation
+
+### Installer
+
+1. **Settings** → **Apps** → **OISP Sensor** → **Uninstall**
+
+### Portable
+
+1. Right-click tray icon → **Exit**
+2. Delete the OISP folder
+3. Remove CA certificate:
+   - Open **certmgr.msc**
+   - Navigate to **Trusted Root Certification Authorities** → **Certificates**
+   - Find and delete **OISP CA**
+
+---
+
+## Troubleshooting
+
+### WinDivert won't load
+
+1. Ensure you're running as Administrator
+2. Check Windows Defender isn't blocking WinDivert
+3. Try running: `sc query WinDivert`
+
+### Certificate errors
+
+1. Verify CA is installed: Open **certmgr.msc** → **Trusted Root Certification Authorities**
+2. Re-install via tray icon → "Install CA Certificate"
+3. Restart browser after installing
+
+### No events captured
+
+1. Check capture is started (tray icon should be green)
+2. Verify AI endpoint is in the filter list
+3. Check Windows Firewall isn't blocking
+
+---
+
+## Next Steps
+
+- [Quick Start](./quick-start) — Capture your first events
+- [Overview](./overview) — Understand the architecture
+

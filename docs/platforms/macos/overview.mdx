@@ -1,0 +1,93 @@
+---
+title: macOS Overview
+description: OISP Sensor on macOS - architecture and capabilities
+---
+
+<Tip title="Beta Release">
+macOS support is **implemented and functional** but needs more real-world testing. We welcome feedback from beta testers!
+</Tip>
+
+## Architecture
+
+OISP Sensor on macOS uses a Network Extension to transparently intercept HTTPS traffic to AI providers:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  OISP Menu Bar App (SwiftUI)                 │
+│  Status display, settings, extension control                │
+└────────────────────────┬────────────────────────────────────┘
+                         │ Unix Domain Socket
+┌────────────────────────▼────────────────────────────────────┐
+│                   oisp-sensor (Rust)                         │
+│  Receives events, decodes HTTP, emits to dashboard/exports  │
+└────────────────────────▲────────────────────────────────────┘
+                         │ Unix Domain Socket
+┌────────────────────────┴────────────────────────────────────┐
+│               OISP Network Extension                         │
+│  NETransparentProxyProvider + TLS MITM + Event Emission     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## What's Implemented
+
+| Component | Status | Description |
+|-----------|:------:|-------------|
+| **Network Extension** | ✅ Done | `NETransparentProxyProvider` for traffic interception |
+| **TLS Interceptor** | ✅ Done | MITM proxy with dynamic certificate generation |
+| **Certificate Authority** | ✅ Done | Local CA for signing intercepted connections |
+| **AI Endpoint Filter** | ✅ Done | Filters traffic to AI provider domains only |
+| **Process Attribution** | ✅ Done | Identifies which app made each request via audit token |
+| **Menu Bar App** | ✅ Done | SwiftUI app for status and control |
+| **Unix Socket Bridge** | ✅ Done | IPC between extension and oisp-sensor |
+
+## Supported AI Providers
+
+Traffic to these endpoints is automatically intercepted:
+
+| Provider | Endpoints |
+|----------|-----------|
+| OpenAI | api.openai.com |
+| Anthropic | api.anthropic.com |
+| Google AI | generativelanguage.googleapis.com, aiplatform.googleapis.com |
+| Azure OpenAI | *.openai.azure.com |
+| AWS Bedrock | bedrock-runtime.*.amazonaws.com |
+| Cohere | api.cohere.ai, api.cohere.com |
+| Mistral | api.mistral.ai |
+| Groq | api.groq.com |
+| Together AI | api.together.xyz, api.together.ai |
+| Fireworks | api.fireworks.ai |
+| Perplexity | api.perplexity.ai |
+| OpenRouter | openrouter.ai, api.openrouter.ai |
+| Replicate | api.replicate.com |
+| Hugging Face | api-inference.huggingface.co |
+| DeepSeek | api.deepseek.com |
+| xAI (Grok) | api.x.ai |
+| Local (Ollama) | localhost, 127.0.0.1 |
+
+## Requirements
+
+- **macOS 13.0** (Ventura) or later
+- **Apple Silicon** (M1/M2/M3/M4) or Intel Mac
+- **Admin access** for extension approval
+- Trust the OISP CA certificate
+
+## How It Works
+
+1. **Network Extension** intercepts outbound HTTPS connections to AI providers
+2. **TLS Interceptor** performs MITM using a locally-generated CA
+3. **Plaintext HTTP** is extracted and sent to oisp-sensor via Unix socket
+4. **oisp-sensor** decodes AI-specific fields and exports events
+
+## What Needs Testing
+
+- Long-running stability
+- Edge cases with different AI SDKs
+- Certificate trust flow UX
+- Memory usage under load
+- Different macOS versions
+
+## Next Steps
+
+- [Installation](./installation) — Download and install
+- [Quick Start](./quick-start) — Get started capturing events
+

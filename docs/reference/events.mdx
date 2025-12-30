@@ -1,0 +1,464 @@
+---
+title: Event Schema
+description: Complete reference for OISP event types and data structures
+---
+
+OISP Sensor emits structured events in JSONL format. Each event has a common envelope with type-specific data.
+
+## Event Envelope
+
+Every event shares this structure:
+
+```json
+{
+  "oisp_version": "0.1",
+  "event_id": "01HQXYZ...",
+  "event_type": "ai.request",
+  "timestamp": "2025-01-15T10:30:00.123Z",
+  "host": { /* host context */ },
+  "actor": { /* user context */ },
+  "process": { /* process context */ },
+  "app": { /* app identification */ },
+  "data": { /* event-specific data */ }
+}
+```
+
+### Common Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `oisp_version` | string | OISP schema version |
+| `event_id` | string | Unique event ID (ULID) |
+| `event_type` | string | Event type identifier |
+| `timestamp` | string | ISO 8601 timestamp |
+
+---
+
+## Event Types
+
+### AI Events
+
+| Type | Description |
+|------|-------------|
+| `ai.request` | AI API request sent |
+| `ai.response` | AI API response received |
+| `ai.streaming_chunk` | Streaming response chunk |
+| `ai.embedding` | Embedding request/response |
+
+### Agent Events
+
+| Type | Description |
+|------|-------------|
+| `agent.tool_call` | Tool invocation by AI agent |
+| `agent.tool_result` | Tool execution result |
+| `agent.plan_step` | Agent planning step |
+| `agent.session` | Agent session start/end |
+
+### Process Events
+
+| Type | Description |
+|------|-------------|
+| `process.exec` | Process execution |
+| `process.exit` | Process termination |
+| `process.fork` | Process fork |
+
+### File Events
+
+| Type | Description |
+|------|-------------|
+| `file.read` | File read operation |
+| `file.write` | File write operation |
+| `file.open` | File opened |
+| `file.close` | File closed |
+
+### Network Events
+
+| Type | Description |
+|------|-------------|
+| `network.connect` | TCP connection established |
+| `network.dns` | DNS resolution |
+
+---
+
+## Context Objects
+
+### Host Context
+
+```json
+{
+  "host": {
+    "hostname": "johns-macbook",
+    "os": "macos",
+    "os_version": "14.0",
+    "arch": "arm64",
+    "device_id": "ABC123..."
+  }
+}
+```
+
+### Actor Context
+
+```json
+{
+  "actor": {
+    "uid": 501,
+    "username": "john",
+    "gid": 20,
+    "session_id": "abc123"
+  }
+}
+```
+
+### Process Context
+
+```json
+{
+  "process": {
+    "pid": 12345,
+    "ppid": 1234,
+    "name": "python",
+    "exe": "/usr/bin/python3",
+    "cmdline": ["python", "app.py"],
+    "cwd": "/home/john/project",
+    "bundle_id": "com.cursor.Cursor",
+    "code_signature": {
+      "team_id": "ABC123",
+      "signed": true
+    }
+  }
+}
+```
+
+### App Context
+
+```json
+{
+  "app": {
+    "id": "cursor",
+    "name": "Cursor",
+    "tier": "identified",
+    "category": "ide"
+  }
+}
+```
+
+App tiers:
+- `unknown`: Process not matched to known app
+- `identified`: Matched by signature
+- `profiled`: Full profile with expected behavior
+
+### Web Context
+
+For browser-based AI (ChatGPT, Claude.ai):
+
+```json
+{
+  "web": {
+    "origin": "https://chat.openai.com",
+    "referer": "https://chat.openai.com/c/abc123",
+    "web_app_id": "chatgpt-web",
+    "web_app_name": "ChatGPT",
+    "web_app_type": "direct"
+  }
+}
+```
+
+---
+
+## AI Request Event
+
+```json
+{
+  "event_type": "ai.request",
+  "data": {
+    "provider": {
+      "id": "openai",
+      "name": "OpenAI",
+      "endpoint": "https://api.openai.com/v1/chat/completions"
+    },
+    "model": {
+      "id": "gpt-4o",
+      "family": "gpt-4"
+    },
+    "request_type": "chat",
+    "streaming": false,
+    "message_count": 3,
+    "system_prompt_hash": "sha256:abc123...",
+    "tools": [
+      {
+        "name": "get_weather",
+        "type": "function"
+      }
+    ],
+    "parameters": {
+      "temperature": 0.7,
+      "max_tokens": 4096
+    },
+    "token_estimate": {
+      "input": 150,
+      "estimated_cost_usd": 0.0015
+    },
+    "auth": {
+      "type": "bearer",
+      "key_prefix": "sk-proj-"
+    }
+  }
+}
+```
+
+### AI Request Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `provider.id` | string | Provider identifier |
+| `provider.endpoint` | string | API endpoint URL |
+| `model.id` | string | Model identifier |
+| `model.family` | string | Model family |
+| `request_type` | string | `chat`, `completion`, `embedding`, etc. |
+| `streaming` | boolean | Streaming request |
+| `message_count` | integer | Number of messages |
+| `system_prompt_hash` | string | Hash of system prompt |
+| `tools` | array | Tool definitions |
+| `parameters` | object | Model parameters |
+| `token_estimate` | object | Estimated tokens/cost |
+
+---
+
+## AI Response Event
+
+```json
+{
+  "event_type": "ai.response",
+  "data": {
+    "provider": {
+      "id": "openai",
+      "name": "OpenAI"
+    },
+    "model": {
+      "id": "gpt-4o"
+    },
+    "request_id": "chatcmpl-abc123",
+    "related_event_id": "01HQXYZ...",
+    "choices": [
+      {
+        "index": 0,
+        "finish_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content_length": 256
+        }
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 150,
+      "completion_tokens": 50,
+      "total_tokens": 200
+    },
+    "cost": {
+      "usd": 0.003
+    },
+    "latency_ms": 1250
+  }
+}
+```
+
+### AI Response Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `request_id` | string | Provider's request ID |
+| `related_event_id` | string | Corresponding `ai.request` event ID |
+| `choices` | array | Response choices |
+| `usage.prompt_tokens` | integer | Input tokens |
+| `usage.completion_tokens` | integer | Output tokens |
+| `cost.usd` | number | Cost in USD |
+| `latency_ms` | integer | Response latency |
+
+---
+
+## Agent Tool Call Event
+
+```json
+{
+  "event_type": "agent.tool_call",
+  "data": {
+    "tool": {
+      "name": "read_file",
+      "type": "function"
+    },
+    "arguments": {
+      "path": "/home/user/document.txt"
+    },
+    "call_id": "call_abc123",
+    "related_event_id": "01HQXYZ..."
+  }
+}
+```
+
+---
+
+## Agent Tool Result Event
+
+```json
+{
+  "event_type": "agent.tool_result",
+  "data": {
+    "tool": {
+      "name": "read_file"
+    },
+    "call_id": "call_abc123",
+    "success": true,
+    "result_length": 1024,
+    "duration_ms": 15
+  }
+}
+```
+
+---
+
+## Process Exec Event
+
+```json
+{
+  "event_type": "process.exec",
+  "data": {
+    "pid": 12345,
+    "ppid": 1234,
+    "exe": "/bin/bash",
+    "args": ["-c", "echo hello"],
+    "cwd": "/home/user",
+    "env": {
+      "PATH": "/usr/bin:/bin"
+    }
+  }
+}
+```
+
+---
+
+## File Write Event
+
+```json
+{
+  "event_type": "file.write",
+  "data": {
+    "path": "/home/user/output.txt",
+    "size": 1024,
+    "flags": ["O_WRONLY", "O_CREAT"],
+    "related_process_pid": 12345
+  }
+}
+```
+
+---
+
+## Network Connect Event
+
+```json
+{
+  "event_type": "network.connect",
+  "data": {
+    "local": {
+      "ip": "192.168.1.100",
+      "port": 54321
+    },
+    "remote": {
+      "ip": "104.18.7.38",
+      "port": 443,
+      "hostname": "api.openai.com"
+    },
+    "protocol": "tcp",
+    "tls": true
+  }
+}
+```
+
+---
+
+## Providers
+
+OISP detects 95+ AI providers. Common ones:
+
+| Provider | ID | Domains |
+|----------|-----|---------|
+| OpenAI | `openai` | `api.openai.com` |
+| Anthropic | `anthropic` | `api.anthropic.com` |
+| Google | `google` | `generativelanguage.googleapis.com` |
+| Azure OpenAI | `azure` | `*.openai.azure.com` |
+| AWS Bedrock | `aws-bedrock` | `bedrock-runtime.*.amazonaws.com` |
+| Mistral | `mistral` | `api.mistral.ai` |
+| Groq | `groq` | `api.groq.com` |
+| Together | `together` | `api.together.xyz` |
+| Ollama | `ollama` | `localhost:11434` |
+
+See [OISP Spec](https://oisp.dev) for complete provider list.
+
+---
+
+## Redaction
+
+When redaction is enabled (default `safe` mode), sensitive data is replaced:
+
+```json
+{
+  "data": {
+    "system_prompt_hash": "sha256:abc123...",
+    "messages_redacted": true,
+    "redaction": {
+      "original_hash": "sha256:def456...",
+      "patterns_found": ["email", "api_key"],
+      "redaction_count": 3
+    }
+  }
+}
+```
+
+### Redaction Modes
+
+| Mode | Behavior |
+|------|----------|
+| `safe` | Hash content, redact PII patterns |
+| `full` | No redaction (development only) |
+| `minimal` | Replace all content with `[REDACTED]` |
+
+---
+
+## Output Formats
+
+### JSONL (Default)
+
+One JSON object per line:
+
+```bash
+oisp-sensor record --output events.jsonl
+```
+
+### WebSocket
+
+Real-time streaming to web clients:
+
+```bash
+oisp-sensor record --web --port 7777
+# Connect: ws://localhost:7777/ws
+```
+
+### OTLP
+
+OpenTelemetry Protocol export:
+
+```toml
+[export.otlp]
+enabled = true
+endpoint = "http://localhost:4317"
+```
+
+### Kafka
+
+Stream to Kafka topics:
+
+```toml
+[export.kafka]
+enabled = true
+brokers = ["localhost:9092"]
+topic = "oisp-events"
+```

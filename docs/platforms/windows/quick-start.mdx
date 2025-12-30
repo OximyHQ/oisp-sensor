@@ -1,0 +1,130 @@
+---
+title: Windows Quick Start
+description: Capture AI events on Windows in 5 minutes
+---
+
+<Tip title="Beta Release">
+Windows support is implemented and functional. We welcome feedback on any issues!
+</Tip>
+
+Capture AI API calls from any application on Windows.
+
+---
+
+## Prerequisites
+
+- Windows 10/11 (64-bit)
+- OISP installed (see [Installation](./installation))
+- CA certificate installed
+- Administrator privileges
+
+---
+
+## Start Capturing
+
+1. **Launch OISP** from the Start Menu or system tray
+
+2. **Install CA** (first time) — Right-click tray icon → "Install CA Certificate"
+
+3. **Start Capture** — Right-click tray icon → "Start Capture"
+   - Accept the UAC prompt (WinDivert needs elevation)
+
+4. **Open Web UI** — Go to [http://localhost:7777](http://localhost:7777)
+
+---
+
+## Generate AI Activity
+
+Make an AI API call to test:
+
+### Python
+
+```python
+import openai
+client = openai.OpenAI()
+response = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+print(response.choices[0].message.content)
+```
+
+### PowerShell
+
+```powershell
+$headers = @{
+    "Content-Type" = "application/json"
+    "Authorization" = "Bearer $env:OPENAI_API_KEY"
+}
+$body = @{
+    model = "gpt-4o-mini"
+    messages = @(@{role = "user"; content = "Hello!"})
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri "https://api.openai.com/v1/chat/completions" -Method Post -Headers $headers -Body $body
+```
+
+### Any AI Tool
+
+Use Cursor, Claude CLI, ChatGPT apps, or any AI application. OISP captures it automatically.
+
+---
+
+## See Events
+
+The Web UI at [http://localhost:7777](http://localhost:7777) shows:
+
+- **ai.request** — Outgoing API calls
+- **ai.response** — Responses with tokens and latency
+- **Process info** — Which app made each call
+
+---
+
+## Tray Icon Controls
+
+Right-click the OISP icon in the system tray:
+
+| Action | Description |
+|--------|-------------|
+| **Start Capture** | Begin intercepting AI traffic |
+| **Stop Capture** | Pause capture |
+| **Install CA Certificate** | Add CA to Windows trust store |
+| **Settings** | Configure exports, filters |
+| **Exit** | Quit OISP |
+
+---
+
+## Tray Icon Colors
+
+| Color | Status |
+|-------|--------|
+| **Green** | Capturing |
+| **Yellow** | Running but not capturing |
+| **Red** | Error |
+
+---
+
+## Troubleshooting
+
+### No events appearing?
+
+1. **Check tray icon is green** — Capture must be started
+2. **Check CA is installed** — certmgr.msc → Trusted Root CAs
+3. **Check WinDivert** — Run `sc query WinDivert` in Admin PowerShell
+
+### UAC prompt every time?
+
+This is normal. WinDivert requires elevation. You can configure auto-start to reduce prompts.
+
+### Antivirus blocking?
+
+Add OISP folder to antivirus exclusions. WinDivert drivers may be flagged.
+
+---
+
+## Next Steps
+
+- [Installation](./installation) — Full setup details
+- [Overview](./overview) — How it works
+- [Configuration](/configuration/config-file/) — Customize exports
+

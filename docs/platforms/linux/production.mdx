@@ -1,0 +1,705 @@
+---
+title: Production Deployment
+description: Deploy OISP Sensor in production with security hardening, monitoring, and performance tuning
+---
+
+# Production Deployment
+
+Deploy OISP Sensor in production environments with proper security, monitoring, and performance tuning.
+
+## Pre-Deployment Checklist
+
+Before deploying to production:
+
+- [ ] Kernel >= 5.8 with BTF support (`oisp-sensor check`)
+- [ ] OpenSSL library installed
+- [ ] Systemd service enabled
+- [ ] Configuration file created at `/etc/oisp/config.toml`
+- [ ] Redaction mode set to `safe` or `full`
+- [ ] Log rotation configured
+- [ ] Monitoring/alerting set up
+- [ ] Firewall configured (if exposing Web UI)
+- [ ] TLS reverse proxy configured (if remote access)
+- [ ] Backup strategy for event logs
+- [ ] Tested failover/restart behavior
+- [ ] Documentation for your team
+
+---
+
+## System Requirements
+
+### Minimum Production Requirements
+
+| Component | Requirement | Recommended |
+|-----------|-------------|-------------|
+| **Kernel** | Linux 5.8+ | Latest stable |
+| **BTF** | Required | CONFIG_DEBUG_INFO_BTF=y |
+| **Memory** | 256MB RAM | 512MB+ |
+| **CPU** | 1 core | 2+ cores |
+| **Disk** | 1GB free | 5GB+ for logs |
+| **OpenSSL** | 1.1.x or 3.x | Latest in your distro |
+
+### Verify System Compatibility
+
+Run the built-in system check:
+
+```bash
+oisp-sensor check
+```
+
+**Expected output:**
+
+```
+OISP Sensor System Check
+========================
+
+Platform: linux x86_64 (supported)
+Distribution: Ubuntu 24.04
+
+Kernel Version:    6.8.0 [OK]
+BTF Support:       /sys/kernel/btf/vmlinux [OK]
+eBPF Filesystem:   /sys/fs/bpf [OK]
+Permissions:       CAP_BPF+CAP_PERFMON set [OK]
+Systemd:           Available [OK]
+
+SSL Libraries:
+  /usr/lib/x86_64-linux-gnu/libssl.so.3 [FOUND]
+
+Result: READY
+```
+
+---
+
+## Configuration
+
+### Production Config File
+
+Create `/etc/oisp/config.toml`:
+
+```toml
+[sensor]
+name = "prod-server-01"  # Unique identifier for this sensor
+
+[capture]
+ssl = true
+process = true
+file = true
+network = true
+
+# Optional: Filter by specific processes
+# process_filter = ["python3", "node", "java"]
+
+# Optional: Additional SSL binary paths for NVM/pyenv
+# ssl_binary_paths = [
+#     "~/.nvm/versions/node/*/bin/node",
+#     "~/.pyenv/versions/*/bin/python*",
+# ]
+
+[redaction]
+mode = "safe"  # safe (recommended), full (debug only), minimal
+
+# Custom redaction patterns
+redact_patterns = [
+    "sk-[a-zA-Z0-9]{48}",      # OpenAI keys
+    "xai-[a-zA-Z0-9]{48}",     # xAI keys
+    "AKIA[0-9A-Z]{16}",        # AWS keys
+    "INTERNAL_SECRET_\\w+",     # Custom pattern
+]
+
+[export.jsonl]
+enabled = true
+path = "/var/log/oisp/events.jsonl"
+append = true
+rotate = true
+max_size_mb = 100
+
+[export.otlp]
+enabled = false
+endpoint = "https://otel.example.com:4317"
+headers = { "x-api-key" = "${OTLP_API_KEY}" }
+
+[export.kafka]
+enabled = false
+brokers = ["kafka1.example.com:9092", "kafka2.example.com:9092"]
+topic = "oisp-events"
+
+[export.webhook]
+enabled = false
+url = "https://your-webhook.example.com/oisp"
+headers = { "Authorization" = "Bearer ${WEBHOOK_TOKEN}" }
+
+[web]
+enabled = false  # Disable in production (use dedicated monitoring)
+host = "127.0.0.1"  # NEVER use 0.0.0.0 in production without firewall
+port = 7777
+```
+
+### Environment Variables
+
+For sensitive values, use environment variables:
+
+**Create `/etc/systemd/system/oisp-sensor.service.d/override.conf`:**
+
+```bash
+sudo systemctl edit oisp-sensor
+```
+
+Add:
+
+```ini
+[Service]
+Environment="OISP_CONFIG=/etc/oisp/config.toml"
+Environment="RUST_LOG=info"
+Environment="OTLP_API_KEY=your-api-key-here"
+Environment="WEBHOOK_TOKEN=your-token-here"
+```
+
+Reload:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart oisp-sensor
+```
+
+---
+
+## Security
+
+### Run as Non-Root
+
+After package installation, configure non-root operation:
+
+```bash
+# 1. Set capabilities on binary (done by package installer)
+sudo setcap cap_sys_admin,cap_bpf,cap_perfmon,cap_net_admin+ep /usr/bin/oisp-sensor
+
+# 2. Verify oisp user exists (created by package)
+id oisp
+
+# 3. Update systemd service (if not already set)
+sudo systemctl edit oisp-sensor
+```
+
+Add if not present:
+
+```ini
+[Service]
+User=oisp
+Group=oisp
+```
+
+Restart:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart oisp-sensor
+```
+
+### File Permissions
+
+Restrict access to sensitive files:
+
+```bash
+# Config file
+sudo chmod 640 /etc/oisp/config.toml
+sudo chown oisp:oisp /etc/oisp/config.toml
+
+# Log directory
+sudo chmod 755 /var/log/oisp
+sudo chown oisp:oisp /var/log/oisp
+
+# Event log file
+sudo chmod 640 /var/log/oisp/events.jsonl
+sudo chown oisp:oisp /var/log/oisp/events.jsonl
+```
+
+### Firewall Configuration
+
+If exposing the Web UI (not recommended in production):
+
+<Tabs>
+  <TabItem label="ufw (Ubuntu/Debian)">
+    ```bash
+    # Allow from specific IP range only
+    sudo ufw allow from 192.168.1.0/24 to any port 7777
+
+    # Or allow from specific IP
+    sudo ufw allow from 192.168.1.100 to any port 7777
+    ```
+  </TabItem>
+
+  <TabItem label="firewalld (RHEL/Fedora)">
+    ```bash
+    # Allow from specific IP range
+    sudo firewall-cmd --permanent --add-rich-rule='
+      rule family="ipv4"
+      source address="192.168.1.0/24"
+      port protocol="tcp" port="7777" accept'
+
+    sudo firewall-cmd --reload
+    ```
+  </TabItem>
+</Tabs>
+
+### TLS Reverse Proxy
+
+For production Web UI access, use a TLS reverse proxy:
+
+**nginx example:**
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name oisp.example.com;
+
+    ssl_certificate /etc/letsencrypt/live/oisp.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/oisp.example.com/privkey.pem;
+
+    # Security headers
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+
+    location / {
+        proxy_pass http://127.0.0.1:7777;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Authentication (basic auth example)
+        auth_basic "OISP Sensor";
+        auth_basic_user_file /etc/nginx/.htpasswd;
+    }
+}
+```
+
+Create password file:
+
+```bash
+sudo htpasswd -c /etc/nginx/.htpasswd admin
+```
+
+---
+
+## Monitoring
+
+### Health Checks
+
+#### 1. Service Status
+
+```bash
+# Check if service is active
+sudo systemctl is-active oisp-sensor
+
+# Get detailed status
+sudo systemctl status oisp-sensor
+```
+
+#### 2. Process Check
+
+```bash
+# Verify process is running
+ps aux | grep oisp-sensor
+
+# Check resource usage
+top -p $(pgrep oisp-sensor)
+```
+
+#### 3. Event Capture Check
+
+```bash
+# Check recent events
+tail -f /var/log/oisp/events.jsonl
+
+# Count events in last 5 minutes
+sudo journalctl -u oisp-sensor --since "5 minutes ago" | grep -c "Captured"
+```
+
+#### 4. eBPF Programs Check
+
+```bash
+# Verify eBPF programs are loaded
+sudo bpftool prog list | grep oisp
+```
+
+#### 5. Web UI Health Endpoint
+
+If Web UI is enabled:
+
+```bash
+curl http://localhost:7777/health
+# Returns: {"status":"ok"}
+```
+
+### Metrics
+
+The sensor exposes metrics via Web UI at `/metrics`:
+
+```bash
+curl http://localhost:7777/metrics
+```
+
+**Key metrics:**
+- `oisp_events_total` - Total events captured
+- `oisp_events_per_second` - Current event rate
+- `oisp_buffer_usage` - eBPF ring buffer utilization (%)
+- `oisp_cpu_usage` - CPU usage (%)
+- `oisp_memory_bytes` - Memory usage (bytes)
+
+### Logging
+
+#### View Logs
+
+```bash
+# Real-time logs
+sudo journalctl -u oisp-sensor -f
+
+# Last 100 lines
+sudo journalctl -u oisp-sensor -n 100
+
+# Logs since boot
+sudo journalctl -u oisp-sensor -b
+
+# Logs with timestamps
+sudo journalctl -u oisp-sensor -o short-iso
+
+# Filter by priority
+sudo journalctl -u oisp-sensor -p err  # Errors only
+```
+
+#### Log Rotation
+
+**Automatic rotation with logrotate:**
+
+Create `/etc/logrotate.d/oisp-sensor`:
+
+```
+/var/log/oisp/events.jsonl {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 oisp oisp
+    postrotate
+        /bin/systemctl reload oisp-sensor > /dev/null 2>&1 || true
+    endscript
+}
+```
+
+**Test rotation:**
+
+```bash
+sudo logrotate -f /etc/logrotate.d/oisp-sensor
+```
+
+**Weekly rotation for high-volume:**
+
+```
+/var/log/oisp/events.jsonl {
+    weekly
+    rotate 4
+    compress
+    delaycompress
+    missingok
+    notifempty
+    maxsize 500M
+    create 0640 oisp oisp
+    postrotate
+        /bin/systemctl reload oisp-sensor > /dev/null 2>&1 || true
+    endscript
+}
+```
+
+---
+
+## Performance Tuning
+
+### Resource Usage
+
+Typical production usage (Ubuntu 24.04, Intel Core i7):
+
+| Load | CPU | Memory | Disk I/O |
+|------|-----|--------|----------|
+| **Idle** | &lt;0.5% | 80MB | &lt;100 KB/s |
+| **Light** (10 req/s) | &lt;2% | 150MB | &lt;1 MB/s |
+| **Heavy** (100 req/s) | &lt;5% | 300MB | &lt;10 MB/s |
+
+### High-Throughput Optimization
+
+For systems with >1000 req/sec:
+
+#### 1. Increase eBPF Ring Buffer
+
+Requires recompilation (advanced):
+
+```c
+// In bpf/sslsniff.bpf.c
+#define RING_BUFFER_SIZE (8 << 20)  // 8MB instead of 2MB
+```
+
+#### 2. Adjust Systemd Resource Limits
+
+```bash
+sudo systemctl edit oisp-sensor
+```
+
+Add:
+
+```ini
+[Service]
+LimitNOFILE=1000000
+LimitMEMLOCK=infinity
+CPUQuota=200%  # Limit to 2 cores max
+MemoryMax=1G   # Limit to 1GB max
+```
+
+#### 3. Enable Batched Exports
+
+For OTLP/Kafka:
+
+```toml
+[export.otlp]
+enabled = true
+endpoint = "http://collector:4317"
+batch_size = 100
+batch_timeout_ms = 1000
+```
+
+```toml
+[export.kafka]
+enabled = true
+brokers = ["kafka1:9092"]
+topic = "oisp-events"
+batch_size = 100
+batch_timeout_ms = 1000
+compression = "snappy"
+```
+
+#### 4. Disable UI in Production
+
+```bash
+sudo systemctl edit oisp-sensor
+```
+
+```ini
+[Service]
+ExecStart=
+ExecStart=/usr/bin/oisp-sensor record --no-web --output /var/log/oisp/events.jsonl
+```
+
+#### 5. Optimize Disk I/O
+
+Use a fast SSD for log files:
+
+```bash
+# Move logs to SSD
+sudo mkdir -p /mnt/ssd/oisp-logs
+sudo chown oisp:oisp /mnt/ssd/oisp-logs
+
+# Update config
+sudo nano /etc/oisp/config.toml
+# Change path to: /mnt/ssd/oisp-logs/events.jsonl
+```
+
+Or use tmpfs for temporary logs:
+
+```bash
+# Create tmpfs mount
+sudo mkdir -p /var/log/oisp-tmp
+sudo mount -t tmpfs -o size=1G tmpfs /var/log/oisp-tmp
+sudo chown oisp:oisp /var/log/oisp-tmp
+
+# Add to /etc/fstab for persistence
+echo "tmpfs /var/log/oisp-tmp tmpfs size=1G,uid=oisp,gid=oisp 0 0" | sudo tee -a /etc/fstab
+```
+
+---
+
+## Multi-Node Deployment
+
+### Centralized Logging
+
+**Option 1: OTLP to OpenTelemetry Collector**
+
+```toml
+# /etc/oisp/config.toml on each node
+[export.otlp]
+enabled = true
+endpoint = "http://otel-collector.example.com:4317"
+headers = { "x-sensor-id" = "${HOSTNAME}" }
+```
+
+**Option 2: Kafka**
+
+```toml
+# /etc/oisp/config.toml on each node
+[export.kafka]
+enabled = true
+brokers = ["kafka1:9092", "kafka2:9092", "kafka3:9092"]
+topic = "oisp-events-{sensor_name}"
+```
+
+### Configuration Management
+
+Use Ansible/Puppet/Chef to deploy config:
+
+**Ansible example:**
+
+```yaml
+# playbook.yml
+- name: Deploy OISP Sensor
+  hosts: all
+  tasks:
+    - name: Install OISP Sensor
+      apt:
+        deb: https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor_0.2.0_amd64.deb
+      when: ansible_os_family == "Debian"
+
+    - name: Install OISP Sensor (RHEL)
+      dnf:
+        name: https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor-0.2.0-1.x86_64.rpm
+      when: ansible_os_family == "RedHat"
+
+    - name: Configure sensor
+      template:
+        src: templates/oisp-config.toml.j2
+        dest: /etc/oisp/config.toml
+        mode: 0640
+        owner: oisp
+        group: oisp
+
+    - name: Enable and start service
+      systemd:
+        name: oisp-sensor
+        enabled: yes
+        state: started
+```
+
+---
+
+## Alerting
+
+### Systemd Journal Alerts
+
+Forward critical logs to syslog for alerting:
+
+```bash
+# Configure journald to forward to syslog
+sudo nano /etc/systemd/journald.conf
+```
+
+Uncomment and set:
+
+```ini
+[Journal]
+ForwardToSyslog=yes
+```
+
+Restart journald:
+
+```bash
+sudo systemctl restart systemd-journald
+```
+
+### Monitor Service Failures
+
+Create alert script:
+
+```bash
+sudo tee /usr/local/bin/oisp-alert.sh > /dev/null <<'EOF'
+#!/bin/bash
+if ! systemctl is-active --quiet oisp-sensor; then
+  # Send alert (example: email, Slack, PagerDuty)
+  echo "ALERT: OISP Sensor is down on $(hostname)" | mail -s "OISP Alert" ops@example.com
+fi
+EOF
+
+sudo chmod +x /usr/local/bin/oisp-alert.sh
+```
+
+Add to cron:
+
+```bash
+# Run every 5 minutes
+echo "*/5 * * * * /usr/local/bin/oisp-alert.sh" | sudo crontab -
+```
+
+---
+
+## Backup and Recovery
+
+### Backup Event Logs
+
+```bash
+# Daily backup script
+sudo tee /usr/local/bin/oisp-backup.sh > /dev/null <<'EOF'
+#!/bin/bash
+BACKUP_DIR="/backup/oisp"
+DATE=$(date +%Y-%m-%d)
+
+mkdir -p "$BACKUP_DIR"
+cp /var/log/oisp/events.jsonl "$BACKUP_DIR/events-$DATE.jsonl"
+gzip "$BACKUP_DIR/events-$DATE.jsonl"
+
+# Keep last 30 days
+find "$BACKUP_DIR" -name "events-*.jsonl.gz" -mtime +30 -delete
+EOF
+
+sudo chmod +x /usr/local/bin/oisp-backup.sh
+
+# Add to cron (daily at 2 AM)
+echo "0 2 * * * /usr/local/bin/oisp-backup.sh" | sudo crontab -
+```
+
+### Disaster Recovery
+
+**Restore from backup:**
+
+```bash
+# Stop sensor
+sudo systemctl stop oisp-sensor
+
+# Restore events
+sudo cp /backup/oisp/events-2024-12-26.jsonl.gz /var/log/oisp/
+sudo gunzip /var/log/oisp/events-2024-12-26.jsonl.gz
+sudo chown oisp:oisp /var/log/oisp/events-2024-12-26.jsonl
+
+# Restart sensor
+sudo systemctl start oisp-sensor
+```
+
+---
+
+## Production Readiness Checklist
+
+- [ ] System requirements verified (`oisp-sensor check`)
+- [ ] Package installed via .deb or .rpm
+- [ ] Configuration file created and secured
+- [ ] Redaction mode set appropriately
+- [ ] Service enabled for auto-start
+- [ ] Running as non-root `oisp` user
+- [ ] File permissions restricted
+- [ ] Firewall rules configured
+- [ ] TLS reverse proxy (if Web UI exposed)
+- [ ] Log rotation configured
+- [ ] Monitoring set up
+- [ ] Alerting configured
+- [ ] Backup strategy implemented
+- [ ] Multi-node config management (if applicable)
+- [ ] Tested failover behavior
+- [ ] Team documentation created
+
+---
+
+## Next Steps
+
+- **[Running as a Service](./service)** - Manage systemd service
+- **[Troubleshooting](./troubleshooting)** - Solve production issues
+- **[Multi-Node Deployment](/guides/multi-node/)** - Scale to multiple servers
+- **[CI/CD Integration](/guides/ci-cd/)** - Integrate with pipelines

@@ -1,0 +1,120 @@
+---
+title: Introduction
+description: What is OISP Sensor and why you need it
+---
+
+OISP Sensor is a **zero-instrumentation observability tool** for AI systems. It captures every AI API call—requests, responses, tool invocations—without changing your code.
+
+<Tip>
+**Linux production-ready.** macOS and Windows are in [beta](/getting-started/what-works-today/) — implemented and functional, needs more testing.
+</Tip>
+
+---
+
+## The Problem
+
+AI agents are everywhere. They're writing code, browsing the web, executing tools. But how do you know what's actually happening?
+
+- **What API calls are being made?** Your agent might be making dozens of calls you don't see.
+- **How much are you spending?** Token costs add up across multiple models and providers.
+- **What data is being sent?** Sensitive information might be going to AI providers.
+- **What tools are being invoked?** Agents can execute code, access files, make network requests.
+
+Traditional observability requires instrumenting your code with SDKs. But AI development moves fast—you use different libraries, frameworks, and providers. You can't modify every piece of code.
+
+---
+
+## The Solution
+
+OISP Sensor captures AI activity at the **operating system level**. It watches network traffic to AI providers and extracts structured events—no code changes needed.
+
+```bash
+# Install
+curl -fsSL https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor-x86_64-unknown-linux-gnu.tar.gz | tar xz
+sudo mv oisp-sensor /usr/local/bin/
+
+# Start recording
+sudo oisp-sensor record
+```
+
+That's it. Every AI API call on your machine is now captured.
+
+---
+
+## What Gets Captured
+
+| Category | Events |
+|----------|--------|
+| **AI Requests** | OpenAI, Anthropic, Google, Mistral, Cohere, Ollama |
+| **AI Responses** | Completions, streaming chunks, embeddings |
+| **Tool Calls** | Function calls, MCP tools, results |
+| **Process Info** | Which application made each call |
+| **Network** | Connection details, timing |
+
+---
+
+## How It Works
+
+On Linux, OISP Sensor uses **eBPF** (Extended Berkeley Packet Filter) to capture SSL/TLS traffic at the kernel level.
+
+```
+Your Application
+      │
+      ▼ HTTPS request
+┌─────────────┐
+│   OpenSSL   │  ← OISP captures here (before encryption)
+└─────────────┘
+      │
+      ▼ Encrypted
+    Network
+```
+
+This means:
+
+- **No proxies** — Traffic isn't redirected, just observed
+- **All languages** — Python, Node.js, Go, Rust—anything using OpenSSL
+- **Encrypted traffic** — Captures plaintext before/after SSL encryption
+- **Low overhead** — eBPF runs in kernel space efficiently
+
+---
+
+## Export Options
+
+Captured events can go to:
+
+- **Web UI** — Real-time dashboard at `http://localhost:7777`
+- **JSONL files** — For offline analysis
+- **WebSocket** — For real-time streaming
+- **OTLP** — To any OpenTelemetry backend
+- **Kafka** — For high-throughput streaming
+
+---
+
+## Privacy
+
+OISP includes automatic redaction:
+
+```toml
+[redaction]
+mode = "safe"  # Redacts API keys, emails, phone numbers
+```
+
+All processing happens locally. Nothing leaves your machine unless you configure an export.
+
+---
+
+## Use Cases
+
+- **Debug AI agents** — See exactly what your agent is doing step by step
+- **Track costs** — Monitor token usage across all applications
+- **Security audits** — Log every AI interaction for compliance
+- **Development** — Understand how AI SDKs behave
+
+---
+
+## Next Steps
+
+- [Installation](/getting-started/installation/) — Get OISP Sensor running
+- [Quick Start](/getting-started/quick-start/) — Capture your first events
+- [What Works Today](/getting-started/what-works-today/) — Current capabilities
+

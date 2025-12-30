@@ -1,0 +1,96 @@
+---
+title: macOS Known Issues
+description: Known limitations and issues with OISP Sensor on macOS
+---
+
+<Tip title="Beta Release">
+macOS support is implemented and functional. This page documents known limitations and areas needing more testing.
+</Tip>
+
+---
+
+## How macOS Differs from Linux
+
+| Feature | Linux | macOS |
+|---------|-------|-------|
+| Capture method | eBPF (kernel) | Network Extension (user space) |
+| TLS decryption | uprobes on OpenSSL | TLS MITM proxy |
+| Privileges | CAP_BPF | System Extension approval |
+| Signing | None required | Apple Developer ID |
+| Installation | Download binary | Signed app + user approval |
+
+---
+
+## Known Limitations
+
+### CA Certificate Trust
+
+Users must manually trust the OISP CA certificate in Keychain. Some applications (especially browsers) may show certificate warnings until:
+
+1. The CA is properly installed to System Keychain
+2. The application is restarted after trusting
+
+### Application Compatibility
+
+Some applications may not work with TLS MITM:
+
+| Application Type | Status | Notes |
+|------------------|:------:|-------|
+| Most apps | ✅ Works | Standard TLS works fine |
+| Certificate pinning | ⚠️ Limited | Apps with cert pinning may fail |
+| Custom TLS | ⚠️ Limited | Non-standard TLS implementations |
+
+### Performance
+
+- First connection to each domain has slight latency (certificate generation)
+- Very high-throughput applications may see minor slowdown
+
+---
+
+## What Needs Testing
+
+We're actively seeking feedback on:
+
+- **Long-running stability** — Does it work reliably for hours/days?
+- **Different AI SDKs** — Python, Node.js, curl, etc.
+- **Edge cases** — Streaming, large responses, concurrent requests
+- **Memory usage** — Under sustained load
+
+---
+
+## Workarounds
+
+### Certificate Issues
+
+If you see certificate errors:
+
+1. Re-install CA via menu bar → "Install CA Certificate"
+2. Restart the affected application
+3. Check Keychain Access → ensure OISP CA is "Always Trust"
+
+### Extension Issues
+
+If traffic isn't being captured:
+
+1. Check System Settings → Privacy & Security → Network Extensions
+2. Ensure OISP extension is enabled
+3. Try restarting the app
+
+---
+
+## Reporting Issues
+
+If you encounter problems:
+
+1. Run with debug: `RUST_LOG=debug /path/to/oisp-sensor`
+2. Note the macOS version and affected application
+3. File an issue on GitHub with logs
+
+---
+
+## Next Steps
+
+- [Installation](./installation) — Setup instructions
+- [Quick Start](./quick-start) — Start capturing
+- [Overview](./overview) — How it works
+
