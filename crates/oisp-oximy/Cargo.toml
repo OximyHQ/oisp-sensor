@@ -1,0 +1,39 @@
+[package]
+name = "oisp-oximy"
+version.workspace = true
+edition.workspace = true
+license = "Proprietary"
+description = "Oximy Cloud connector for OISP Sensor"
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+# Workspace dependencies
+oisp-core = { workspace = true }
+oisp-export = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+reqwest = { workspace = true, features = ["json", "gzip", "rustls-tls"] }
+tokio-tungstenite = { workspace = true, features = ["rustls-tls-native-roots"] }
+uuid = { workspace = true }
+
+# Additional dependencies
+futures-util = "0.3"
+lz4_flex = "0.11"
+keyring = "3"
+rusqlite = { version = "0.32", features = ["bundled"] }
+parking_lot = "0.12"
+url = "2.5"
+hostname = { workspace = true }
+
+[dev-dependencies]
+wiremock = "0.6"
+tempfile = "3"
+tokio-test = "0.4"

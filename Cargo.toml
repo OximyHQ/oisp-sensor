@@ -12,6 +12,7 @@ members = [
     "crates/oisp-tui",
     "crates/oisp-web",
     "crates/oisp-redirector",
+    "crates/oisp-oximy",
 ]
 
 [workspace.package]
@@ -99,6 +100,7 @@ oisp-decode = { path = "crates/oisp-decode" }
 oisp-export = { path = "crates/oisp-export" }
 oisp-tui = { path = "crates/oisp-tui" }
 oisp-web = { path = "crates/oisp-web" }
+oisp-oximy = { path = "crates/oisp-oximy" }
 
 [profile.release]
 lto = true
