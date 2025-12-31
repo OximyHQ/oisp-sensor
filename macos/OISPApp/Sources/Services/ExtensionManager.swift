@@ -6,6 +6,7 @@
 import Foundation
 import SystemExtensions
 import NetworkExtension
+import AppKit
 import os.log
 
 /// Manages the OISP Network Extension
@@ -18,7 +19,7 @@ public actor ExtensionManager {
 
     private let logger = Logger(subsystem: "com.oisp.app", category: "extension-manager")
 
-    private let extensionIdentifier = "com.oisp.networkextension"
+    private let extensionIdentifier = "com.oisp.app.networkextension"
 
     private var activationDelegate: ExtensionActivationDelegate?
     private var providerManager: NETunnelProviderManager?

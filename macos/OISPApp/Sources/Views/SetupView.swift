@@ -4,6 +4,8 @@
 // First-launch setup wizard
 
 import SwiftUI
+import AppKit
+import OISPCore
 
 struct SetupView: View {
     @State private var currentStep = 0

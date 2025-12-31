@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 63;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -449,7 +449,6 @@
 			);
 			mainGroup = 478F66D3BAA2023870C7610F;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -554,9 +553,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/Frameworks",
 				);
-				OTHER_LDFLAGS = (
-					"-lbsm",
-				);
+				OTHER_LDFLAGS = "-lbsm";
 				PRODUCT_BUNDLE_IDENTIFIER = com.oisp.core;
 				PRODUCT_MODULE_NAME = OISPCore;
 				SDKROOT = macosx;
@@ -748,9 +745,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/Frameworks",
 				);
-				OTHER_LDFLAGS = (
-					"-lbsm",
-				);
+				OTHER_LDFLAGS = "-lbsm";
 				PRODUCT_BUNDLE_IDENTIFIER = com.oisp.core;
 				PRODUCT_MODULE_NAME = OISPCore;
 				SDKROOT = macosx;
@@ -764,14 +759,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = OISPApp/OISP.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_APP_SANDBOX = NO;
 				INFOPLIST_FILE = OISPApp/Info.plist;
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSSystemExtensionUsageDescription = "OISP needs to install a network extension to capture AI API traffic.";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"@executable_path/../Frameworks",
-				);
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = com.oisp.app;
 				SDKROOT = macosx;
 				SKIP_INSTALL = NO;
@@ -782,13 +776,14 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = OISPNetworkExtension/NetworkExtension.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				COMBINE_HIDPI_IMAGES = YES;
 				INFOPLIST_FILE = OISPNetworkExtension/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"@executable_path/../Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.oisp.networkextension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.oisp.app.networkextension;
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
 				SYSTEM_EXTENSION_PRODUCT_TYPE = "com.apple.system-extension.network-extension";
@@ -799,13 +794,14 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = OISPNetworkExtension/NetworkExtension.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				COMBINE_HIDPI_IMAGES = YES;
 				INFOPLIST_FILE = OISPNetworkExtension/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"@executable_path/../Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.oisp.networkextension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.oisp.app.networkextension;
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
 				SYSTEM_EXTENSION_PRODUCT_TYPE = "com.apple.system-extension.network-extension";
@@ -817,14 +813,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = OISPApp/OISP.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_APP_SANDBOX = NO;
 				INFOPLIST_FILE = OISPApp/Info.plist;
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSSystemExtensionUsageDescription = "OISP needs to install a network extension to capture AI API traffic.";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"@executable_path/../Frameworks",
-				);
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = com.oisp.app;
 				SDKROOT = macosx;
 				SKIP_INSTALL = NO;

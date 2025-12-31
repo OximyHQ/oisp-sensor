@@ -5,6 +5,8 @@
 
 import SwiftUI
 import Combine
+import AppKit
+import OISPCore
 
 @MainActor
 class MenuBarViewModel: ObservableObject {

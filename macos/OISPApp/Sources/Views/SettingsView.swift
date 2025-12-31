@@ -4,6 +4,8 @@
 // Settings window with tabs for different configuration areas
 
 import SwiftUI
+import AppKit
+import OISPCore
 
 struct SettingsView: View {
     var body: some View {
