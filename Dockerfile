@@ -110,6 +110,10 @@ WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 
+# Copy the app registry (apps.json is included at compile time via include_str!)
+# oisp-app-registry is a git submodule - ensure it's initialized before building
+COPY oisp-app-registry ./oisp-app-registry
+
 # Copy the built frontend assets from frontend-builder
 COPY --from=frontend-builder /build/frontend/out ./frontend/out
 

@@ -22,7 +22,7 @@ pub const REGISTRY_URL: &str =
 
 /// Bundled apps.json - compiled into the binary
 /// This is the fallback when network is unavailable
-const BUNDLED_REGISTRY: &str = include_str!("../../../../oisp-app-registry/apps.json");
+const BUNDLED_REGISTRY: &str = include_str!("../../../oisp-app-registry/apps.json");
 
 /// How often to refresh the registry from GitHub (in seconds)
 pub const REFRESH_INTERVAL_SECS: u64 = 6 * 60 * 60; // 6 hours
