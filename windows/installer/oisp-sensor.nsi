@@ -22,8 +22,10 @@ InstallDir "$PROGRAMFILES64\OISP Sensor"
 ; Request admin privileges for installation
 RequestExecutionLevel admin
 
-; Version information
-!define VERSION "0.1.0"
+; Version information (can be overridden with /DVERSION=x.y.z)
+!ifndef VERSION
+  !define VERSION "0.1.0"
+!endif
 !define PUBLISHER "OISP"
 !define WEBSITE "https://github.com/your-org/oisp-sensor"
 

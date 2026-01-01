@@ -12,18 +12,62 @@ permissions:
   contents: write
 
 jobs:
-  # Linux builds - tar.gz for technical users
-  build-linux:
-    name: Build Linux ${{ matrix.arch }}
+  # Linux x64 build
+  build-linux-x64:
+    name: Build Linux x64
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: x86_64-unknown-linux-gnu
-            arch: x64
-          - target: aarch64-unknown-linux-gnu
-            arch: arm64
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install eBPF build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang llvm libelf-dev libbpf-dev
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: release-linux-x64
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Prepare artifact
+        run: |
+          mkdir -p dist
+          cp target/release/oisp-sensor dist/
+          cp README.md LICENSE dist/ 2>/dev/null || true
+          cd dist && tar -czvf ../oisp-sensor-linux-x64.tar.gz *
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: oisp-sensor-linux-x64
+          path: oisp-sensor-linux-x64.tar.gz
+
+  # Linux ARM64 build using cross with Docker
+  build-linux-arm64:
+    name: Build Linux arm64
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -46,43 +90,31 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          targets: ${{ matrix.target }}
+          targets: aarch64-unknown-linux-gnu
 
-      - name: Install eBPF build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang llvm libelf-dev libbpf-dev
-
-      - name: Install cross for aarch64 builds
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
+      - name: Install cross
         run: cargo install cross --git https://github.com/cross-rs/cross
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
-          key: release-${{ matrix.target }}
+          key: release-linux-arm64
 
-      - name: Build release binary
-        if: matrix.target != 'aarch64-unknown-linux-gnu'
-        run: cargo build --release --target ${{ matrix.target }}
-
-      - name: Build release binary (aarch64 cross-compile)
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: cross build --release --target ${{ matrix.target }}
+      - name: Build release binary with cross
+        run: cross build --release --target aarch64-unknown-linux-gnu
 
       - name: Prepare artifact
         run: |
           mkdir -p dist
-          cp target/${{ matrix.target }}/release/oisp-sensor dist/
+          cp target/aarch64-unknown-linux-gnu/release/oisp-sensor dist/
           cp README.md LICENSE dist/ 2>/dev/null || true
-          cd dist && tar -czvf ../oisp-sensor-linux-${{ matrix.arch }}.tar.gz *
+          cd dist && tar -czvf ../oisp-sensor-linux-arm64.tar.gz *
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: oisp-sensor-linux-${{ matrix.arch }}
-          path: oisp-sensor-linux-${{ matrix.arch }}.tar.gz
+          name: oisp-sensor-linux-arm64
+          path: oisp-sensor-linux-arm64.tar.gz
 
   # macOS builds - proper DMG installers
   build-macos:
@@ -94,8 +126,10 @@ jobs:
         include:
           - target: aarch64-apple-darwin
             arch: arm64
+            xcode_arch: arm64
           - target: x86_64-apple-darwin
             arch: x64
+            xcode_arch: x86_64
 
     steps:
       - uses: actions/checkout@v4
@@ -123,26 +157,9 @@ jobs:
         with:
           xcode-version: latest-stable
 
-      - name: Build macOS app
-        working-directory: macos
+      - name: Create export options plist
         run: |
-          xcodebuild -project OISP.xcodeproj \
-            -scheme OISP \
-            -configuration Release \
-            -archivePath build/OISP.xcarchive \
-            -arch ${{ matrix.arch == 'arm64' && 'arm64' || 'x86_64' }} \
-            archive \
-            CODE_SIGN_IDENTITY="-" \
-            CODE_SIGNING_ALLOWED=NO
-
-      - name: Export app
-        working-directory: macos
-        run: |
-          mkdir -p build/Export
-          xcodebuild -exportArchive \
-            -archivePath build/OISP.xcarchive \
-            -exportPath build/Export \
-            -exportOptionsPlist - << 'EOF'
+          cat > /tmp/ExportOptions.plist << 'PLIST'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
@@ -153,14 +170,47 @@ jobs:
             <string>automatic</string>
           </dict>
           </plist>
-          EOF
+          PLIST
+
+      - name: Build macOS app
+        working-directory: macos
+        run: |
+          xcodebuild -project OISP.xcodeproj \
+            -scheme OISP \
+            -configuration Release \
+            -archivePath build/OISP.xcarchive \
+            -arch ${{ matrix.xcode_arch }} \
+            archive \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Export app
+        working-directory: macos
+        run: |
+          mkdir -p build/Export
+          # For unsigned builds, copy directly from archive
+          if [ -d "build/OISP.xcarchive/Products/Applications/OISP.app" ]; then
+            cp -R build/OISP.xcarchive/Products/Applications/OISP.app build/Export/
+          else
+            # Try xcodebuild export
+            xcodebuild -exportArchive \
+              -archivePath build/OISP.xcarchive \
+              -exportPath build/Export \
+              -exportOptionsPlist /tmp/ExportOptions.plist || true
+          fi
+          ls -la build/Export/
 
       - name: Create DMG
         working-directory: macos
         run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          ./Scripts/create-dmg.sh build/Export/OISP.app build
-          mv build/OISP-*.dmg ../OISP-Sensor-macOS-${{ matrix.arch }}.dmg
+          if [ -d "build/Export/OISP.app" ]; then
+            ./Scripts/create-dmg.sh build/Export/OISP.app build
+            mv build/OISP-*.dmg ../OISP-Sensor-macOS-${{ matrix.arch }}.dmg 2>/dev/null || \
+            mv build/OISP.dmg ../OISP-Sensor-macOS-${{ matrix.arch }}.dmg
+          else
+            echo "ERROR: No app bundle found"
+            exit 1
+          fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -242,6 +292,11 @@ jobs:
             [System.IO.File]::WriteAllBytes("$resourcesDir/oisp-icon-active.ico", $ico)
           }
 
+          # Create installer resources
+          $installerResources = "windows/installer/resources"
+          New-Item -ItemType Directory -Force -Path $installerResources | Out-Null
+          Copy-Item "$resourcesDir/oisp-icon.ico" "$installerResources/oisp-icon.ico" -Force
+
       - name: Build .NET application
         run: |
           cd windows/OISPApp
@@ -264,7 +319,7 @@ jobs:
   # Create the release with all artifacts
   release:
     name: Create Release
-    needs: [build-linux, build-macos, build-windows]
+    needs: [build-linux-x64, build-linux-arm64, build-macos, build-windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -281,12 +336,8 @@ jobs:
       - name: Prepare release files
         run: |
           cd artifacts
-          # Move all files to root
           find . -type f \( -name "*.tar.gz" -o -name "*.dmg" -o -name "*.exe" \) -exec mv {} . \;
-
-          # Generate checksums
           sha256sum *.tar.gz *.dmg *.exe 2>/dev/null > checksums.txt || true
-
           echo "Files to upload:"
           ls -la
 
