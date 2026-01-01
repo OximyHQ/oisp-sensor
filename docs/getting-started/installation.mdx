@@ -13,7 +13,7 @@ Download the latest release and install:
 
 ```bash
 # Download
-curl -fsSL https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor-x86_64-unknown-linux-gnu.tar.gz | tar xz
+curl -fsSL https://github.com/oximyhq/sensor/releases/latest/download/oisp-sensor-x86_64-unknown-linux-gnu.tar.gz | tar xz
 
 # Install
 sudo mv oisp-sensor /usr/local/bin/
@@ -63,7 +63,7 @@ ls /sys/kernel/debug/
 
 ```bash
 # Download .deb package
-curl -LO https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor_amd64.deb
+curl -LO https://github.com/oximyhq/sensor/releases/latest/download/oisp-sensor_amd64.deb
 
 # Install
 sudo dpkg -i oisp-sensor_amd64.deb
@@ -76,7 +76,7 @@ sudo systemctl enable --now oisp-sensor
 
 ```bash
 # Download .rpm package
-curl -LO https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor.x86_64.rpm
+curl -LO https://github.com/oximyhq/sensor/releases/latest/download/oisp-sensor.x86_64.rpm
 
 # Install
 sudo dnf install ./oisp-sensor.x86_64.rpm
@@ -121,7 +121,7 @@ Result: READY
 Run OISP Sensor in a Docker container:
 
 ```bash
-docker run --privileged -p 7777:7777 ghcr.io/oximyhq/oisp-sensor
+docker run --privileged -p 7777:7777 ghcr.io/oximyhq/sensor
 ```
 
 The `--privileged` flag is required for eBPF operations.
@@ -132,7 +132,7 @@ The `--privileged` flag is required for eBPF operations.
 version: '3.8'
 services:
   oisp-sensor:
-    image: ghcr.io/oximyhq/oisp-sensor:latest
+    image: ghcr.io/oximyhq/sensor:latest
     privileged: true
     ports:
       - "7777:7777"
@@ -157,7 +157,7 @@ If you want to build from source:
 
 ```bash
 # Clone repository
-git clone https://github.com/oximyHQ/oisp-sensor.git
+git clone https://github.com/oximyhq/sensor.git
 cd oisp-sensor
 
 # Build eBPF programs

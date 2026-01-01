@@ -1,18 +1,18 @@
 <p align="center">
   <a href="https://oximy.com">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oximyHQ/oisp-sensor/main/assets/logo-dark.svg">
-      <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/oximyHQ/oisp-sensor/main/assets/logo-light.svg">
-      <img src="https://raw.githubusercontent.com/oximyHQ/oisp-sensor/main/assets/logo-light.svg" alt="OISP Sensor" width="80">
+      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oximyhq/sensor/main/assets/logo-dark.svg">
+      <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/oximyhq/sensor/main/assets/logo-light.svg">
+      <img src="https://raw.githubusercontent.com/oximyhq/sensor/main/assets/logo-light.svg" alt="OISP Sensor" width="80">
     </picture>
   </a>
 </p>
 <p align="center"><b>OISP Sensor</b></p>
 <p align="center">See every AI interaction. Zero instrumentation.</p>
 <p align="center">
-  <a href="https://github.com/oximyHQ/oisp-sensor/releases"><img alt="Release" src="https://img.shields.io/github/v/release/oximyHQ/oisp-sensor?style=flat-square" /></a>
+  <a href="https://github.com/oximyhq/sensor/releases"><img alt="Release" src="https://img.shields.io/github/v/release/oximyhq/sensor?style=flat-square" /></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square" /></a>
-  <a href="https://github.com/oximyHQ/oisp-sensor/actions"><img alt="Build" src="https://img.shields.io/github/actions/workflow/status/oximyHQ/oisp-sensor/ci.yml?style=flat-square&branch=main" /></a>
+  <a href="https://github.com/oximyhq/sensor/actions"><img alt="Build" src="https://img.shields.io/github/actions/workflow/status/oximyhq/sensor/ci.yml?style=flat-square&branch=main" /></a>
 </p>
 
 ---
@@ -31,9 +31,9 @@ OISP Sensor captures **every AI interaction** on a machine—prompts, responses,
 
 | Platform | Download |
 |----------|----------|
-| **macOS** (Apple Silicon) | [OISP-Sensor-arm64.dmg](https://github.com/oximyHQ/oisp-sensor/releases/latest) |
-| **macOS** (Intel) | [OISP-Sensor-x64.dmg](https://github.com/oximyHQ/oisp-sensor/releases/latest) |
-| **Windows** (64-bit) | [OISP-Sensor-Setup.exe](https://github.com/oximyHQ/oisp-sensor/releases/latest) |
+| **macOS** (Apple Silicon) | [OISP-Sensor-arm64.dmg](https://github.com/oximyhq/sensor/releases/latest) |
+| **macOS** (Intel) | [OISP-Sensor-x64.dmg](https://github.com/oximyhq/sensor/releases/latest) |
+| **Windows** (64-bit) | [OISP-Sensor-Setup.exe](https://github.com/oximyhq/sensor/releases/latest) |
 
 ### How It Works
 
@@ -64,7 +64,7 @@ OISP Sensor captures **every AI interaction** on a machine—prompts, responses,
 curl -fsSL https://sensor.oisp.dev/install.sh | sudo sh
 
 # Docker
-docker run --privileged ghcr.io/oximyhq/oisp-sensor:latest
+docker run --privileged ghcr.io/oximyhq/sensor:latest
 
 # Kubernetes (DaemonSet)
 kubectl apply -f https://sensor.oisp.dev/manifests/daemonset.yaml

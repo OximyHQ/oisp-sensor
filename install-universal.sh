@@ -11,7 +11,7 @@
 
 set -e
 
-REPO="oximyHQ/oisp-sensor"
+REPO="oximyhq/sensor"
 SKIP_PRECHECK="${SKIP_PRECHECK:-false}"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 

@@ -13,7 +13,7 @@ docker run --privileged --pid=host --network=host \
   -v /sys:/sys:ro \
   -v /usr:/usr:ro \
   -v /lib:/lib:ro \
-  ghcr.io/oximyhq/oisp-sensor:latest
+  ghcr.io/oximyhq/sensor:latest
 ```
 
 **Flags explained:**
@@ -32,7 +32,7 @@ docker run --privileged --pid=host --network=host \
   -v /usr:/usr:ro \
   -v /lib:/lib:ro \
   -v $(pwd)/logs:/var/log/oisp \
-  ghcr.io/oximyhq/oisp-sensor:latest \
+  ghcr.io/oximyhq/sensor:latest \
   record --output /var/log/oisp/events.jsonl
 ```
 
@@ -43,7 +43,7 @@ docker run --privileged --pid=host --network=host \
   -v /sys:/sys:ro \
   -v /usr:/usr:ro \
   -v /lib:/lib:ro \
-  ghcr.io/oximyhq/oisp-sensor:latest \
+  ghcr.io/oximyhq/sensor:latest \
   record --web
 ```
 
@@ -57,7 +57,7 @@ docker run --privileged --pid=host --network=host \
   -v /usr:/usr:ro \
   -v /lib:/lib:ro \
   -v $(pwd)/config.toml:/etc/oisp/config.toml:ro \
-  ghcr.io/oximyhq/oisp-sensor:latest \
+  ghcr.io/oximyhq/sensor:latest \
   record --config /etc/oisp/config.toml
 ```
 
@@ -70,7 +70,7 @@ docker run --privileged --pid=host --network=host \
   -v /lib:/lib:ro \
   -e RUST_LOG=debug \
   -e OTLP_API_KEY=your-key \
-  ghcr.io/oximyhq/oisp-sensor:latest
+  ghcr.io/oximyhq/sensor:latest
 ```
 
 ## Run in Background
@@ -82,7 +82,7 @@ docker run -d --name oisp-sensor \
   -v /usr:/usr:ro \
   -v /lib:/lib:ro \
   -v $(pwd)/logs:/var/log/oisp \
-  ghcr.io/oximyhq/oisp-sensor:latest \
+  ghcr.io/oximyhq/sensor:latest \
   record --output /var/log/oisp/events.jsonl
 
 # View logs
@@ -103,7 +103,7 @@ docker run --privileged --pid=host --network=host \
   -v /usr:/usr:ro \
   -v /lib:/lib:ro \
   -e OTLP_API_KEY=your-key \
-  ghcr.io/oximyhq/oisp-sensor:latest \
+  ghcr.io/oximyhq/sensor:latest \
   record --export otlp --otlp-endpoint http://collector:4317
 ```
 

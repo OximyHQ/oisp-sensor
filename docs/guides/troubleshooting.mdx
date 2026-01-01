@@ -163,7 +163,7 @@ sudo oisp-sensor record
 # docker-compose.yml
 services:
   sensor:
-    image: ghcr.io/oximyhq/oisp-sensor:latest
+    image: ghcr.io/oximyhq/sensor:latest
     privileged: true    # REQUIRED for eBPF
     pid: "host"         # REQUIRED to see host/container processes
     volumes:
@@ -324,7 +324,7 @@ If you're still stuck:
    RUST_LOG=debug sudo oisp-sensor record 2> debug.log
    ```
 
-3. **Open an issue:** [GitHub Issues](https://github.com/oximyHQ/oisp-sensor/issues)
+3. **Open an issue:** [GitHub Issues](https://github.com/oximyhq/sensor/issues)
    - Include diagnostics output
    - Include relevant debug logs
    - Describe your setup (OS, kernel, Docker/K8s version)

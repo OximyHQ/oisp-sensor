@@ -558,12 +558,12 @@ Use Ansible/Puppet/Chef to deploy config:
   tasks:
     - name: Install OISP Sensor
       apt:
-        deb: https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor_0.2.0_amd64.deb
+        deb: https://github.com/oximyhq/sensor/releases/latest/download/oisp-sensor_0.2.0_amd64.deb
       when: ansible_os_family == "Debian"
 
     - name: Install OISP Sensor (RHEL)
       dnf:
-        name: https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor-0.2.0-1.x86_64.rpm
+        name: https://github.com/oximyhq/sensor/releases/latest/download/oisp-sensor-0.2.0-1.x86_64.rpm
       when: ansible_os_family == "RedHat"
 
     - name: Configure sensor

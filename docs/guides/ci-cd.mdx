@@ -35,7 +35,7 @@ jobs:
 
       - name: Install OISP Sensor
         run: |
-          curl -fsSL https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor-x86_64-unknown-linux-gnu.tar.gz | tar xz
+          curl -fsSL https://github.com/oximyhq/sensor/releases/latest/download/oisp-sensor-x86_64-unknown-linux-gnu.tar.gz | tar xz
           sudo mv oisp-sensor /usr/local/bin/
           sudo oisp-sensor check
 
@@ -91,7 +91,7 @@ test_ai_integration:
   before_script:
     - apt-get update
     - apt-get install -y curl jq
-    - curl -fsSL https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor-x86_64-unknown-linux-gnu.tar.gz | tar xz
+    - curl -fsSL https://github.com/oximyhq/sensor/releases/latest/download/oisp-sensor-x86_64-unknown-linux-gnu.tar.gz | tar xz
     - mv oisp-sensor /usr/local/bin/
 
   script:
@@ -137,7 +137,7 @@ pipeline {
     stages {
         stage('Setup') {
             steps {
-                sh 'curl -fsSL https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor-x86_64-unknown-linux-gnu.tar.gz | tar xz && sudo mv oisp-sensor /usr/local/bin/'
+                sh 'curl -fsSL https://github.com/oximyhq/sensor/releases/latest/download/oisp-sensor-x86_64-unknown-linux-gnu.tar.gz | tar xz && sudo mv oisp-sensor /usr/local/bin/'
             }
         }
 
@@ -201,7 +201,7 @@ jobs:
       - run:
           name: Install OISP Sensor
           command: |
-            curl -fsSL https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor-x86_64-unknown-linux-gnu.tar.gz | tar xz
+            curl -fsSL https://github.com/oximyhq/sensor/releases/latest/download/oisp-sensor-x86_64-unknown-linux-gnu.tar.gz | tar xz
             sudo mv oisp-sensor /usr/local/bin/
 
       - run:
@@ -265,7 +265,7 @@ jobs:
             -v $(pwd):/workspace \
             -w /workspace \
             -e OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} \
-            ghcr.io/oximyhq/oisp-sensor:latest \
+            ghcr.io/oximyhq/sensor:latest \
             bash -c '
               oisp-sensor record --output /workspace/events.jsonl --no-ui &
               SENSOR_PID=$!
@@ -641,7 +641,7 @@ chmod +x scripts/ci-test-with-oisp.sh
   run: |
     docker run --rm --privileged --pid=host \
       -v $(pwd):/workspace -w /workspace \
-      ghcr.io/oximyhq/oisp-sensor:latest \
+      ghcr.io/oximyhq/sensor:latest \
       bash -c 'oisp-sensor record --output events.jsonl --no-ui & ...'
 ```
 

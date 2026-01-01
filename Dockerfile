@@ -167,7 +167,7 @@ EXPOSE 7777
 LABEL org.opencontainers.image.title="OISP Sensor" \
       org.opencontainers.image.description="Open Inference Security Protocol sensor for AI observability" \
       org.opencontainers.image.vendor="Oximy" \
-      org.opencontainers.image.source="https://github.com/oximyHQ/oisp-sensor" \
+      org.opencontainers.image.source="https://github.com/oximyhq/sensor" \
       org.opencontainers.image.licenses="Apache-2.0"
 
 # Health check

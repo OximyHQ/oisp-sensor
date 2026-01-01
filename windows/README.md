@@ -75,7 +75,7 @@ OISP automatically intercepts traffic to these AI endpoints:
 
 ### Option 1: Installer (Recommended)
 
-1. Download `oisp-sensor-setup.exe` from the [releases page](https://github.com/oximyHQ/oisp-sensor/releases)
+1. Download `oisp-sensor-setup.exe` from the [releases page](https://github.com/oximyhq/sensor/releases)
 2. Run the installer (requires Administrator)
 3. Launch OISP from the Start Menu
 4. Right-click tray icon → "Install CA Certificate"
@@ -153,7 +153,7 @@ winget install Microsoft.VisualStudio.2022.BuildTools
 
 ```powershell
 # Clone the repository
-git clone https://github.com/oximyHQ/oisp-sensor.git
+git clone https://github.com/oximyhq/sensor.git
 cd oisp-sensor
 
 # Run one-time setup (downloads WinDivert)

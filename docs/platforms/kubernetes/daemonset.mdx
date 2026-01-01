@@ -9,7 +9,7 @@ Deploy OISP Sensor to monitor all nodes in your Kubernetes cluster.
 ## Quick Deploy
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/oximyHQ/oisp-sensor/main/deploy/kubernetes/daemonset.yaml
+kubectl apply -f https://raw.githubusercontent.com/oximyhq/sensor/main/deploy/kubernetes/daemonset.yaml
 ```
 
 ## Complete DaemonSet Manifest
@@ -97,7 +97,7 @@ spec:
       hostPID: true
       containers:
         - name: sensor
-          image: ghcr.io/oximyhq/oisp-sensor:latest
+          image: ghcr.io/oximyhq/sensor:latest
           imagePullPolicy: Always
           command:
             - /usr/bin/oisp-sensor

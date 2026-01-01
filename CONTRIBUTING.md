@@ -187,7 +187,7 @@ Example applications demonstrating sensor capabilities.
 
 ```bash
 # Clone
-git clone https://github.com/oximyHQ/oisp-sensor.git
+git clone https://github.com/oximyhq/sensor.git
 cd oisp-sensor
 
 # Build all Rust crates
@@ -238,9 +238,9 @@ test(core): add provider detection tests for Azure
 ## Good First Issues
 
 Look for issues labeled:
-- [`good first issue`](https://github.com/oximyHQ/oisp-sensor/labels/good%20first%20issue) — Great starting points
-- [`help wanted`](https://github.com/oximyHQ/oisp-sensor/labels/help%20wanted) — We need community help
-- [`docs`](https://github.com/oximyHQ/oisp-sensor/labels/docs) — Documentation improvements
+- [`good first issue`](https://github.com/oximyhq/sensor/labels/good%20first%20issue) — Great starting points
+- [`help wanted`](https://github.com/oximyhq/sensor/labels/help%20wanted) — We need community help
+- [`docs`](https://github.com/oximyhq/sensor/labels/docs) — Documentation improvements
 
 ## Security
 
@@ -252,5 +252,5 @@ By contributing, you agree that your contributions will be licensed under the Ap
 
 ## Questions?
 
-- Open a [GitHub Discussion](https://github.com/oximyHQ/oisp-sensor/discussions)
+- Open a [GitHub Discussion](https://github.com/oximyhq/sensor/discussions)
 - Email: community@oximy.com

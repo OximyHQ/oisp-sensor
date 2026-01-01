@@ -9,7 +9,7 @@
 
 set -e
 
-REPO="oximyHQ/oisp-sensor"
+REPO="oximyhq/sensor"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 INSTALL_SERVICE="${INSTALL_SERVICE:-auto}"
 SKIP_CAPS="${SKIP_CAPS:-false}"

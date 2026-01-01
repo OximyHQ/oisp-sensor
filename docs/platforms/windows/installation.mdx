@@ -19,7 +19,7 @@ Windows support is **implemented and functional** but needs more real-world test
 
 ### Option 1: Installer (Recommended)
 
-1. Download `oisp-sensor-setup.exe` from the [releases page](https://github.com/oximyHQ/oisp-sensor/releases)
+1. Download `oisp-sensor-setup.exe` from the [releases page](https://github.com/oximyhq/sensor/releases)
 2. Run the installer (requires Administrator)
 3. Launch OISP from the Start Menu
 4. Right-click tray icon → "Install CA Certificate"
@@ -29,7 +29,7 @@ Windows support is **implemented and functional** but needs more real-world test
 
 ```powershell
 # Download
-Invoke-WebRequest -Uri https://github.com/oximyHQ/oisp-sensor/releases/latest/download/oisp-sensor-x86_64-pc-windows-msvc.zip -OutFile oisp-sensor.zip
+Invoke-WebRequest -Uri https://github.com/oximyhq/sensor/releases/latest/download/oisp-sensor-x86_64-pc-windows-msvc.zip -OutFile oisp-sensor.zip
 
 # Extract
 Expand-Archive oisp-sensor.zip -DestinationPath C:\OISP
@@ -47,7 +47,7 @@ C:\OISP\OISPApp.exe
 # - Visual Studio Build Tools
 
 # Clone
-git clone https://github.com/oximyHQ/oisp-sensor.git
+git clone https://github.com/oximyhq/sensor.git
 cd oisp-sensor
 
 # Setup (downloads WinDivert)
