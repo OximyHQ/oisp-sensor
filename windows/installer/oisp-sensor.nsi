@@ -215,23 +215,6 @@ Function .onInit
         MessageBox MB_OK|MB_ICONSTOP "OISP Sensor requires 64-bit Windows."
         Abort
     ${EndIf}
-
-    ; Check Windows version (Windows 10+)
-    ${If} ${AtLeastWin10}
-        ; OK
-    ${Else}
-        MessageBox MB_OK|MB_ICONEXCLAMATION "OISP Sensor is designed for Windows 10/11. Installation may proceed but some features may not work."
-    ${EndIf}
-
-    ; Check for .NET 8 runtime
-    ; Note: Self-contained apps don't need this check
-    ; nsExec::ExecToStack 'dotnet --list-runtimes'
-    ; Pop $0
-    ; ${If} $0 != 0
-    ;     MessageBox MB_YESNO ".NET 8 Runtime not detected. Continue anyway?" IDYES continue
-    ;     Abort
-    ; ${EndIf}
-    ; continue:
 FunctionEnd
 
 Function un.onInit
