@@ -26,8 +26,8 @@ RequestExecutionLevel admin
 !ifndef VERSION
   !define VERSION "0.1.0"
 !endif
-!define PUBLISHER "OISP"
-!define WEBSITE "https://github.com/your-org/oisp-sensor"
+!define PUBLISHER "Oximy"
+!define WEBSITE "https://oisp.dev"
 
 VIProductVersion "${VERSION}.0"
 VIAddVersionKey "ProductName" "OISP Sensor"
@@ -46,7 +46,7 @@ VIAddVersionKey "LegalCopyright" "Copyright (c) 2024 ${PUBLISHER}"
 !define MUI_ABORTWARNING
 !define MUI_ICON "resources\oisp-icon.ico"
 !define MUI_UNICON "resources\oisp-icon.ico"
-!define MUI_WELCOMEFINISHPAGE_BITMAP "resources\welcome.bmp"
+; Note: welcome.bmp is optional - NSIS will use default if not present
 
 ; Welcome page text
 !define MUI_WELCOMEPAGE_TITLE "Welcome to OISP Sensor Setup"
