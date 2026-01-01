@@ -14,6 +14,33 @@ permissions:
   contents: read
 
 jobs:
+  # Build frontend once and share via artifact
+  frontend:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 1
+
   # Security audit
   security:
     name: Security Audit
@@ -26,8 +53,14 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Cache cargo-audit
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-audit
+          key: cargo-audit-0.18
+
       - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
+        run: command -v cargo-audit || cargo install cargo-audit --locked
 
       - name: Run cargo audit
         run: cargo audit
@@ -36,6 +69,7 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    needs: frontend
     steps:
       - uses: actions/checkout@v4
         with:
@@ -57,18 +91,11 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-lint-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v4
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Build frontend
-        run: |
-          cd frontend
-          npm ci
-          npm run build
+          name: frontend-dist
+          path: frontend/dist
 
       - name: Check formatting
         run: cargo fmt --all -- --check
@@ -78,8 +105,9 @@ jobs:
 
   # Build and test on multiple platforms
   build:
-    name: Build (${{ matrix.os }})
+    name: Build (${{ matrix.os }}-${{ matrix.target }})
     runs-on: ${{ matrix.os }}
+    needs: frontend
     strategy:
       fail-fast: false
       matrix:
@@ -114,18 +142,11 @@ jobs:
             target/
           key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v4
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Build frontend
-        run: |
-          cd frontend
-          npm ci
-          npm run build
+          name: frontend-dist
+          path: frontend/dist
 
       # Linux-specific: Install dependencies
       - name: Install Linux dependencies
@@ -164,12 +185,7 @@ jobs:
           echo "WINDIVERT_PATH=$windivertPath" >> $env:GITHUB_ENV
 
       # Build
-      - name: Build (Linux/macOS)
-        if: runner.os != 'Windows'
-        run: cargo build --workspace --target ${{ matrix.target }}
-
-      - name: Build (Windows)
-        if: runner.os == 'Windows'
+      - name: Build
         run: cargo build --workspace --target ${{ matrix.target }}
 
       # Test (skip on cross-compilation)
@@ -180,147 +196,18 @@ jobs:
           (runner.os == 'Windows')
         run: cargo test --workspace --target ${{ matrix.target }}
 
-  # Windows-specific: Build the full Windows distribution
-  windows-build:
-    name: Windows Full Build
-    runs-on: windows-latest
-    needs: build
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: true
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: windows-cargo-release-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Build frontend
-        run: |
-          cd frontend
-          npm ci
-          npm run build
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-
-      - name: Download WinDivert
-        shell: pwsh
-        run: |
-          $version = "2.2.2-A"
-          $url = "https://github.com/basil00/Divert/releases/download/v2.2.2/WinDivert-$version.zip"
-          $dest = Join-Path $PWD "windows" "deps"
-
-          New-Item -ItemType Directory -Force -Path $dest | Out-Null
-          $zipPath = Join-Path $dest "WinDivert.zip"
-          Invoke-WebRequest -Uri $url -OutFile $zipPath
-          Expand-Archive -Path $zipPath -DestinationPath $dest -Force
-
-          # Set environment variable for windivert crate (point to x64 directory containing .lib)
-          $windivertPath = Join-Path $dest "WinDivert-$version" "x64"
-
-          # Verify the files exist
-          Write-Host "WinDivert path: $windivertPath"
-          Write-Host "Contents:"
-          Get-ChildItem $windivertPath
-
-          if (-not (Test-Path (Join-Path $windivertPath "WinDivert.lib"))) {
-            Write-Error "WinDivert.lib not found!"
-            exit 1
-          }
-
-          echo "WINDIVERT_PATH=$windivertPath" >> $env:GITHUB_ENV
-
-      # Build Rust binaries (release)
-      - name: Build Rust binaries
-        run: |
-          cargo build --release --bin oisp-sensor
-          cargo build --release --bin oisp-redirector
-
-      # Generate placeholder icons
-      - name: Generate icons
-        shell: pwsh
-        run: |
-          $resourcesDir = "windows/OISPApp/Resources"
-          New-Item -ItemType Directory -Force -Path $resourcesDir | Out-Null
-
-          # Create minimal ICO files if they dont exist
-          if (-not (Test-Path "$resourcesDir/oisp-icon.ico")) {
-            [byte[]]$ico = @(0,0,1,0,1,0,1,1,0,0,1,0,32,0,40,0,0,0,22,0,0,0,40,0,0,0,1,0,0,0,2,0,0,0,1,0,32,0,0,0,0,0,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,100,100,100,255,0,0,0,0)
-            [System.IO.File]::WriteAllBytes("$resourcesDir/oisp-icon.ico", $ico)
-          }
-          if (-not (Test-Path "$resourcesDir/oisp-icon-active.ico")) {
-            [byte[]]$ico = @(0,0,1,0,1,0,1,1,0,0,1,0,32,0,40,0,0,0,22,0,0,0,40,0,0,0,1,0,0,0,2,0,0,0,1,0,32,0,0,0,0,0,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,34,139,34,255,0,0,0,0)
-            [System.IO.File]::WriteAllBytes("$resourcesDir/oisp-icon-active.ico", $ico)
-          }
-
-      # Build .NET application
-      - name: Build .NET application
-        run: |
-          cd windows/OISPApp
-          dotnet build -c Release
-
-      # Create distribution
-      - name: Create distribution
-        shell: pwsh
-        run: |
-          $distDir = "dist/windows"
-          New-Item -ItemType Directory -Force -Path $distDir | Out-Null
-
-          # Copy Rust binaries
-          Copy-Item "target/release/oisp-sensor.exe" -Destination $distDir
-          Copy-Item "target/release/oisp-redirector.exe" -Destination $distDir
-
-          # Copy .NET app
-          Copy-Item "windows/OISPApp/bin/Release/net8.0-windows/*" -Destination $distDir -Recurse
-
-          # Copy WinDivert
-          Copy-Item "windows/deps/WinDivert-2.2.2-A/x64/WinDivert.dll" -Destination $distDir
-          Copy-Item "windows/deps/WinDivert-2.2.2-A/x64/WinDivert64.sys" -Destination $distDir
-
-          # List contents
-          Get-ChildItem $distDir
-
-      # Upload artifacts
-      - name: Upload Windows distribution
-        uses: actions/upload-artifact@v4
-        with:
-          name: oisp-sensor-windows-x64
-          path: dist/windows/
-          retention-days: 7
-
   # Summary job that depends on all others
   ci-complete:
     name: CI Complete
     runs-on: ubuntu-latest
-    needs: [security, lint, build, windows-build]
+    needs: [security, lint, build]
     if: always()
     steps:
       - name: Check results
         run: |
           if [[ "${{ needs.security.result }}" == "failure" ]] || \
              [[ "${{ needs.lint.result }}" == "failure" ]] || \
-             [[ "${{ needs.build.result }}" == "failure" ]] || \
-             [[ "${{ needs.windows-build.result }}" == "failure" ]]; then
+             [[ "${{ needs.build.result }}" == "failure" ]]; then
             echo "CI failed"
             exit 1
           fi
