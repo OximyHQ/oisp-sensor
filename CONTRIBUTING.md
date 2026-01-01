@@ -139,7 +139,7 @@ cargo run -p oisp-tui
 
 **Location:** `docs-site/`
 
-The documentation at [sensor.oisp.dev](https://sensor.oisp.dev).
+The documentation at [sensor.oximy.com](https://sensor.oximy.com).
 
 **You can help with:**
 - Writing guides and tutorials

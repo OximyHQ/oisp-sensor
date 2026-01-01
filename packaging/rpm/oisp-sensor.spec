@@ -3,7 +3,7 @@ Version:        0.2.0
 Release:        1%{?dist}
 Summary:        Universal AI Observability Sensor
 License:        Apache-2.0
-URL:            https://sensor.oisp.dev
+URL:            https://sensor.oximy.com
 Source0:        %{name}-%{version}.tar.gz
 
 BuildRequires:  systemd-rpm-macros
@@ -66,7 +66,7 @@ fi
 if [ ! -f %{_sysconfdir}/oisp/config.toml ]; then
     cat > %{_sysconfdir}/oisp/config.toml << 'EOF'
 # OISP Sensor Configuration
-# See https://sensor.oisp.dev/configuration for documentation
+# See https://sensor.oximy.com/configuration for documentation
 
 [sensor]
 name = "oisp-sensor"

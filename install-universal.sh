@@ -1,6 +1,6 @@
 #!/bin/sh
 # OISP Sensor Universal Linux Installer
-# Usage: curl -sSL https://sensor.oisp.dev/install.sh | sh
+# Usage: curl -fsSL https://oisp.dev/install.sh | sh
 #
 # Supports: Ubuntu, Debian, RHEL, Rocky, Alma, Fedora, Arch, Alpine
 #
@@ -340,7 +340,7 @@ install_binary() {
             sudo tee /etc/systemd/system/oisp-sensor.service > /dev/null << 'EOF'
 [Unit]
 Description=OISP Sensor - Universal AI Observability
-Documentation=https://sensor.oisp.dev
+Documentation=https://sensor.oximy.com
 After=network.target
 
 [Service]
@@ -427,7 +427,7 @@ main() {
     echo "  3. Access Web UI:"
     echo "     http://localhost:7777"
     echo ""
-    echo "Documentation: https://sensor.oisp.dev"
+    echo "Documentation: https://sensor.oximy.com"
     echo ""
 }
 

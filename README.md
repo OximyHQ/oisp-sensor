@@ -49,7 +49,7 @@ OISP Sensor captures **every AI interaction** on a machine—prompts, responses,
 - Identify personal vs corporate API key usage
 - Enforce AI usage policies across the organization
 
-**→ [macOS Guide](https://sensor.oisp.dev/platforms/macos/)** · **[Windows Guide](https://sensor.oisp.dev/platforms/windows/)**
+**→ [macOS Guide](https://sensor.oximy.com/platforms/macos/)** · **[Windows Guide](https://sensor.oximy.com/platforms/windows/)**
 
 ---
 
@@ -61,13 +61,13 @@ OISP Sensor captures **every AI interaction** on a machine—prompts, responses,
 
 ```bash
 # Linux
-curl -fsSL https://sensor.oisp.dev/install.sh | sudo sh
+curl -fsSL https://oisp.dev/install.sh | sudo sh
 
 # Docker
 docker run --privileged ghcr.io/oximyhq/sensor:latest
 
 # Kubernetes (DaemonSet)
-kubectl apply -f https://sensor.oisp.dev/manifests/daemonset.yaml
+kubectl apply -f https://oisp.dev/manifests/daemonset.yaml
 ```
 
 ### How It Works
@@ -85,7 +85,7 @@ kubectl apply -f https://sensor.oisp.dev/manifests/daemonset.yaml
 - Detect anomalous agent actions or data access
 - Audit agent interactions for compliance
 
-**→ [Linux Guide](https://sensor.oisp.dev/platforms/linux/)** · **[Docker Guide](https://sensor.oisp.dev/platforms/docker/)** · **[Kubernetes Guide](https://sensor.oisp.dev/platforms/kubernetes/)**
+**→ [Linux Guide](https://sensor.oximy.com/platforms/linux/)** · **[Docker Guide](https://sensor.oximy.com/platforms/docker/)** · **[Kubernetes Guide](https://sensor.oximy.com/platforms/kubernetes/)**
 
 ---
 
@@ -101,16 +101,16 @@ kubectl apply -f https://sensor.oisp.dev/manifests/daemonset.yaml
 
 **Providers:** OpenAI, Anthropic, Google, Azure, AWS Bedrock, Mistral, Groq, Cohere, DeepSeek, Ollama, and any OpenAI-compatible API.
 
-**→ [Event Schema](https://sensor.oisp.dev/reference/events/)** · **[OISP Spec](https://oisp.dev)**
+**→ [Event Schema](https://sensor.oximy.com/reference/events/)** · **[OISP Spec](https://oisp.dev)**
 
 ---
 
 ## Documentation
 
-- **[Getting Started](https://sensor.oisp.dev/getting-started/)** — Installation and first steps
-- **[Cookbooks](https://sensor.oisp.dev/cookbooks/)** — Ready-to-run examples (Python, Node.js, LangChain, n8n)
-- **[Platform Guides](https://sensor.oisp.dev/platforms/)** — Detailed setup for each platform
-- **[Configuration](https://sensor.oisp.dev/configuration/)** — Exports, filtering, redaction
+- **[Getting Started](https://sensor.oximy.com/getting-started/)** — Installation and first steps
+- **[Cookbooks](https://sensor.oximy.com/cookbooks/)** — Ready-to-run examples (Python, Node.js, LangChain, n8n)
+- **[Platform Guides](https://sensor.oximy.com/platforms/)** — Detailed setup for each platform
+- **[Configuration](https://sensor.oximy.com/configuration/)** — Exports, filtering, redaction
 
 ---
 
@@ -152,7 +152,7 @@ Apache 2.0 — See [LICENSE](LICENSE)
 
 <p align="center">
   <a href="https://oximy.com">Oximy</a> ·
-  <a href="https://sensor.oisp.dev">Docs</a> ·
+  <a href="https://sensor.oximy.com">Docs</a> ·
   <a href="https://oisp.dev">OISP Spec</a> ·
   <a href="https://github.com/oximyhq/oisp-cookbook">Cookbooks</a>
 </p>

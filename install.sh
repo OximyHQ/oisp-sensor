@@ -1,6 +1,6 @@
 #!/bin/sh
 # OISP Sensor Installer
-# Usage: curl -sSL https://sensor.oisp.dev/install.sh | sh
+# Usage: curl -fsSL https://oisp.dev/install.sh | sh
 #
 # Environment variables:
 #   INSTALL_DIR    - Installation directory (default: /usr/local/bin)
@@ -175,7 +175,7 @@ if [ "$OS" = "linux" ]; then
         sudo tee "$SERVICE_FILE" > /dev/null << 'EOF'
 [Unit]
 Description=OISP Sensor - Universal AI Observability
-Documentation=https://sensor.oisp.dev
+Documentation=https://sensor.oximy.com
 After=network.target
 
 [Service]
@@ -264,5 +264,5 @@ echo "  sudo oisp-sensor record  # Start recording"
 fi
 echo ""
 echo "Web UI:  http://localhost:7777"
-echo "Docs:    https://sensor.oisp.dev"
+echo "Docs:    https://sensor.oximy.com"
 echo ""

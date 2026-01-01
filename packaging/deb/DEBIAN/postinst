@@ -30,7 +30,7 @@ fi
 if [ ! -f /etc/oisp/config.toml ]; then
     cat > /etc/oisp/config.toml << 'EOF'
 # OISP Sensor Configuration
-# See https://sensor.oisp.dev/configuration for documentation
+# See https://sensor.oximy.com/configuration for documentation
 
 [sensor]
 name = "oisp-sensor"

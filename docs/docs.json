@@ -201,7 +201,7 @@
   },
   "analytics": {
     "plausible": {
-      "domain": "sensor.oisp.dev"
+      "domain": "sensor.oximy.com"
     }
   },
   "feedback": {

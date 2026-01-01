@@ -1,6 +1,6 @@
 [Unit]
 Description=OISP Sensor - Universal AI Observability
-Documentation=https://sensor.oisp.dev
+Documentation=https://sensor.oximy.com
 After=network.target
 
 [Service]
