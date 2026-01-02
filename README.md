@@ -1,14 +1,8 @@
 <p align="center">
-  <a href="https://oximy.com">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oximyhq/sensor/main/assets/logo-dark.svg">
-      <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/oximyhq/sensor/main/assets/logo-light.svg">
-      <img src="https://raw.githubusercontent.com/oximyhq/sensor/main/assets/logo-light.svg" alt="OISP Sensor" width="80">
-    </picture>
+  <a href="https://sensor.oximy.com">
+    <img src="https://raw.githubusercontent.com/oximyhq/sensor/main/assets/banner.png" alt="OISP Sensor" width="100%">
   </a>
 </p>
-<p align="center"><b>OISP Sensor</b></p>
-<p align="center">See every AI interaction. Zero instrumentation.</p>
 <p align="center">
   <a href="https://github.com/oximyhq/sensor/releases"><img alt="Release" src="https://img.shields.io/github/v/release/oximyhq/sensor?style=flat-square" /></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square" /></a>
@@ -17,9 +11,7 @@
 
 ---
 
-## What It Does
-
-OISP Sensor captures **every AI interaction** on a machine—prompts, responses, tool calls, agent actions—without instrumenting applications. One binary, zero config, complete visibility.
+OISP Sensor is built on top of Open Inference Standard Protocol and captures **every AI interaction** on a machine—prompts, responses, tool calls, agent actions—without instrumenting applications. One binary, zero config, complete visibility.
 
 ---
 
