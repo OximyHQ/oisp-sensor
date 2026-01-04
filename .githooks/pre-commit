@@ -10,6 +10,14 @@ set -e
 
 echo "Running pre-commit checks..."
 
+# Update oisp-app-registry submodule to latest main
+echo "[0/3] Updating oisp-app-registry to latest..."
+git submodule update --remote oisp-app-registry
+if ! git diff --quiet oisp-app-registry 2>/dev/null; then
+    echo "  oisp-app-registry updated, staging changes..."
+    git add oisp-app-registry
+fi
+
 # Source common paths for cargo (needed for GUI git clients)
 if [ -z "$CARGO_HOME" ]; then
     CARGO_HOME="$HOME/.cargo"
